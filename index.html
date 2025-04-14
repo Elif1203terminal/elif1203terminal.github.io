@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Elif1203 Terminal</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      color: #33ff33;
+      font-family: 'Courier New', monospace;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+    #terminal {
+      max-width: 800px;
+      margin: auto;
+      white-space: pre-wrap;
+    }
+    .title {
+      font-size: 2em;
+      color: #fff;
+      text-shadow: 0 0 5px #0f0;
+      margin-bottom: 10px;
+      animation: flicker 1.5s infinite alternate;
+    }
+    @keyframes flicker {
+      from { opacity: 1; }
+      to   { opacity: 0.8; }
+    }
+    .prompt {
+      display: inline;
+    }
+    .input-line {
+      display: inline;
+    }
+    a {
+      color: #00ffff;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div id="terminal">
+    <div class="title">Elif1203</div>
+    <div class="prompt-line"><span class="prompt">Elif@github:~$</span> <span class="input-line" id="input-line"></span><span class="cursor" id="cursor">█</span></div>
+    <div id="output"></div>
+  </div>
+
+  <script>
+    const inputLine = document.getElementById("input-line");
+    const output = document.getElementById("output");
+    const cursor = document.getElementById("cursor");
+    let command = "";
+
+    const helpText = `
+Available commands:
+  help        - Show this help message
+  ls          - List directories
+  cat blog/   - Enter the blog directory
+  cat my_story/ - Enter the story directory
+  open youtube/ - Open Elif's YouTube
+
+`;
+
+    const homeListing = `
+blog/
+my_story/
+youtube/ → https://www.youtube.com/@Elif_1203/playlists
+`;
+
+    function print(text) {
+      output.innerHTML += `<div>${text}</div>`;
+      window.scrollTo(0, document.body.scrollHeight);
+    }
+
+    function handleCommand(cmd) {
+      const trimmed = cmd.trim();
+      print(`Elif@github:~$ ${trimmed}`);
+      switch (trimmed) {
+        case "help":
+          print(helpText);
+          break;
+        case "ls":
+          print(homeListing);
+          break;
+        case "cat blog/":
+          print("Opening blog entries... [Coming Soon]");
+          break;
+        case "cat my_story/":
+          print("Displaying Elif's story... [Coming Soon]");
+          break;
+        case "open youtube/":
+          window.open("https://www.youtube.com/@Elif_1203/playlists", "_blank");
+          break;
+        case "":
+          break;
+        default:
+          print(`Command not found: ${trimmed}`);
+      }
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Backspace") {
+        command = command.slice(0, -1);
+        inputLine.textContent = command;
+      } else if (e.key === "Enter") {
+        handleCommand(command);
+        command = "";
+        inputLine.textContent = "";
+      } else if (e.key.length === 1) {
+        command += e.key;
+        inputLine.textContent = command;
+      }
+    });
+
+    // Flickering cursor
+    setInterval(() => {
+      cursor.style.opacity = cursor.style.opacity === "0" ? "1" : "0";
+    }, 500);
+  </script>
+</body>
+</html>
