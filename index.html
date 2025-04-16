@@ -374,9 +374,45 @@ And for someone to stay long enough to understand why I mourn.
       }
       binaryTitle.textContent = glitched;
     }, 130);
+
+
+// --- Fix for mobile keyboard and syncing with fake terminal input ---
+const mobileInput = document.createElement("input");
+mobileInput.setAttribute("type", "text");
+mobileInput.setAttribute("id", "mobileInputFix");
+mobileInput.setAttribute("autocomplete", "off");
+mobileInput.style.position = "absolute";
+mobileInput.style.opacity = "0";
+mobileInput.style.pointerEvents = "none";
+mobileInput.style.height = "0";
+mobileInput.style.fontSize = "16px"; // avoids iOS zoom on focus
+document.body.appendChild(mobileInput);
+
+// Sync real input with fake terminal input
+mobileInput.addEventListener("input", () => {
+  command = mobileInput.value;
+  inputLine.textContent = command;
+});
+
+// Click/tap anywhere focuses the invisible input
+document.addEventListener("click", () => {
+  mobileInput.focus();
+});
+
+// Trigger command on Enter
+mobileInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    handleCommand(command);
+    command = "";
+    inputLine.textContent = "";
+    mobileInput.value = "";
+  }
+});
+
   </script>
 </body>
 </html>
+
 
 
 
