@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASCII Image Converter</title>
+  <style>
+    body { background: #000; color: #33ff33; font-family: 'Courier New', monospace; padding: 20px; }
+    #ascii-output { white-space: pre; overflow: auto; font-size: 6px; line-height: 6px; max-width: 100%; }
+    input { color: #33ff33; background: #222; border: 1px solid #33ff33; }
+    button {
+      color: #000; background: #33ff33; border: none; padding: 5px 10px; cursor: pointer; margin-top: 10px;
+    }
+    #save-btn {
+      display: none; /* Initially hidden until ASCII is generated */
+    }
+  </style>
+</head>
+<body>
+  <h3>Image to ASCII Converter</h3>
+  <input type="file" id="upload"><br><br>
+  <button onclick="convert()">Convert Image</button>
+  <button id="save-btn">Save ASCII as .txt</button>
+  <pre id="ascii-output"></pre>
+
+<script>
+let asciiArtGlobal = '';
+
+function convert() {
+  const file = document.getElementById('upload').files[0];
+  if (!file) return alert('Please select an image!');
+  
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const img = new Image();
+  
+  const reader = new FileReader();
+  reader.onload = function(event) {
+    img.src = event.target.result;
+  };
+  reader.readAsDataURL(file);
+  
+  img.onload = () => {
+    const maxDimension = 200;
+    let {width, height} = img;
+    
+    if (width > height && width > maxDimension) {
+      height *= maxDimension / width;
+      width = maxDimension;
+    } else if (height > maxDimension) {
+      width *= maxDimension / height;
+      height = maxDimension;
+    }
+    
+    canvas.width = width;
+    canvas.height = height;
+    ctx.drawImage(img, 0, 0, width, height);
+    
+    const imgData = ctx.getImageData(0, 0, width, height);
+    const data = imgData.data;
+    const asciiChars = '@%#*+=-:. ';
+    let asciiArt = '';
+    
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const offset = (y * width + x) * 4;
+        const r = data[offset];
+        const g = data[offset + 1];
+        const b = data[offset + 2];
+        const brightness = (r + g + b) / 3;
+        const charIndex = Math.floor(brightness / 255 * (asciiChars.length - 1));
+        asciiArt += asciiChars[charIndex];
+      }
+      asciiArt += '\n';
+    }
+
+    asciiArtGlobal = asciiArt; // Store ASCII globally for saving
+
+    document.getElementById('ascii-output').textContent = asciiArt;
+
+    // Show Save button after generation
+    document.getElementById('save-btn').style.display = 'inline-block';
+  };
+}
+
+document.getElementById('save-btn').onclick = () => {
+  if (!asciiArtGlobal) return alert('Nothing to save! Generate ASCII first.');
+
+  const blob = new Blob([asciiArtGlobal], {type: 'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'ascii_art.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+</script>
+</body>
+</html>
