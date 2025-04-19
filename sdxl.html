@@ -1,1 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SDXL Image Generator</title>
+  <style>
+    body {
+      background: #000;
+      color: #33ff33;
+      font-family: 'Courier New', monospace;
+      padding: 20px;
+    }
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      background: #111;
+      border: 1px solid #33ff33;
+      color: #33ff33;
+    }
+    button {
+      background: #33ff33;
+      color: #000;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #output {
+      margin-top: 20px;
+    }
+    img {
+      max-width: 100%;
+      border: 1px solid #33ff33;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🧠 Elif SDXL Image Generator</h2>
+  <input type="text" id="prompt" placeholder="Type your prompt (e.g., cyberpunk chibi of Elif)" />
+  <button onclick="generateImage()">▶ Generate Image</button>
+  <div id="output"></div>
+
+  <script>
+    async function generateImage() {
+      const prompt = document.getElementById("prompt").value.trim();
+      const output = document.getElementById("output");
+      if (!prompt) return alert("Please enter a prompt.");
+
+      output.innerHTML = "⏳ Generating... Please wait.";
+
+      try {
+        const res = await fetch("https://sdlx.cbhunting25.workers.dev/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ prompt })
+        });
+
+        const data = await res.json();
+        if (data.image) {
+          output.innerHTML = `<img src="${data.image}" alt="Generated Image"><p>${prompt}</p>`;
+        } else {
+          output.innerHTML = `⚠️ Error: ${data.error || "No image returned."}`;
+        }
+      } catch (err) {
+        output.innerHTML = "⚠️ Error: " + err.message;
+      }
+    }
+  </script>
+</body>
+</html>
 
