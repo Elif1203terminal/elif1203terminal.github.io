@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Encryption / Decryption Suite</title>
+  <style>
+    body {
+      background: #000;
+      color: #33ff33;
+      font-family: 'Courier New', monospace;
+      padding: 20px;
+    }
+    select, input, textarea, button {
+      background: #111;
+      color: #33ff33;
+      border: 1px solid #33ff33;
+      padding: 5px;
+      margin: 5px 0;
+      font-family: inherit;
+      width: 100%;
+    }
+    button {
+      background: #33ff33;
+      color: #000;
+      cursor: pointer;
+    }
+    textarea {
+      height: 100px;
+    }
+    .section {
+      margin-top: 30px;
+      border-top: 1px dashed #33ff33;
+      padding-top: 10px;
+    }
+    #qrOutput {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h3>🔐 Elif Encryption / Decryption Suite</h3>
+
+  <label>Select Operation:</label>
+  <select id="mode">
+    <option value="aes-encrypt">AES Encrypt</option>
+    <option value="aes-decrypt">AES Decrypt</option>
+    <option value="rsa-generate">RSA Keypair (2048-bit)</option>
+    <option value="rsa-encrypt">RSA Encrypt</option>
+    <option value="rsa-decrypt">RSA Decrypt</option>
+    <option value="base64-encode">Base64 Encode</option>
+    <option value="base64-decode">Base64 Decode</option>
+    <option value="hex-encode">Hex Encode</option>
+    <option value="hex-decode">Hex Decode</option>
+    <option value="binary-encode">Binary Encode</option>
+    <option value="binary-decode">Binary Decode</option>
+    <option value="rot13">ROT13</option>
+    <option value="caesar">Caesar Cipher</option>
+    <option value="xor">XOR Cipher</option>
+  </select>
+
+  <div class="section">
+    <label>Input Text:</label>
+    <textarea id="inputText"></textarea>
+    
+    <div id="keyInputArea">
+      <label>Key (if required):</label>
+      <input type="text" id="keyInput" placeholder="AES Key, Caesar Shift, XOR Key, etc." />
+    </div>
+
+    <button onclick="run()">▶ Run Operation</button>
+    <button onclick="generateQR()">📎 Generate QR from Output</button>
+    <button onclick="downloadResult()">💾 Save Result as .txt</button>
+
+    <div class="section">
+      <label>Output:</label>
+      <textarea id="outputText" readonly></textarea>
+      <div id="qrOutput"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/crypto-js.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.3.2/bin/jsencrypt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.0/build/qrcode.min.js"></script>
+
+  <script>
+    const modeEl = document.getElementById('mode');
+    const inputText = document.getElementById('inputText');
+    const keyInput = document.getElementById('keyInput');
+    const outputText = document.getElementById('outputText');
+    const qrOutput = document.getElementById('qrOutput');
+
+    function run() {
+      const mode = modeEl.value;
+      const input = inputText.value;
+      const key = keyInput.value;
+      let result = '';
+
+      try {
+        switch(mode) {
+          case 'aes-encrypt':
+            result = CryptoJS.AES.encrypt(input, key).toString();
+            break;
+          case 'aes-decrypt':
+            result = CryptoJS.AES.decrypt(input, key).toString(CryptoJS.enc.Utf8);
+            break;
+          case 'rsa-generate':
+            const rsa = new JSEncrypt({ default_key_size: 2048 });
+            rsa.getKey();
+            result = 'Public Key:\n' + rsa.getPublicKey() + '\n\nPrivate Key:\n' + rsa.getPrivateKey();
+            break;
+          case 'rsa-encrypt':
+            const enc = new JSEncrypt();
+            enc.setPublicKey(key);
+            result = enc.encrypt(input);
+            break;
+          case 'rsa-decrypt':
+            const dec = new JSEncrypt();
+            dec.setPrivateKey(key);
+            result = dec.decrypt(input);
+            break;
+          case 'base64-encode':
+            result = btoa(unescape(encodeURIComponent(input)));
+            break;
+          case 'base64-decode':
+            result = decodeURIComponent(escape(atob(input)));
+            break;
+          case 'hex-encode':
+            result = CryptoJS.enc.Hex.stringify(CryptoJS.enc.Utf8.parse(input));
+            break;
+          case 'hex-decode':
+            result = CryptoJS.enc.Hex.parse(input).toString(CryptoJS.enc.Utf8);
+            break;
+          case 'binary-encode':
+            result = input.split('').map(c => c.charCodeAt(0).toString(2).padStart(8, '0')).join(' ');
+            break;
+          case 'binary-decode':
+            result = input.split(' ').map(b => String.fromCharCode(parseInt(b, 2))).join('');
+            break;
+          case 'rot13':
+            result = input.replace(/[a-zA-Z]/g, c => 
+              String.fromCharCode((c <= 'Z' ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26));
+            break;
+          case 'caesar':
+            const shift = parseInt(key) || 0;
+            result = input.replace(/[a-zA-Z]/g, c => {
+              const base = c <= 'Z' ? 65 : 97;
+              return String.fromCharCode((c.charCodeAt(0) - base + shift) % 26 + base);
+            });
+            break;
+          case 'xor':
+            result = input.split('').map((char, i) => 
+              String.fromCharCode(char.charCodeAt(0) ^ key.charCodeAt(i % key.length))).join('');
+            break;
+        }
+      } catch (e) {
+        result = '[Error] ' + e.message;
+      }
+
+      outputText.value = result;
+    }
+
+    function generateQR() {
+      qrOutput.innerHTML = '';
+      const data = outputText.value.trim();
+      if (!data) return alert('No output to convert.');
+      QRCode.toCanvas(document.createElement('canvas'), data, { width: 180 }, (err, canvas) => {
+        if (err) return alert('QR Error');
+        qrOutput.appendChild(canvas);
+      });
+    }
+
+    function downloadResult() {
+      const data = outputText.value;
+      if (!data) return alert('Nothing to save!');
+      const blob = new Blob([data], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'elif_encryption_output.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
