@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Elif Regex</title>
+  <style>
+    body {
+      background: #000;
+      color: #33ff33;
+      font-family: 'Courier New', monospace;
+      padding: 20px;
+    }
+
+    h2 {
+      color: #00ff99;
+      text-shadow: 0 0 5px #33ff33;
+    }
+
+    label {
+      font-weight: bold;
+      display: block;
+      margin-top: 20px;
+    }
+
+    input, textarea {
+      background: #111;
+      color: #33ff33;
+      border: 1px solid #33ff33;
+      width: 100%;
+      padding: 8px;
+      font-family: inherit;
+      font-size: 14px;
+      box-sizing: border-box;
+      margin-top: 5px;
+    }
+
+    textarea {
+      height: 150px;
+    }
+
+    .highlight {
+      background-color: #003300;
+      color: #00ffff;
+      font-weight: bold;
+    }
+
+    #output {
+      white-space: pre-wrap;
+      margin-top: 20px;
+      border-top: 1px dashed #33ff33;
+      padding-top: 10px;
+    }
+
+    button {
+      background: #33ff33;
+      color: #000;
+      font-weight: bold;
+      border: none;
+      padding: 10px 20px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+
+    .example-patterns {
+      margin-top: 15px;
+      font-size: 13px;
+      color: #aaa;
+    }
+
+    .example-patterns code {
+      display: block;
+      margin: 3px 0;
+    }
+  </style>
+</head>
+<body>
+  <h2>🧪 Elif Regex — Pattern Matcher</h2>
+
+  <label for="regex">Regex Pattern:</label>
+  <input type="text" id="regex" placeholder="e.g. \\b\\w+@\\w+\\.\\w+\\b (matches emails)">
+
+  <label for="flags">Flags (optional):</label>
+  <input type="text" id="flags" placeholder="g, i, m, u...">
+
+  <label for="text">Text to Test:</label>
+  <textarea id="text" placeholder="Paste log files, text, or data here..."></textarea>
+
+  <button onclick="runRegex()">▶ Run Pattern Match</button>
+
+  <div class="example-patterns">
+    <strong>Examples:</strong>
+    <code>Email: \b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b</code>
+    <code>IPv4: \b\d{1,3}(?:\.\d{1,3}){3}\b</code>
+    <code>Hex Color: #(?:[0-9a-fA-F]{3}){1,2}</code>
+    <code>ZIP Code: \b\d{5}\b</code>
+    <code>Tags: &lt;[^&gt;]*&gt;</code>
+  </div>
+
+  <div id="output"></div>
+
+  <script>
+    function escapeHtml(text) {
+      return text.replace(/[&<>"']/g, (match) => {
+        const escape = {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#039;'
+        };
+        return escape[match];
+      });
+    }
+
+    function runRegex() {
+      const pattern = document.getElementById('regex').value;
+      const flags = document.getElementById('flags').value;
+      const text = document.getElementById('text').value;
+      const output = document.getElementById('output');
+
+      try {
+        const regex = new RegExp(pattern, flags);
+        const safeText = escapeHtml(text);
+
+        const result = safeText.replace(regex, match => `<span class="highlight">${match}</span>`);
+        output.innerHTML = `<strong>Result:</strong><br><pre>${result}</pre>`;
+      } catch (e) {
+        output.innerHTML = `<span style="color: red;">[Regex Error] ${e.message}</span>`;
+      }
+    }
+  </script>
+</body>
+</html>
