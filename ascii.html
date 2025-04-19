@@ -1,101 +1,258 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ASCII Image Converter</title>
   <style>
-    body { background: #000; color: #33ff33; font-family: 'Courier New', monospace; padding: 20px; }
-    #ascii-output { white-space: pre; overflow: auto; font-size: 6px; line-height: 6px; max-width: 100%; }
-    input { color: #33ff33; background: #222; border: 1px solid #33ff33; }
-    button {
-      color: #000; background: #33ff33; border: none; padding: 5px 10px; cursor: pointer; margin-top: 10px;
+    body {
+      background: #000;
+      color: #33ff33;
+      font-family: 'Courier New', monospace;
+      padding: 20px;
     }
-    #save-btn {
-      display: none; /* Initially hidden until ASCII is generated */
+    #ascii-output {
+      white-space: pre-wrap;
+      overflow: auto;
+      font-size: 6px;
+      line-height: 6px;
+      max-width: 100%;
+      transition: font-family 0.3s;
+    }
+    #canvas-wrapper {
+      overflow: scroll;
+      border: 1px solid #33ff33;
+      max-height: 400px;
+      cursor: grab;
+      margin-bottom: 10px;
+    }
+    canvas {
+      display: block;
+      background: #000;
+    }
+    input, select {
+      color: #33ff33;
+      background: #222;
+      border: 1px solid #33ff33;
+      margin: 4px 0;
+    }
+    button {
+      color: #000;
+      background: #33ff33;
+      border: none;
+      padding: 5px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    .scroll-animate {
+      animation: scrollText 15s linear infinite;
+    }
+    @keyframes scrollText {
+      0% { transform: translateY(100%); }
+      100% { transform: translateY(-100%); }
     }
   </style>
 </head>
 <body>
-  <h3>Image to ASCII Converter</h3>
-  <input type="file" id="upload"><br><br>
+  <h3>🧬 ASCII Image Converter</h3>
+
+  <input type="file" id="upload">
+  <button onclick="startCamera()">Use Live Camera</button><br>
+
+  <label>Brightness: <input type="range" id="brightness" min="0" max="2" step="0.1" value="1"></label>
+  <label>Contrast: <input type="range" id="contrast" min="0" max="4" step="0.1" value="1"></label>
+  <label>Resolution Scale: <input type="range" id="scale" min="0.1" max="2" step="0.1" value="1"></label>
+  <label>ASCII Shades: 
+    <select id="shades">
+      <option value="@%#*+=-:. ">Dense</option>
+      <option value="$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\|()1{}[]?-_+~<>i!lI;:,\^`'. ">Medium</option>
+      <option value=" .:-=+*#%@">Simple</option>
+    </select>
+  </label>
+
+  <label><input type="checkbox" id="colorMode"> Enable Color ASCII</label>
+  <label><input type="checkbox" id="pixelFont"> Use Pixel Font</label>
+  <label><input type="checkbox" id="animateText"> Animate Scrolling Text</label>
+
   <button onclick="convert()">Convert Image</button>
-  <button id="save-btn">Save ASCII as .txt</button>
+  <button onclick="downloadASCII()">Download .txt</button>
+  <button onclick="downloadHTML()">Download .html</button>
+  <button onclick="copyEmbed()">Copy Embed Code</button>
+
+  <div id="canvas-wrapper">
+    <canvas id="canvas"></canvas>
+    <video id="video" autoplay style="display:none;"></video>
+  </div>
+
   <pre id="ascii-output"></pre>
 
-<script>
-let asciiArtGlobal = '';
+  <script>
+    let asciiText = '';
+    let asciiHTML = '';
+    let cameraActive = false;
 
-function convert() {
-  const file = document.getElementById('upload').files[0];
-  if (!file) return alert('Please select an image!');
-  
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  const img = new Image();
-  
-  const reader = new FileReader();
-  reader.onload = function(event) {
-    img.src = event.target.result;
-  };
-  reader.readAsDataURL(file);
-  
-  img.onload = () => {
-    const maxDimension = 200;
-    let {width, height} = img;
-    
-    if (width > height && width > maxDimension) {
-      height *= maxDimension / width;
-      width = maxDimension;
-    } else if (height > maxDimension) {
-      width *= maxDimension / height;
-      height = maxDimension;
+    function convert() {
+      const file = document.getElementById("upload").files[0];
+      if (!file && !cameraActive) return alert("Upload an image or enable the camera first.");
+      if (cameraActive) return convertCameraFrame();
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = () => processImage(img);
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
     }
-    
-    canvas.width = width;
-    canvas.height = height;
-    ctx.drawImage(img, 0, 0, width, height);
-    
-    const imgData = ctx.getImageData(0, 0, width, height);
-    const data = imgData.data;
-    const asciiChars = '@%#*+=-:. ';
-    let asciiArt = '';
-    
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const offset = (y * width + x) * 4;
-        const r = data[offset];
-        const g = data[offset + 1];
-        const b = data[offset + 2];
-        const brightness = (r + g + b) / 3;
-        const charIndex = Math.floor(brightness / 255 * (asciiChars.length - 1));
-        asciiArt += asciiChars[charIndex];
+
+    function startCamera() {
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+        video.srcObject = stream;
+        cameraActive = true;
+        video.style.display = "block";
+        canvas.style.display = "none";
+        setInterval(() => convertCameraFrame(), 1000);
+      });
+    }
+
+    function convertCameraFrame() {
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      const scale = parseFloat(document.getElementById("scale").value);
+      canvas.width = video.videoWidth * scale;
+      canvas.height = video.videoHeight * scale;
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      processImage(canvas);
+    }
+
+    function processImage(source) {
+      const brightness = parseFloat(document.getElementById("brightness").value);
+      const contrast = parseFloat(document.getElementById("contrast").value);
+      const scale = parseFloat(document.getElementById("scale").value);
+      const shades = document.getElementById("shades").value;
+      const colorMode = document.getElementById("colorMode").checked;
+      const pixelFont = document.getElementById("pixelFont").checked;
+      const animate = document.getElementById("animateText").checked;
+
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      if (source instanceof HTMLImageElement) {
+        canvas.width = source.width * scale;
+        canvas.height = source.height * scale;
+        ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
       }
-      asciiArt += '\n';
+
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+
+      for (let i = 0; i < data.length; i += 4) {
+        for (let j = 0; j < 3; j++) {
+          let val = data[i + j] / 255;
+          val -= 0.5;
+          val *= contrast;
+          val += 0.5;
+          val *= brightness;
+          data[i + j] = Math.min(255, Math.max(0, val * 255));
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      const grayData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let ascii = '';
+      let html = '';
+      for (let y = 0; y < canvas.height; y += 6) {
+        let asciiLine = '';
+        let htmlLine = '';
+        for (let x = 0; x < canvas.width; x += 3) {
+          const i = (y * canvas.width + x) * 4;
+          const r = grayData[i], g = grayData[i + 1], b = grayData[i + 2];
+          const avg = (r + g + b) / 3;
+          const char = shades[Math.floor((avg / 255) * (shades.length - 1))];
+          asciiLine += char;
+          htmlLine += `<span style="color:rgb(${r},${g},${b})">${char}</span>`;
+        }
+        ascii += asciiLine + '\n';
+        html += htmlLine + '<br>';
+      }
+
+      const output = document.getElementById("ascii-output");
+      output.className = animate ? 'scroll-animate' : '';
+      output.style.fontFamily = pixelFont ? 'Pixel, monospace' : 'monospace';
+
+      asciiText = ascii;
+      asciiHTML = html;
+
+      if (colorMode) {
+        output.innerHTML = asciiHTML;
+      } else {
+        output.textContent = asciiText;
+      }
     }
 
-    asciiArtGlobal = asciiArt; // Store ASCII globally for saving
+    function downloadASCII() {
+      const blob = new Blob([asciiText], { type: "text/plain" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "ascii_art.txt";
+      a.click();
+    }
 
-    document.getElementById('ascii-output').textContent = asciiArt;
+    function downloadHTML() {
+      const pixelFont = document.getElementById("pixelFont").checked;
+      const animate = document.getElementById("animateText").checked;
+      const html = `
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<style>
+  body { background:#000; color:#33ff33; font-family:${pixelFont ? 'Pixel, monospace' : 'monospace'}; }
+  pre { white-space: pre-wrap; font-size: 6px; line-height: 6px; ${animate ? 'animation: scrollText 15s linear infinite;' : ''} }
+  @keyframes scrollText {
+    0% { transform: translateY(100%); }
+    100% { transform: translateY(-100%); }
+  }
+</style></head><body>
+<pre>${asciiHTML}</pre>
+</body></html>`;
 
-    // Show Save button after generation
-    document.getElementById('save-btn').style.display = 'inline-block';
-  };
-}
+      const blob = new Blob([html], { type: "text/html" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "ascii_art.html";
+      a.click();
+    }
 
-document.getElementById('save-btn').onclick = () => {
-  if (!asciiArtGlobal) return alert('Nothing to save! Generate ASCII first.');
+    function copyEmbed() {
+      const embedCode = `<pre style="background:#000;color:#33ff33;font-family:monospace;white-space:pre-wrap;font-size:6px;line-height:6px;">${asciiHTML}</pre>`;
+      navigator.clipboard.writeText(embedCode).then(() => alert("Embed code copied to clipboard."));
+    }
 
-  const blob = new Blob([asciiArtGlobal], {type: 'text/plain'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'ascii_art.txt';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-};
-</script>
+    const wrapper = document.getElementById('canvas-wrapper');
+    let isDown = false;
+    let startX, scrollLeft;
+    wrapper.addEventListener('mousedown', e => {
+      isDown = true;
+      startX = e.pageX - wrapper.offsetLeft;
+      scrollLeft = wrapper.scrollLeft;
+    });
+    wrapper.addEventListener('mouseleave', () => isDown = false);
+    wrapper.addEventListener('mouseup', () => isDown = false);
+    wrapper.addEventListener('mousemove', e => {
+      if (!isDown) return;
+      e.preventDefault();
+      const x = e.pageX - wrapper.offsetLeft;
+      const walk = (x - startX) * 1.5;
+      wrapper.scrollLeft = scrollLeft - walk;
+    });
+  </script>
 </body>
 </html>
+
