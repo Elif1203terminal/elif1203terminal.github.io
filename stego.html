@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Elif Steganography</title>
+  <style>
+    body {
+      background-color: #000;
+      color: #33ff33;
+      font-family: 'Courier New', monospace;
+      padding: 20px;
+    }
+    input, select, textarea {
+      background: #111;
+      color: #33ff33;
+      border: 1px solid #33ff33;
+      padding: 5px;
+      margin-top: 5px;
+      font-family: inherit;
+      width: 100%;
+    }
+    button {
+      background: #33ff33;
+      color: #000;
+      border: none;
+      padding: 5px 10px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    canvas {
+      display: none;
+    }
+    img.preview {
+      max-width: 100%;
+      margin-top: 10px;
+      border: 1px solid #33ff33;
+    }
+    .section {
+      margin-top: 30px;
+      border-top: 1px dashed #33ff33;
+      padding-top: 20px;
+    }
+    #decodeOutput {
+      margin-top: 20px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h3>Elif Steganography</h3>
+
+  <!-- Upload Carrier Image -->
+  <label>Upload Carrier Image (.png or .jpg):</label>
+  <input type="file" id="carrier" accept="image/png,image/jpeg" />
+  <canvas id="canvas"></canvas>
+  <img id="carrierPreview" class="preview" />
+
+  <!-- Payload Options -->
+  <div class="section">
+    <label>Select Payload Type:</label>
+    <select id="payloadType">
+      <option value="text">Text Message</option>
+      <option value="image">Image in Image (compressed)</option>
+      <option value="qr">QR Code</option>
+      <option value="file">Embed File/Metadata</option>
+    </select>
+
+    <div id="textPayload">
+      <label>Enter Text to Hide:</label>
+      <textarea id="hiddenText" rows="4"></textarea>
+    </div>
+
+    <div id="imagePayload" style="display:none;">
+      <label>Upload Image to Hide (.png or .jpg):</label>
+      <input type="file" id="hiddenImage" accept="image/png,image/jpeg" />
+    </div>
+
+    <div id="filePayload" style="display:none;">
+      <label>Upload File to Hide:</label>
+      <input type="file" id="hiddenFile" />
+    </div>
+
+    <div id="qrPreview" style="display:none;">
+      <label>QR Code Preview:</label>
+      <div id="qrEncodeContainer"></div>
+    </div>
+
+    <button onclick="startEncoding()">▶ Encode & Download</button>
+  </div>
+
+  <!-- Decode Section -->
+  <div class="section">
+    <label>Decode Stego Image (.png or .jpg):</label>
+    <input type="file" id="decodeFile" accept="image/png,image/jpeg" />
+    <button onclick="decodeStego()">🔍 Decode</button>
+    <div id="decodeOutput"></div>
+  </div>
+
+  <!-- QR LIBRARY (minified) -->
+  <script>
+    // Tiny QR code generator
+    window.QRCode = function (container, opts) {
+      const canvas = document.createElement('canvas');
+      container.innerHTML = ''; container.appendChild(canvas);
+      const ctx = canvas.getContext('2d');
+      const text = opts.text;
+      const size = opts.width || 128;
+      const qr = qrcodegen.QrCode.encodeText(text, qrcodegen.QrCode.Ecc.LOW);
+      const scale = Math.floor(size / qr.size);
+      canvas.width = canvas.height = qr.size * scale;
+      for (let y = 0; y < qr.size; y++) {
+        for (let x = 0; x < qr.size; x++) {
+          ctx.fillStyle = qr.getModule(x, y) ? "#33ff33" : "#000000";
+          ctx.fillRect(x * scale, y * scale, scale, scale);
+        }
+      }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodegen@1.8.0/qrcodegen.min.js"></script>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let carrierImageData = null;
+
+    document.getElementById('payloadType').addEventListener('change', (e) => {
+      const value = e.target.value;
+      document.getElementById('textPayload').style.display = value === 'text' || value === 'qr' ? 'block' : 'none';
+      document.getElementById('imagePayload').style.display = value === 'image' ? 'block' : 'none';
+      document.getElementById('filePayload').style.display = value === 'file' ? 'block' : 'none';
+      document.getElementById('qrPreview').style.display = value === 'qr' ? 'block' : 'none';
+      if (value === 'qr') updateQRPreview();
+    });
+
+    document.getElementById('hiddenText').addEventListener('input', () => {
+      if (document.getElementById('payloadType').value === 'qr') updateQRPreview();
+    });
+
+    function updateQRPreview() {
+      const text = document.getElementById('hiddenText').value.trim();
+      if (text) {
+        QRCode(document.getElementById('qrEncodeContainer'), {
+          text: text,
+          width: 128
+        });
+      } else {
+        document.getElementById('qrEncodeContainer').innerHTML = '';
+      }
+    }
+
+    document.getElementById('carrier').addEventListener('change', e => {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const img = new Image();
+        img.onload = () => {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          carrierImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          document.getElementById('carrierPreview').src = canvas.toDataURL();
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function getTextBits(text) {
+      return text.split('').map(c => c.charCodeAt(0).toString(2).padStart(8, '0')).join('');
+    }
+
+    function writeBitsToImage(data, bits) {
+      const output = new Uint8ClampedArray(data.data);
+      let bitIndex = 0;
+      for (let i = 0; i < output.length; i += 4) {
+        for (let c = 0; c < 3; c++) {
+          if (bitIndex < bits.length) {
+            output[i + c] = (output[i + c] & 0xFE) | parseInt(bits[bitIndex]);
+            bitIndex++;
+          }
+        }
+      }
+      return new ImageData(output, data.width, data.height);
+    }
+
+    function startEncoding() {
+      if (!carrierImageData) return alert("Please upload a carrier image first.");
+      const type = document.getElementById('payloadType').value;
+
+      if (type === 'text' || type === 'qr') {
+        const text = document.getElementById('hiddenText').value;
+        const tag = type === 'qr' ? "QR:" : "TEXT:";
+        const payload = tag + btoa(unescape(encodeURIComponent(text))) + '<<<END>>>';
+        encodePayload(payload);
+      }
+
+      else if (type === 'image') {
+        const file = document.getElementById('hiddenImage').files[0];
+        if (!file) return alert("Please upload an image to hide.");
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+          const img = new Image();
+          img.onload = () => {
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = img.width;
+            tempCanvas.height = img.height;
+            tempCtx.drawImage(img, 0, 0);
+            const compressedDataURL = tempCanvas.toDataURL("image/jpeg", 0.6);
+            const payload = "IMG:" + compressedDataURL + '<<<END>>>';
+            encodePayload(payload);
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      else if (type === 'file') {
+        const file = document.getElementById('hiddenFile').files[0];
+        if (!file) return alert("Please upload a file.");
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const payload = "FILE:" + btoa(e.target.result) + '<<<END>>>';
+          encodePayload(payload);
+        };
+        reader.readAsBinaryString(file);
+      }
+    }
+
+    function encodePayload(payload) {
+      const bits = getTextBits(payload);
+      const maxBits = carrierImageData.data.length * 3 / 4;
+      if (bits.length > maxBits) {
+        alert("Carrier image is too small for this payload. Please use a larger image.");
+        return;
+      }
+      const encoded = writeBitsToImage(carrierImageData, bits);
+      ctx.putImageData(encoded, 0, 0);
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL("image/png");
+      a.download = "steganographed.png";
+      a.click();
+    }
+
+    function decodeStego() {
+      const file = document.getElementById('decodeFile').files[0];
+      if (!file) return alert("Please upload a stego image.");
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const bits = [];
+          for (let i = 0; i < imgData.data.length; i += 4) {
+            for (let c = 0; c < 3; c++) {
+              bits.push((imgData.data[i + c] & 1).toString());
+            }
+          }
+          const bytes = bits.join('').match(/.{1,8}/g).map(b => String.fromCharCode(parseInt(b, 2))).join('');
+          const content = bytes.split('<<<END>>>')[0];
+          renderDecoded(content);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function renderDecoded(content) {
+      const output = document.getElementById("decodeOutput");
+      output.innerHTML = '';
+
+      if (content.startsWith("TEXT:")) {
+        const text = decodeURIComponent(escape(atob(content.slice(5))));
+        output.innerText = "Hidden Text:\n" + text;
+      }
+      else if (content.startsWith("QR:")) {
+        const text = decodeURIComponent(escape(atob(content.slice(3))));
+        output.innerHTML = `<p>QR Code Payload:</p><div id="qrDecoded"></div><p>${text}</p>`;
+        QRCode(document.getElementById('qrDecoded'), { text: text, width: 128 });
+      }
+      else if (content.startsWith("IMG:")) {
+        const img = new Image();
+        img.src = content.slice(4);
+        output.innerHTML = "Hidden Image:<br>";
+        output.appendChild(img);
+      }
+      else if (content.startsWith("FILE:")) {
+        const binary = atob(content.slice(5));
+        const blob = new Blob([binary], { type: "application/octet-stream" });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = "hidden_payload.bin";
+        link.innerText = "Download hidden file";
+        output.appendChild(link);
+      }
+      else {
+        output.innerText = "No recognizable payload found.";
+      }
+    }
+  </script>
+</body>
+</html>
