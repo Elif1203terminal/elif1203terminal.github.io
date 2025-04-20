@@ -31,8 +31,8 @@
   <h2>🎼 Elif Music Composer</h2>
 
   <label>Enter Notes (top = treble, bottom = bass):</label>
-  <textarea id="notation" rows="5">C4 D4 E4 F4 | G4 A4 B4 C5
-C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
+  <textarea id="notation" rows="5">C4 D4 E4 F4
+C3 D3 E3 F3</textarea>
 
   <label>Instrument:</label>
   <select id="instrument">
@@ -41,86 +41,82 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
     <option value="FMSynth">🔊 FMSynth</option>
   </select>
 
-  <button onclick="renderScore()">▶ Render & Play</button>
-  <button onclick="downloadWav()">💾 Download WAV</button>
+  <button onclick="render()">▶ Render & Play</button>
+  <button onclick="exportWav()">💾 Export WAV</button>
 
   <div id="sheet"></div>
 
   <script>
     const VF = Vex.Flow;
-    const sheet = document.getElementById("sheet");
     let latestNotes = { treble: [], bass: [] };
 
-    function noteToVF(note) {
+    function noteToVex(note) {
       const match = note.match(/([A-G][#b]?)(\d)/);
       if (!match) return null;
-      const [_, pitch, octave] = match;
-      return pitch.toLowerCase() + "/" + octave;
+      return match[1].toLowerCase() + "/" + match[2];
     }
 
-    function parseNotation() {
+    function parseNotes() {
       const lines = document.getElementById("notation").value.trim().split("\n");
-      const treble = (lines[0] || "").trim().split(/\s+/).filter(n => noteToVF(n));
-      const bass = (lines[1] || "").trim().split(/\s+/).filter(n => noteToVF(n));
+      const treble = (lines[0] || "").trim().split(/\s+/).filter(n => noteToVex(n));
+      const bass = (lines[1] || "").trim().split(/\s+/).filter(n => noteToVex(n));
       latestNotes = { treble, bass };
-      return latestNotes;
+      return { treble, bass };
     }
 
-    function buildVoice(notes) {
-      const vfNotes = notes.map(n => new VF.StaveNote({ keys: [noteToVF(n)], duration: "q" }));
-      while (vfNotes.length < 4) {
-        vfNotes.push(new VF.StaveNote({ keys: ["b/4"], duration: "q" }));
-      }
-      return vfNotes;
-    }
-
-    function renderScore() {
-      const { treble, bass } = parseNotation();
+    function render() {
+      const { treble, bass } = parseNotes();
+      const sheet = document.getElementById("sheet");
       sheet.innerHTML = '';
       const renderer = new VF.Renderer(sheet, VF.Renderer.Backends.SVG);
       renderer.resize(800, 300);
       const context = renderer.getContext();
+      const staveT = new VF.Stave(10, 40, 700).addClef("treble").addTimeSignature("4/4");
+      const staveB = new VF.Stave(10, 140, 700).addClef("bass").addTimeSignature("4/4");
+      staveT.setContext(context).draw();
+      staveB.setContext(context).draw();
 
-      const staveTreble = new VF.Stave(10, 40, 700).addClef("treble").addTimeSignature("4/4");
-      const staveBass = new VF.Stave(10, 140, 700).addClef("bass").addTimeSignature("4/4");
-      staveTreble.setContext(context).draw();
-      staveBass.setContext(context).draw();
+      const voiceT = new VF.Voice({ num_beats: 4, beat_value: 4 });
+      const voiceB = new VF.Voice({ num_beats: 4, beat_value: 4 });
 
-      const voice1 = new VF.Voice({ num_beats: 4, beat_value: 4 });
-      const voice2 = new VF.Voice({ num_beats: 4, beat_value: 4 });
+      const vexT = treble.map(n => new VF.StaveNote({ keys: [noteToVex(n)], duration: "q" }));
+      const vexB = bass.map(n => new VF.StaveNote({ keys: [noteToVex(n)], duration: "q" }));
 
-      voice1.addTickables(buildVoice(treble));
-      voice2.addTickables(buildVoice(bass));
+      while (vexT.length < 4) vexT.push(new VF.StaveNote({ keys: ["b/4"], duration: "q" }));
+      while (vexB.length < 4) vexB.push(new VF.StaveNote({ keys: ["b/4"], duration: "q" }));
 
-      new VF.Formatter().joinVoices([voice1, voice2]).format([voice1, voice2], 600);
-      voice1.draw(context, staveTreble);
-      voice2.draw(context, staveBass);
+      voiceT.addTickables(vexT);
+      voiceB.addTickables(vexB);
 
-      playLive(treble, bass);
+      new VF.Formatter().joinVoices([voiceT, voiceB]).format([voiceT, voiceB], 600);
+      voiceT.draw(context, staveT);
+      voiceB.draw(context, staveB);
+
+      playNow(latestNotes);
     }
 
-    function playLive(treble, bass) {
-      const instType = document.getElementById("instrument").value;
-      const SynthClass = Tone[instType] || Tone.Synth;
-      const trebleSynth = new SynthClass().toDestination();
-      const bassSynth = new SynthClass().toDestination();
+    function playNow(notes) {
+      const inst = document.getElementById("instrument").value;
+      const Synth = Tone[inst] || Tone.Synth;
+      const synthT = new Synth().toDestination();
+      const synthB = new Synth().toDestination();
       const now = Tone.now();
-      treble.forEach((n, i) => trebleSynth.triggerAttackRelease(n, "8n", now + i * 0.5));
-      bass.forEach((n, i) => bassSynth.triggerAttackRelease(n, "8n", now + i * 0.5));
+      notes.treble.forEach((n, i) => synthT.triggerAttackRelease(n, "4n", now + i * 0.5));
+      notes.bass.forEach((n, i) => synthB.triggerAttackRelease(n, "4n", now + i * 0.5));
     }
 
-    async function downloadWav() {
+    async function exportWav() {
+      const inst = document.getElementById("instrument").value;
+      const Synth = Tone[inst] || Tone.Synth;
       const { treble, bass } = latestNotes;
-      const instType = document.getElementById("instrument").value;
-      const SynthClass = Tone[instType] || Tone.Synth;
 
       const buffer = await Tone.Offline(async ({ transport }) => {
-        const trebleSynth = new SynthClass().toDestination();
-        const bassSynth = new SynthClass().toDestination();
-        treble.forEach((n, i) => trebleSynth.triggerAttackRelease(n, "8n", i * 0.5));
-        bass.forEach((n, i) => bassSynth.triggerAttackRelease(n, "8n", i * 0.5));
+        const synthT = new Synth().toDestination();
+        const synthB = new Synth().toDestination();
+        treble.forEach((n, i) => synthT.triggerAttackRelease(n, "4n", i * 0.5));
+        bass.forEach((n, i) => synthB.triggerAttackRelease(n, "4n", i * 0.5));
         transport.start();
-      }, 4); // 4 seconds
+      }, 4); // render for 4 seconds
 
       const wav = audioBufferToWav(buffer.get());
       const blob = new Blob([wav], { type: "audio/wav" });
@@ -132,6 +128,7 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
   </script>
 </body>
 </html>
+
 
 
 
