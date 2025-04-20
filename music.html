@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>🎼 Elif Composer (Safe Synths)</title>
+  <title>🎼 Elif Composer (Stable Synth Chain)</title>
   <style>
     body {
       background: #000;
@@ -119,15 +119,15 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
       const TrebleClass = safeSynth(document.getElementById("trebleInstrument").value);
       const BassClass = safeSynth(document.getElementById("bassInstrument").value);
 
-      const trebleSynth = new TrebleClass().toDestination();
-      const bassSynth = new BassClass().toDestination();
+      const trebleSynth = new TrebleClass();
+      const bassSynth = new BassClass();
 
       mediaStreamDest = Tone.context.createMediaStreamDestination();
-      const mixNode = Tone.context.createGain();
-      trebleSynth.connect(mixNode);
-      bassSynth.connect(mixNode);
-      mixNode.connect(mediaStreamDest);
-      mixNode.connect(Tone.Destination);
+      const gainNode = new Tone.Gain().toDestination();
+
+      trebleSynth.connect(gainNode);
+      bassSynth.connect(gainNode);
+      gainNode.connect(mediaStreamDest);
 
       const timeNow = Tone.now();
       treble.forEach((n, i) => {
@@ -159,4 +159,5 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
   </script>
 </body>
 </html>
+
 
