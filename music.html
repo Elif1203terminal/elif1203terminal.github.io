@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>🎼 Elif Composer (Final Recorder Fix)</title>
+  <title>🎼 Elif Composer (Final Fix)</title>
   <style>
     body {
       background: #000;
@@ -56,7 +56,7 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
   <script>
     const VF = Vex.Flow;
     const sheet = document.getElementById("sheet");
-    let recorder, audioStreamNode;
+    let recorder, mediaStream;
 
     function parseInput(input) {
       const lines = input.trim().split("\n");
@@ -75,7 +75,7 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
     function buildVoiceNotes(notes) {
       const filtered = notes.map(noteToVF).filter(Boolean);
       const filled = [...filtered];
-      while (filled.length < 4) filled.push("b/4"); // Pad with rests
+      while (filled.length < 4) filled.push("b/4"); // Add rests
       return filled.map(n => new VF.StaveNote({ keys: [n], duration: "q" }));
     }
 
@@ -129,8 +129,12 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
       gainNode.connect(dest);
       gainNode.connect(Tone.Destination);
 
-      audioStreamNode = new Recorder(Tone.context.createMediaStreamSource(dest));
-      audioStreamNode.record();
+      mediaStream = dest.stream;
+
+      const audioCtx = Tone.context;
+      const sourceNode = new MediaStreamAudioSourceNode(audioCtx, { mediaStream });
+      recorder = new Recorder(sourceNode);
+      recorder.record();
 
       const timeNow = Tone.now();
       treble.forEach((n, i) => {
@@ -140,12 +144,12 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
         if (noteToVF(n)) bassSynth.triggerAttackRelease(n, "8n", timeNow + i * 0.5);
       });
 
-      setTimeout(() => audioStreamNode.stop(), 2500);
+      setTimeout(() => recorder.stop(), 2500);
     }
 
     function downloadWav() {
-      if (!audioStreamNode) return alert("Please play music first.");
-      audioStreamNode.exportWAV(blob => {
+      if (!recorder) return alert("Please render and play first.");
+      recorder.exportWAV(blob => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -156,6 +160,7 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
   </script>
 </body>
 </html>
+
 
 
 
