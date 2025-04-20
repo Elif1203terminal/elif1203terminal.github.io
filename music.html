@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🎼 Elif Composer (Synth-Stable)</title>
+  <style>
+    body {
+      background: #000;
+      color: #33ff33;
+      font-family: 'Courier New', monospace;
+      padding: 20px;
+    }
+    textarea, select, button {
+      width: 100%;
+      background: #111;
+      color: #33ff33;
+      border: 1px solid #33ff33;
+      padding: 10px;
+      margin: 10px 0;
+    }
+    canvas {
+      background: #111;
+      margin-top: 20px;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/vexflow@1.2.93/releases/vexflow-min.js"></script>
+  <script src="https://unpkg.com/tone@14.8.39/build/Tone.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/recorder-js@1.0.3/dist/recorder.min.js"></script>
+</head>
+<body>
+  <h2>🎼 Elif Music Composer</h2>
+
+  <label>Enter Notes (top = treble, bottom = bass):</label>
+  <textarea id="notation" rows="5">C4 D4 E4 F4 | G4 A4 B4 C5
+C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
+
+  <label>Treble Synth:</label>
+  <select id="trebleInstrument">
+    <option value="Synth">🎹 Synth</option>
+    <option value="AMSynth">🌙 AMSynth</option>
+    <option value="FMSynth">🔊 FMSynth</option>
+    <option value="PluckSynth">🎸 PluckSynth</option>
+    <option value="MetalSynth">🧲 MetalSynth</option>
+  </select>
+
+  <label>Bass Synth:</label>
+  <select id="bassInstrument">
+    <option value="Synth">🎹 Synth</option>
+    <option value="AMSynth">🌙 AMSynth</option>
+    <option value="FMSynth">🔊 FMSynth</option>
+    <option value="PluckSynth">🎸 PluckSynth</option>
+    <option value="MembraneSynth">🥁 MembraneSynth</option>
+  </select>
+
+  <button onclick="renderScore()">▶ Render & Play</button>
+  <button onclick="downloadWav()">💾 Download WAV</button>
+
+  <div id="sheet"></div>
+
+  <script>
+    const VF = Vex.Flow;
+    const sheet = document.getElementById("sheet");
+    let recorder, mediaStreamDest;
+
+    function parseInput(input) {
+      const lines = input.trim().split("\n");
+      const trebleNotes = lines[0]?.trim().split(/\s+/) || [];
+      const bassNotes = lines[1]?.trim().split(/\s+/) || [];
+      return { trebleNotes, bassNotes };
+    }
+
+    function noteToVF(note) {
+      const match = note.match(/([A-G][#b]?)(\d)/);
+      if (!match) return null;
+      const [_, pitch, octave] = match;
+      return pitch.toLowerCase() + "/" + octave;
+    }
+
+    function buildVoiceNotes(notes) {
+      const filtered = notes.map(noteToVF).filter(Boolean);
+      const filled = [...filtered];
+      while (filled.length < 4) filled.push("b/4"); // Add rests if short
+      return filled.map(n => new VF.StaveNote({ keys: [n], duration: "q" }));
+    }
+
+    function renderScore() {
+      sheet.innerHTML = '';
+      const { trebleNotes, bassNotes } = parseInput(document.getElementById("notation").value);
+
+      const renderer = new VF.Renderer(sheet, VF.Renderer.Backends.SVG);
+      renderer.resize(800, 300);
+      const context = renderer.getContext();
+      const staveTreble = new VF.Stave(10, 40, 700).addClef("treble").addTimeSignature("4/4");
+      const staveBass = new VF.Stave(10, 140, 700).addClef("bass").addTimeSignature("4/4");
+      staveTreble.setContext(context).draw();
+      staveBass.setContext(context).draw();
+
+      const voice1 = new VF.Voice({ num_beats: 4, beat_value: 4 });
+      const voice2 = new VF.Voice({ num_beats: 4, beat_value: 4 });
+
+      const trebleVFNotes = buildVoiceNotes(trebleNotes);
+      const bassVFNotes = buildVoiceNotes(bassNotes);
+
+      voice1.addTickables(trebleVFNotes);
+      voice2.addTickables(bassVFNotes);
+
+      new VF.Formatter().joinVoices([voice1, voice2]).format([voice1, voice2], 600);
+      voice1.draw(context, staveTreble);
+      voice2.draw(context, staveBass);
+
+      playScore(trebleNotes, bassNotes);
+    }
+
+    async function playScore(treble, bass) {
+      await Tone.start();
+      Tone.Transport.cancel();
+
+      const TrebleClass = Tone[document.getElementById("trebleInstrument").value];
+      const BassClass = Tone[document.getElementById("bassInstrument").value];
+      const trebleSynth = new TrebleClass().toDestination();
+      const bassSynth = new BassClass().toDestination();
+
+      mediaStreamDest = Tone.context.createMediaStreamDestination();
+      const mixNode = Tone.context.createGain();
+      trebleSynth.connect(mixNode);
+      bassSynth.connect(mixNode);
+      mixNode.connect(mediaStreamDest);
+      mixNode.connect(Tone.Destination);
+
+      const timeNow = Tone.now();
+      treble.forEach((n, i) => {
+        if (noteToVF(n)) trebleSynth.triggerAttackRelease(n, "8n", timeNow + i * 0.5);
+      });
+      bass.forEach((n, i) => {
+        if (noteToVF(n)) bassSynth.triggerAttackRelease(n, "8n", timeNow + i * 0.5);
+      });
+
+      startRecording(mediaStreamDest.stream);
+    }
+
+    function startRecording(stream) {
+      const audioCtx = Tone.context;
+      recorder = new Recorder(new MediaStreamAudioSourceNode(audioCtx, { mediaStream: stream }));
+      recorder.record();
+      setTimeout(() => recorder.stop(), 2000);
+    }
+
+    function downloadWav() {
+      if (!recorder) return alert("Render and play first.");
+      recorder.exportWAV(blob => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = "elif_music.wav";
+        a.click();
+      });
+    }
+  </script>
+</body>
+</html>
