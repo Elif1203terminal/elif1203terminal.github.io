@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>🎼 Elif Music Composer</title>
+  <title>🎼 Elif Music Composer (Structured Input)</title>
   <style>
     body {
       background: #000;
@@ -30,9 +30,19 @@
 <body>
   <h2>🎼 Elif Music Composer</h2>
 
-  <label>Enter Notes (top = treble, bottom = bass):</label>
-  <textarea id="notation" rows="5">C4 D4 E4 F4
-C3 D3 E3 F3</textarea>
+  <label>Enter JSON Score:</label>
+  <textarea id="notation" rows="10">{
+  "treble": [
+    { "note": "C5", "duration": "4n" },
+    { "note": "E5", "duration": "8n" },
+    { "note": "G5", "duration": "8n" },
+    { "note": "A5", "duration": "2n" }
+  ],
+  "bass": [
+    { "note": "C3", "duration": "1n" },
+    { "note": "F2", "duration": "1n" }
+  ]
+}</textarea>
 
   <label>Instrument:</label>
   <select id="instrument">
@@ -48,86 +58,116 @@ C3 D3 E3 F3</textarea>
 
   <script>
     const VF = Vex.Flow;
-    let latestNotes = { treble: [], bass: [] };
+    let latestScore = { treble: [], bass: [] };
 
-    function noteToVex(note) {
-      const match = note.match(/([A-G][#b]?)(\d)/);
-      if (!match) return null;
-      return match[1].toLowerCase() + "/" + match[2];
+    function durationToTicks(duration) {
+      const mapping = { "1n": 4, "2n": 2, "4n": 1, "8n": 0.5 };
+      return mapping[duration] || 1;
     }
 
-    function parseNotes() {
-      const lines = document.getElementById("notation").value.trim().split("\n");
-      const treble = (lines[0] || "").trim().split(/\s+/).filter(n => noteToVex(n));
-      const bass = (lines[1] || "").trim().split(/\s+/).filter(n => noteToVex(n));
-      latestNotes = { treble, bass };
-      return { treble, bass };
+    function noteToVex(note) {
+      const m = note.match(/([A-G][#b]?)(\d)/);
+      return m ? `${m[1].toLowerCase()}/${m[2]}` : "b/4";
+    }
+
+    function parseJSON() {
+      try {
+        const input = document.getElementById("notation").value.trim();
+        const data = JSON.parse(input);
+        latestScore = data;
+        return data;
+      } catch (e) {
+        alert("Invalid JSON format");
+        throw e;
+      }
+    }
+
+    function buildVFVoice(notes) {
+      return notes.map(n => new VF.StaveNote({
+        keys: [noteToVex(n.note)],
+        duration: n.duration.replace("n", "")
+      }));
     }
 
     function render() {
-      const { treble, bass } = parseNotes();
+      const data = parseJSON();
       const sheet = document.getElementById("sheet");
       sheet.innerHTML = '';
+
       const renderer = new VF.Renderer(sheet, VF.Renderer.Backends.SVG);
-      renderer.resize(800, 300);
+      renderer.resize(900, 400);
       const context = renderer.getContext();
-      const staveT = new VF.Stave(10, 40, 700).addClef("treble").addTimeSignature("4/4");
-      const staveB = new VF.Stave(10, 140, 700).addClef("bass").addTimeSignature("4/4");
+
+      const staveT = new VF.Stave(10, 40, 800).addClef("treble").addTimeSignature("4/4");
+      const staveB = new VF.Stave(10, 140, 800).addClef("bass").addTimeSignature("4/4");
+
       staveT.setContext(context).draw();
       staveB.setContext(context).draw();
 
-      const voiceT = new VF.Voice({ num_beats: 4, beat_value: 4 });
-      const voiceB = new VF.Voice({ num_beats: 4, beat_value: 4 });
+      const voiceT = new VF.Voice({ num_beats: 16, beat_value: 4, resolution: VF.RESOLUTION });
+      const voiceB = new VF.Voice({ num_beats: 16, beat_value: 4, resolution: VF.RESOLUTION });
 
-      const vexT = treble.map(n => new VF.StaveNote({ keys: [noteToVex(n)], duration: "q" }));
-      const vexB = bass.map(n => new VF.StaveNote({ keys: [noteToVex(n)], duration: "q" }));
+      voiceT.addTickables(buildVFVoice(data.treble));
+      voiceB.addTickables(buildVFVoice(data.bass));
 
-      while (vexT.length < 4) vexT.push(new VF.StaveNote({ keys: ["b/4"], duration: "q" }));
-      while (vexB.length < 4) vexB.push(new VF.StaveNote({ keys: ["b/4"], duration: "q" }));
-
-      voiceT.addTickables(vexT);
-      voiceB.addTickables(vexB);
-
-      new VF.Formatter().joinVoices([voiceT, voiceB]).format([voiceT, voiceB], 600);
+      new VF.Formatter().joinVoices([voiceT, voiceB]).format([voiceT, voiceB], 750);
       voiceT.draw(context, staveT);
       voiceB.draw(context, staveB);
 
-      playNow(latestNotes);
+      playNow(data);
     }
 
-    function playNow(notes) {
+    function playNow(data) {
       const inst = document.getElementById("instrument").value;
       const Synth = Tone[inst] || Tone.Synth;
       const synthT = new Synth().toDestination();
       const synthB = new Synth().toDestination();
-      const now = Tone.now();
-      notes.treble.forEach((n, i) => synthT.triggerAttackRelease(n, "4n", now + i * 0.5));
-      notes.bass.forEach((n, i) => synthB.triggerAttackRelease(n, "4n", now + i * 0.5));
+      let t = Tone.now();
+
+      data.treble.forEach(n => {
+        synthT.triggerAttackRelease(n.note, n.duration, t);
+        t += Tone.Time(n.duration).toSeconds();
+      });
+
+      t = Tone.now();
+      data.bass.forEach(n => {
+        synthB.triggerAttackRelease(n.note, n.duration, t);
+        t += Tone.Time(n.duration).toSeconds();
+      });
     }
 
     async function exportWav() {
       const inst = document.getElementById("instrument").value;
       const Synth = Tone[inst] || Tone.Synth;
-      const { treble, bass } = latestNotes;
+      const data = latestScore;
 
-      const buffer = await Tone.Offline(async ({ transport }) => {
+      const buffer = await Tone.Offline(({ transport }) => {
         const synthT = new Synth().toDestination();
         const synthB = new Synth().toDestination();
-        treble.forEach((n, i) => synthT.triggerAttackRelease(n, "4n", i * 0.5));
-        bass.forEach((n, i) => synthB.triggerAttackRelease(n, "4n", i * 0.5));
+        let t = 0;
+        data.treble.forEach(n => {
+          synthT.triggerAttackRelease(n.note, n.duration, t);
+          t += Tone.Time(n.duration).toSeconds();
+        });
+        t = 0;
+        data.bass.forEach(n => {
+          synthB.triggerAttackRelease(n.note, n.duration, t);
+          t += Tone.Time(n.duration).toSeconds();
+        });
         transport.start();
-      }, 4); // render for 4 seconds
+      }, 10); // Render 10 seconds max
 
       const wav = audioBufferToWav(buffer.get());
       const blob = new Blob([wav], { type: "audio/wav" });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = "elif_music.wav";
+      a.download = "elif_score.wav";
       a.click();
     }
   </script>
 </body>
 </html>
+
 
 
 
