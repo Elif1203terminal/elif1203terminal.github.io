@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>🎼 Elif Composer (Recorder Fixed)</title>
+  <title>🎼 Elif Composer (Final Recorder Fix)</title>
   <style>
     body {
       background: #000;
@@ -25,7 +25,7 @@
   </style>
   <script src="https://cdn.jsdelivr.net/npm/vexflow@1.2.93/releases/vexflow-min.js"></script>
   <script src="https://unpkg.com/tone@14.8.39/build/Tone.js"></script>
-  <script src="https://unpkg.com/recorder-js@1.0.2/dist/recorder.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/recorderjs/0.1.0/recorder.min.js"></script>
 </head>
 <body>
   <h2>🎼 Elif Music Composer</h2>
@@ -56,7 +56,7 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
   <script>
     const VF = Vex.Flow;
     const sheet = document.getElementById("sheet");
-    let recorder, mediaStreamDest;
+    let recorder, audioStreamNode;
 
     function parseInput(input) {
       const lines = input.trim().split("\n");
@@ -75,7 +75,7 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
     function buildVoiceNotes(notes) {
       const filtered = notes.map(noteToVF).filter(Boolean);
       const filled = [...filtered];
-      while (filled.length < 4) filled.push("b/4"); // Add rests if short
+      while (filled.length < 4) filled.push("b/4"); // Pad with rests
       return filled.map(n => new VF.StaveNote({ keys: [n], duration: "q" }));
     }
 
@@ -122,12 +122,15 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
       const trebleSynth = new TrebleClass();
       const bassSynth = new BassClass();
 
-      mediaStreamDest = Tone.context.createMediaStreamDestination();
-      const gainNode = new Tone.Gain().toDestination();
-
+      const dest = Tone.context.createMediaStreamDestination();
+      const gainNode = new Tone.Gain();
       trebleSynth.connect(gainNode);
       bassSynth.connect(gainNode);
-      gainNode.connect(mediaStreamDest);
+      gainNode.connect(dest);
+      gainNode.connect(Tone.Destination);
+
+      audioStreamNode = new Recorder(Tone.context.createMediaStreamSource(dest));
+      audioStreamNode.record();
 
       const timeNow = Tone.now();
       treble.forEach((n, i) => {
@@ -137,28 +140,23 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
         if (noteToVF(n)) bassSynth.triggerAttackRelease(n, "8n", timeNow + i * 0.5);
       });
 
-      startRecording(mediaStreamDest.stream);
-    }
-
-    function startRecording(stream) {
-      const audioCtx = Tone.context;
-      recorder = new Recorder(new MediaStreamAudioSourceNode(audioCtx, { mediaStream: stream }));
-      recorder.record();
-      setTimeout(() => recorder.stop(), 2000);
+      setTimeout(() => audioStreamNode.stop(), 2500);
     }
 
     function downloadWav() {
-      if (!recorder) return alert("Render and play first.");
-      recorder.exportWAV(blob => {
+      if (!audioStreamNode) return alert("Please play music first.");
+      audioStreamNode.exportWAV(blob => {
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = "elif_music.wav";
+        a.href = url;
+        a.download = 'elif_music.wav';
         a.click();
       });
     }
   </script>
 </body>
 </html>
+
 
 
 
