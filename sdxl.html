@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>SDXL Image Generator</title>
+  <title>Elif SDXL Generator</title>
   <style>
     body {
       background: #000;
@@ -32,11 +32,15 @@
       border: 1px solid #33ff33;
       margin-top: 10px;
     }
+    .error {
+      color: #ff3333;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
   <h2>🧠 Elif SDXL Image Generator</h2>
-  <input type="text" id="prompt" placeholder="Type your prompt (e.g., cyberpunk chibi of Elif)" />
+  <input type="text" id="prompt" placeholder="Type your prompt (e.g., 'cyberpunk chibi of Elif')" />
   <button onclick="generateImage()">▶ Generate Image</button>
   <div id="output"></div>
 
@@ -44,12 +48,17 @@
     async function generateImage() {
       const prompt = document.getElementById("prompt").value.trim();
       const output = document.getElementById("output");
-      if (!prompt) return alert("Please enter a prompt.");
+      output.innerHTML = "";
 
-      output.innerHTML = "⏳ Generating... Please wait.";
+      if (!prompt) {
+        output.innerHTML = '<div class="error">⚠️ Please enter a prompt.</div>';
+        return;
+      }
+
+      output.innerHTML = "⏳ Generating image... please wait.";
 
       try {
-        const res = await fetch("https://sdxl-proxy.elif1203terminal.workers.dev", {
+        const res = await fetch("https://sdxl-fresh.elif1203terminal.workers.dev", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -61,14 +70,15 @@
         if (data.image) {
           output.innerHTML = `<img src="${data.image}" alt="Generated Image"><p>${prompt}</p>`;
         } else {
-          output.innerHTML = `⚠️ Error: ${data.error || "No image returned."}`;
+          output.innerHTML = `<div class="error">⚠️ Error: ${data.error || "No image returned."}</div>`;
         }
       } catch (err) {
-        output.innerHTML = "⚠️ Error: " + err.message;
+        output.innerHTML = `<div class="error">⚠️ Network Error: ${err.message}</div>`;
       }
     }
   </script>
 </body>
 </html>
+
 
 
