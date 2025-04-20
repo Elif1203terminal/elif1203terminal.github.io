@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>🎼 Elif Composer (Synth-Stable)</title>
+  <title>🎼 Elif Composer (Safe Synths)</title>
   <style>
     body {
       background: #000;
@@ -39,8 +39,6 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
     <option value="Synth">🎹 Synth</option>
     <option value="AMSynth">🌙 AMSynth</option>
     <option value="FMSynth">🔊 FMSynth</option>
-    <option value="PluckSynth">🎸 PluckSynth</option>
-    <option value="MetalSynth">🧲 MetalSynth</option>
   </select>
 
   <label>Bass Synth:</label>
@@ -48,8 +46,6 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
     <option value="Synth">🎹 Synth</option>
     <option value="AMSynth">🌙 AMSynth</option>
     <option value="FMSynth">🔊 FMSynth</option>
-    <option value="PluckSynth">🎸 PluckSynth</option>
-    <option value="MembraneSynth">🥁 MembraneSynth</option>
   </select>
 
   <button onclick="renderScore()">▶ Render & Play</button>
@@ -81,6 +77,11 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
       const filled = [...filtered];
       while (filled.length < 4) filled.push("b/4"); // Add rests if short
       return filled.map(n => new VF.StaveNote({ keys: [n], duration: "q" }));
+    }
+
+    function safeSynth(name) {
+      const allowed = ["Synth", "AMSynth", "FMSynth"];
+      return allowed.includes(name) ? Tone[name] : Tone.Synth;
     }
 
     function renderScore() {
@@ -115,8 +116,9 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
       await Tone.start();
       Tone.Transport.cancel();
 
-      const TrebleClass = Tone[document.getElementById("trebleInstrument").value];
-      const BassClass = Tone[document.getElementById("bassInstrument").value];
+      const TrebleClass = safeSynth(document.getElementById("trebleInstrument").value);
+      const BassClass = safeSynth(document.getElementById("bassInstrument").value);
+
       const trebleSynth = new TrebleClass().toDestination();
       const bassSynth = new BassClass().toDestination();
 
@@ -157,3 +159,4 @@ C3 D3 E3 F3 | G3 A3 B3 C3</textarea>
   </script>
 </body>
 </html>
+
