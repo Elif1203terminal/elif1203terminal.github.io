@@ -90,6 +90,13 @@
     .hidden {
       display: none;
     }
+    .notification {
+      padding: 10px;
+      background-color: #222;
+      border: 1px solid #33ff33;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/vexflow@1.2.93/releases/vexflow-min.js"></script>
   <script src="https://unpkg.com/tone@14.8.39/build/Tone.js"></script>
@@ -97,6 +104,10 @@
 </head>
 <body>
   <h2>🎼 Elif Music Composer</h2>
+  
+  <div id="startAudio" class="notification">
+    Please click this message to initialize audio playback ▶
+  </div>
 
   <div class="control-row">
     <div class="tooltip">
@@ -178,6 +189,16 @@
     let latestScore = { treble: [], bass: [] };
     let visualizerRunning = false;
     let analyser = null;
+    let audioInitialized = false;
+
+    // Initialize audio context on user gesture
+    document.getElementById("startAudio").addEventListener("click", function() {
+      if (!audioInitialized) {
+        Tone.start();
+        audioInitialized = true;
+        this.style.display = "none";
+      }
+    });
 
     // Keyboard shortcuts
     document.addEventListener("keydown", function(e) {
@@ -214,123 +235,170 @@
     function parseScore() {
       try {
         const input = JSON.parse(document.getElementById("notation").value);
+        
+        // Ensure score has treble and bass arrays
+        if (!input.treble) input.treble = [];
+        if (!input.bass) input.bass = [];
+        
+        // Ensure at least one note in each staff to avoid formatting errors
+        if (input.treble.length === 0) {
+          input.treble.push({ note: "C4", duration: "4n" });
+        }
+        if (input.bass.length === 0) {
+          input.bass.push({ note: "C3", duration: "4n" });
+        }
+        
         latestScore = input;
         return input;
       } catch (e) {
-        alert("Invalid JSON");
-        throw e;
+        alert("Invalid JSON: " + e.message);
+        // Return default score on error
+        return { 
+          treble: [{ note: "C4", duration: "4n" }],
+          bass: [{ note: "C3", duration: "4n" }]
+        };
       }
     }
 
     function renderScore() {
-      Tone.start(); // Ensure audio context is resumed
+      // Ensure audio is initialized
+      if (!audioInitialized) {
+        Tone.start();
+        audioInitialized = true;
+        document.getElementById("startAudio").style.display = "none";
+      }
+      
       const score = parseScore();
       const sheet = document.getElementById("sheet");
       sheet.innerHTML = '';
-      const renderer = new VF.Renderer(sheet, VF.Renderer.Backends.SVG);
-      renderer.resize(900, 400);
-      const context = renderer.getContext();
+      
+      try {
+        const renderer = new VF.Renderer(sheet, VF.Renderer.Backends.SVG);
+        renderer.resize(900, 400);
+        const context = renderer.getContext();
 
-      const trebleStave = new VF.Stave(10, 40, 800).addClef("treble").addTimeSignature("4/4");
-      const bassStave = new VF.Stave(10, 140, 800).addClef("bass").addTimeSignature("4/4");
-      trebleStave.setContext(context).draw();
-      bassStave.setContext(context).draw();
+        const trebleStave = new VF.Stave(10, 40, 800).addClef("treble").addTimeSignature("4/4");
+        const bassStave = new VF.Stave(10, 140, 800).addClef("bass").addTimeSignature("4/4");
+        trebleStave.setContext(context).draw();
+        bassStave.setContext(context).draw();
 
-      const trebleTicks = score.treble.reduce((sum, n) => sum + VF.durationToTicks(n.duration.replace('n', '')), 0);
-      const bassTicks = score.bass.reduce((sum, n) => sum + VF.durationToTicks(n.duration.replace('n', '')), 0);
+        const trebleTicks = score.treble.reduce((sum, n) => sum + VF.durationToTicks(n.duration.replace('n', '')), 0);
+        const bassTicks = score.bass.reduce((sum, n) => sum + VF.durationToTicks(n.duration.replace('n', '')), 0);
 
-      const trebleVoice = new VF.Voice({ num_beats: trebleTicks / 1024, beat_value: 4 });
-      const bassVoice = new VF.Voice({ num_beats: bassTicks / 1024, beat_value: 4 });
+        const trebleVoice = new VF.Voice({ num_beats: Math.max(1, trebleTicks / 1024), beat_value: 4 });
+        const bassVoice = new VF.Voice({ num_beats: Math.max(1, bassTicks / 1024), beat_value: 4 });
 
-      trebleVoice.addTickables(score.treble.map(n => new VF.StaveNote({ keys: [noteToVF(n.note)], duration: n.duration.replace('n', '') })));
-      bassVoice.addTickables(score.bass.map(n => new VF.StaveNote({ keys: [noteToVF(n.note)], duration: n.duration.replace('n', '') })));
+        trebleVoice.addTickables(score.treble.map(n => new VF.StaveNote({ keys: [noteToVF(n.note)], duration: n.duration.replace('n', '') })));
+        bassVoice.addTickables(score.bass.map(n => new VF.StaveNote({ keys: [noteToVF(n.note)], duration: n.duration.replace('n', '') })));
 
-      new VF.Formatter().joinVoices([trebleVoice, bassVoice]).format([trebleVoice, bassVoice], 750);
-      trebleVoice.draw(context, trebleStave);
-      bassVoice.draw(context, bassStave);
+        new VF.Formatter().joinVoices([trebleVoice, bassVoice]).format([trebleVoice, bassVoice], 750);
+        trebleVoice.draw(context, trebleStave);
+        bassVoice.draw(context, bassStave);
 
-      playNow(score);
+        playNow(score);
+      } catch (error) {
+        console.error("Render error:", error);
+        sheet.innerHTML = `<div class="notification">Error rendering score: ${error.message}</div>`;
+      }
     }
 
     function playNow(score) {
-      // Get selected instrument and settings
-      const inst = document.getElementById("instrument").value;
-      const Synth = Tone[inst] || Tone.Synth;
-      const tempo = parseInt(document.getElementById("tempo").value);
-      const reverbWet = parseFloat(document.getElementById("reverb").value);
-      
-      // Set tempo
-      Tone.Transport.bpm.value = tempo;
-      
-      // Setup effects chain
-      const reverb = new Tone.Reverb(1.5).toDestination();
-      reverb.wet.value = reverbWet;
-      
-      // Create synths
-      const synthT = new Synth().connect(reverb);
-      const synthB = new Synth().connect(reverb);
-      
-      // Setup visualizer
-      setupVisualizer(synthT, synthB);
-      
-      // Play treble notes
-      let t = Tone.now();
-      score.treble.forEach(n => {
-        synthT.triggerAttackRelease(n.note, n.duration, t);
-        t += Tone.Time(n.duration).toSeconds();
-      });
+      try {
+        // Get selected instrument and settings
+        const inst = document.getElementById("instrument").value;
+        const Synth = Tone[inst] || Tone.Synth;
+        const tempo = parseInt(document.getElementById("tempo").value);
+        const reverbWet = parseFloat(document.getElementById("reverb").value);
+        
+        // Set tempo
+        Tone.Transport.bpm.value = tempo;
+        
+        // Setup effects chain
+        const reverb = new Tone.Reverb(1.5).toDestination();
+        reverb.wet.value = reverbWet;
+        
+        // Create synths
+        const synthT = new Synth().connect(reverb);
+        const synthB = new Synth().connect(reverb);
+        
+        // Setup visualizer
+        setupVisualizer(synthT, synthB);
+        
+        // Play treble notes
+        let t = Tone.now();
+        score.treble.forEach(n => {
+          synthT.triggerAttackRelease(n.note, n.duration, t);
+          t += Tone.Time(n.duration).toSeconds();
+        });
 
-      // Play bass notes
-      t = Tone.now();
-      score.bass.forEach(n => {
-        synthB.triggerAttackRelease(n.note, n.duration, t);
-        t += Tone.Time(n.duration).toSeconds();
-      });
+        // Play bass notes
+        t = Tone.now();
+        score.bass.forEach(n => {
+          synthB.triggerAttackRelease(n.note, n.duration, t);
+          t += Tone.Time(n.duration).toSeconds();
+        });
+      } catch (error) {
+        console.error("Playback error:", error);
+        document.getElementById("status").textContent = "Playback error: " + error.message;
+        document.getElementById("status").classList.remove("hidden");
+        setTimeout(() => {
+          document.getElementById("status").classList.add("hidden");
+        }, 3000);
+      }
     }
 
     function setupVisualizer(synthT, synthB) {
-      // Stop previous visualizer if running
-      visualizerRunning = false;
-      if (analyser) {
-        analyser.dispose();
-      }
-      
-      // Setup new analyzer
-      analyser = new Tone.Analyser("fft", 32);
-      synthT.connect(analyser);
-      synthB.connect(analyser);
-      
-      const canvas = document.getElementById("visualizer");
-      const canvasCtx = canvas.getContext("2d");
-      
-      visualizerRunning = true;
-      
-      function draw() {
-        if (!visualizerRunning) return;
-        
-        requestAnimationFrame(draw);
-        const data = analyser.getValue();
-        
-        canvasCtx.fillStyle = "rgb(17, 17, 17)";
-        canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        const barWidth = (canvas.width / data.length) * 0.8;
-        let x = 0;
-        
-        for(let i = 0; i < data.length; i++) {
-          const barHeight = Math.max(4, data[i] * 100 + 100);
-          
-          canvasCtx.fillStyle = `rgb(51, ${Math.floor(barHeight + 100)}, 51)`;
-          canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-          
-          x += barWidth + 1;
+      try {
+        // Stop previous visualizer if running
+        visualizerRunning = false;
+        if (analyser) {
+          analyser.dispose();
         }
+        
+        // Setup new analyzer
+        analyser = new Tone.Analyser("fft", 32);
+        synthT.connect(analyser);
+        synthB.connect(analyser);
+        
+        const canvas = document.getElementById("visualizer");
+        const canvasCtx = canvas.getContext("2d");
+        
+        visualizerRunning = true;
+        
+        function draw() {
+          if (!visualizerRunning) return;
+          
+          requestAnimationFrame(draw);
+          const data = analyser.getValue();
+          
+          canvasCtx.fillStyle = "rgb(17, 17, 17)";
+          canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+          
+          const barWidth = (canvas.width / data.length) * 0.8;
+          let x = 0;
+          
+          for(let i = 0; i < data.length; i++) {
+            const barHeight = Math.max(4, data[i] * 100 + 100);
+            
+            canvasCtx.fillStyle = `rgb(51, ${Math.floor(barHeight + 100)}, 51)`;
+            canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+            
+            x += barWidth + 1;
+          }
+        }
+        
+        draw();
+      } catch (error) {
+        console.error("Visualizer error:", error);
       }
-      
-      draw();
     }
 
     async function exportWav() {
+      if (!audioInitialized) {
+        alert("Please click the initialization message at the top first");
+        return;
+      }
+      
       const exportBtn = document.getElementById("exportBtn");
       exportBtn.textContent = "💾 Exporting...";
       exportBtn.disabled = true;
@@ -475,6 +543,15 @@
       document.getElementById("notation").value = JSON.stringify(score, null, 2);
       renderScore();
     }
+    
+    // Initial setup - will wait for user interaction
+    document.addEventListener("DOMContentLoaded", function() {
+      // Clear the canvas
+      const canvas = document.getElementById("visualizer");
+      const canvasCtx = canvas.getContext("2d");
+      canvasCtx.fillStyle = "rgb(17, 17, 17)";
+      canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+    });
   </script>
 </body>
 </html>
