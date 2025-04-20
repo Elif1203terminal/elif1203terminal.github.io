@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Elif Readability Extractor</title>
+  <style>
+    body { background:#000; color:#33ff33; font-family:'Courier New',monospace; padding:20px; }
+    input, button { width:100%; padding:8px; margin:5px 0; background:#111; border:1px solid #33ff33; color:#33ff33; }
+    button { background:#33ff33; color:#000; font-weight:bold; cursor:pointer; }
+    #result { margin-top:20px; }
+    iframe { width:100%; height:80vh; border:1px solid #003300; }
+  </style>
+</head>
+<body>
+  <h2>📄 Elif Readability — Clean Article Viewer</h2>
+
+  <input id="url" placeholder="https://example.com/article…" />
+  <button onclick="fetchClean()">▶ Extract & Show</button>
+
+  <div id="result"></div>
+
+  <script>
+    const WORKER_ENDPOINT = "https://readability-clean.elif1203terminal.workers.dev";
+
+    async function fetchClean() {
+      const url = document.getElementById("url").value.trim();
+      if (!url) return alert("Enter a URL first.");
+      const out  = document.getElementById("result");
+      out.innerHTML = "⏳ fetching & cleaning…";
+
+      try {
+        const res = await fetch(`${WORKER_ENDPOINT}?url=${encodeURIComponent(url)}`);
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const html = await res.text();
+        out.innerHTML = `<iframe srcdoc="${html.replace(/"/g,'&quot;')}"></iframe>`;
+      } catch (err) {
+        out.innerHTML = `<span style="color:red;">⚠️ ${err.message}</span>`;
+      }
+    }
+  </script>
+</body>
+</html>
