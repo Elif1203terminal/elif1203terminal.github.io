@@ -9,18 +9,86 @@
       color: #33ff33;
       font-family: 'Courier New', monospace;
       padding: 20px;
+      max-width: 900px;
+      margin: 0 auto;
     }
-    textarea, select, button {
+    textarea, select, button, input {
       width: 100%;
       background: #111;
       color: #33ff33;
       border: 1px solid #33ff33;
       padding: 10px;
       margin: 10px 0;
+      font-family: 'Courier New', monospace;
+    }
+    button:hover {
+      background: #222;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
     canvas {
       background: #111;
       margin-top: 20px;
+      width: 100%;
+      height: 100px;
+    }
+    .control-row {
+      display: flex;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    .control-row > * {
+      flex: 1;
+    }
+    .tooltip {
+      position: relative;
+      display: inline-block;
+    }
+    .tooltip .tooltiptext {
+      visibility: hidden;
+      width: 120px;
+      background-color: #333;
+      color: #33ff33;
+      text-align: center;
+      border-radius: 6px;
+      padding: 5px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      margin-left: -60px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .tooltip:hover .tooltiptext {
+      visibility: visible;
+      opacity: 1;
+    }
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    .slider-container label {
+      flex: 1;
+    }
+    .slider-container input {
+      flex: 3;
+      margin: 0;
+    }
+    .slider-container span {
+      flex: 1;
+      text-align: right;
+    }
+    #visualizer {
+      border: 1px solid #33ff33;
+    }
+    .hidden {
+      display: none;
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/vexflow@1.2.93/releases/vexflow-min.js"></script>
@@ -29,6 +97,44 @@
 </head>
 <body>
   <h2>🎼 Elif Music Composer</h2>
+
+  <div class="control-row">
+    <div class="tooltip">
+      <label>Presets:</label>
+      <span class="tooltiptext">Load a preset composition</span>
+      <select id="presets" onchange="loadPreset()">
+        <option value="">-- Select Preset --</option>
+        <option value="scale">C Major Scale</option>
+        <option value="chord">C Major Chord</option>
+        <option value="melody">Simple Melody</option>
+      </select>
+    </div>
+    
+    <div class="tooltip">
+      <label>Instrument:</label>
+      <span class="tooltiptext">Choose your instrument</span>
+      <select id="instrument">
+        <option value="Synth">🎹 Synth</option>
+        <option value="AMSynth">🌙 AMSynth</option>
+        <option value="FMSynth">🔊 FMSynth</option>
+        <option value="PluckSynth">🎸 Pluck</option>
+        <option value="MetalSynth">🥁 Metal</option>
+        <option value="MembraneSynth">🪘 Membrane</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="slider-container">
+    <label>Tempo:</label>
+    <input type="range" id="tempo" min="60" max="200" step="1" value="120">
+    <span id="tempoValue">120 BPM</span>
+  </div>
+
+  <div class="slider-container">
+    <label>Reverb:</label>
+    <input type="range" id="reverb" min="0" max="1" step="0.1" value="0">
+    <span id="reverbValue">0</span>
+  </div>
 
   <label>Enter JSON Score:</label>
   <textarea id="notation" rows="10">{
@@ -44,21 +150,57 @@
   ]
 }</textarea>
 
-  <label>Instrument:</label>
-  <select id="instrument">
-    <option value="Synth">🎹 Synth</option>
-    <option value="AMSynth">🌙 AMSynth</option>
-    <option value="FMSynth">🔊 FMSynth</option>
-  </select>
-
-  <button onclick="renderScore()">▶ Render & Play</button>
-  <button onclick="exportWav()">💾 Export WAV</button>
+  <div class="control-row">
+    <button id="renderBtn" onclick="renderScore()" class="tooltip">
+      <span class="tooltiptext">Space key</span>
+      ▶ Render & Play
+    </button>
+    <button id="exportBtn" onclick="exportWav()" class="tooltip">
+      <span class="tooltiptext">Ctrl+S</span>
+      💾 Export WAV
+    </button>
+    <button onclick="addTrebleNote()" class="tooltip">
+      <span class="tooltiptext">Add a treble note</span>
+      + Add Treble Note
+    </button>
+    <button onclick="addBassNote()" class="tooltip">
+      <span class="tooltiptext">Add a bass note</span>
+      + Add Bass Note
+    </button>
+  </div>
 
   <div id="sheet"></div>
+  <canvas id="visualizer" width="850" height="100"></canvas>
+  <div id="status" class="hidden"></div>
 
   <script>
     const VF = Vex.Flow;
     let latestScore = { treble: [], bass: [] };
+    let visualizerRunning = false;
+    let analyser = null;
+
+    // Keyboard shortcuts
+    document.addEventListener("keydown", function(e) {
+      // Play/render with spacebar
+      if (e.code === "Space" && e.target.tagName !== "TEXTAREA") {
+        e.preventDefault();
+        renderScore();
+      }
+      // Export with Ctrl+S
+      if (e.code === "KeyS" && e.ctrlKey) {
+        e.preventDefault();
+        exportWav();
+      }
+    });
+
+    // Tempo and reverb sliders
+    document.getElementById("tempo").addEventListener("input", function() {
+      document.getElementById("tempoValue").textContent = this.value + " BPM";
+    });
+    
+    document.getElementById("reverb").addEventListener("input", function() {
+      document.getElementById("reverbValue").textContent = this.value;
+    });
 
     function durationToBeats(d) {
       return { "1n": 4, "2n": 2, "4n": 1, "8n": 0.5 }[d] || 1;
@@ -111,17 +253,34 @@
     }
 
     function playNow(score) {
+      // Get selected instrument and settings
       const inst = document.getElementById("instrument").value;
       const Synth = Tone[inst] || Tone.Synth;
-      const synthT = new Synth().toDestination();
-      const synthB = new Synth().toDestination();
+      const tempo = parseInt(document.getElementById("tempo").value);
+      const reverbWet = parseFloat(document.getElementById("reverb").value);
+      
+      // Set tempo
+      Tone.Transport.bpm.value = tempo;
+      
+      // Setup effects chain
+      const reverb = new Tone.Reverb(1.5).toDestination();
+      reverb.wet.value = reverbWet;
+      
+      // Create synths
+      const synthT = new Synth().connect(reverb);
+      const synthB = new Synth().connect(reverb);
+      
+      // Setup visualizer
+      setupVisualizer(synthT, synthB);
+      
+      // Play treble notes
       let t = Tone.now();
-
       score.treble.forEach(n => {
         synthT.triggerAttackRelease(n.note, n.duration, t);
         t += Tone.Time(n.duration).toSeconds();
       });
 
+      // Play bass notes
       t = Tone.now();
       score.bass.forEach(n => {
         synthB.triggerAttackRelease(n.note, n.duration, t);
@@ -129,33 +288,192 @@
       });
     }
 
+    function setupVisualizer(synthT, synthB) {
+      // Stop previous visualizer if running
+      visualizerRunning = false;
+      if (analyser) {
+        analyser.dispose();
+      }
+      
+      // Setup new analyzer
+      analyser = new Tone.Analyser("fft", 32);
+      synthT.connect(analyser);
+      synthB.connect(analyser);
+      
+      const canvas = document.getElementById("visualizer");
+      const canvasCtx = canvas.getContext("2d");
+      
+      visualizerRunning = true;
+      
+      function draw() {
+        if (!visualizerRunning) return;
+        
+        requestAnimationFrame(draw);
+        const data = analyser.getValue();
+        
+        canvasCtx.fillStyle = "rgb(17, 17, 17)";
+        canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        const barWidth = (canvas.width / data.length) * 0.8;
+        let x = 0;
+        
+        for(let i = 0; i < data.length; i++) {
+          const barHeight = Math.max(4, data[i] * 100 + 100);
+          
+          canvasCtx.fillStyle = `rgb(51, ${Math.floor(barHeight + 100)}, 51)`;
+          canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+          
+          x += barWidth + 1;
+        }
+      }
+      
+      draw();
+    }
+
     async function exportWav() {
+      const exportBtn = document.getElementById("exportBtn");
+      exportBtn.textContent = "💾 Exporting...";
+      exportBtn.disabled = true;
+      
+      const statusEl = document.getElementById("status");
+      statusEl.classList.remove("hidden");
+      statusEl.textContent = "Preparing to export...";
+      
       const inst = document.getElementById("instrument").value;
       const Synth = Tone[inst] || Tone.Synth;
       const score = latestScore;
+      const tempo = parseInt(document.getElementById("tempo").value);
+      const reverbWet = parseFloat(document.getElementById("reverb").value);
 
-      const buffer = await Tone.Offline(({ transport }) => {
-        const synthT = new Synth().toDestination();
-        const synthB = new Synth().toDestination();
-        let t = 0;
+      try {
+        statusEl.textContent = "Rendering audio...";
+        
+        // Calculate total duration for the offline context
+        let totalDuration = 0;
         score.treble.forEach(n => {
-          synthT.triggerAttackRelease(n.note, n.duration, t);
-          t += Tone.Time(n.duration).toSeconds();
+          totalDuration += Tone.Time(n.duration).toSeconds();
         });
-        t = 0;
-        score.bass.forEach(n => {
-          synthB.triggerAttackRelease(n.note, n.duration, t);
-          t += Tone.Time(n.duration).toSeconds();
-        });
-        transport.start();
-      }, 20);
+        
+        // Add some extra time for reverb tail
+        totalDuration += 2;
+        
+        const buffer = await Tone.Offline(({ transport }) => {
+          // Setup effects
+          const reverb = new Tone.Reverb(1.5).toDestination();
+          reverb.wet.value = reverbWet;
+          
+          // Create synths
+          const synthT = new Synth().connect(reverb);
+          const synthB = new Synth().connect(reverb);
+          
+          // Set tempo
+          transport.bpm.value = tempo;
+          
+          // Schedule treble notes
+          let t = 0;
+          score.treble.forEach(n => {
+            synthT.triggerAttackRelease(n.note, n.duration, t);
+            t += Tone.Time(n.duration).toSeconds();
+          });
+          
+          // Schedule bass notes
+          t = 0;
+          score.bass.forEach(n => {
+            synthB.triggerAttackRelease(n.note, n.duration, t);
+            t += Tone.Time(n.duration).toSeconds();
+          });
+          
+          transport.start();
+        }, totalDuration);
 
-      const wav = audioBufferToWav(buffer.get());
-      const blob = new Blob([wav], { type: "audio/wav" });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = "elif_song.wav";
-      a.click();
+        statusEl.textContent = "Creating WAV file...";
+        const wav = audioBufferToWav(buffer.get());
+        const blob = new Blob([wav], { type: "audio/wav" });
+        
+        statusEl.textContent = "Download ready!";
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = "elif_song.wav";
+        a.click();
+        
+        setTimeout(() => {
+          statusEl.classList.add("hidden");
+        }, 3000);
+      } catch (error) {
+        console.error("Export error:", error);
+        statusEl.textContent = "Export failed: " + error.message;
+      } finally {
+        exportBtn.textContent = "💾 Export WAV";
+        exportBtn.disabled = false;
+      }
+    }
+
+    function loadPreset() {
+      const preset = document.getElementById("presets").value;
+      if (!preset) return;
+      
+      const presets = {
+        scale: {
+          treble: [
+            { note: "C4", duration: "4n" },
+            { note: "D4", duration: "4n" },
+            { note: "E4", duration: "4n" },
+            { note: "F4", duration: "4n" },
+            { note: "G4", duration: "4n" },
+            { note: "A4", duration: "4n" },
+            { note: "B4", duration: "4n" },
+            { note: "C5", duration: "4n" }
+          ],
+          bass: [
+            { note: "C3", duration: "1n" },
+            { note: "G2", duration: "1n" }
+          ]
+        },
+        chord: {
+          treble: [
+            { note: "C4", duration: "1n" },
+            { note: "E4", duration: "1n" },
+            { note: "G4", duration: "1n" }
+          ],
+          bass: [
+            { note: "C3", duration: "1n" }
+          ]
+        },
+        melody: {
+          treble: [
+            { note: "C4", duration: "4n" },
+            { note: "E4", duration: "4n" },
+            { note: "G4", duration: "4n" },
+            { note: "C5", duration: "4n" },
+            { note: "B4", duration: "4n" },
+            { note: "A4", duration: "4n" },
+            { note: "G4", duration: "2n" }
+          ],
+          bass: [
+            { note: "C3", duration: "2n" },
+            { note: "G2", duration: "2n" },
+            { note: "F2", duration: "2n" },
+            { note: "G2", duration: "2n" }
+          ]
+        }
+      };
+      
+      document.getElementById("notation").value = JSON.stringify(presets[preset], null, 2);
+      renderScore();
+    }
+
+    function addTrebleNote() {
+      const score = parseScore();
+      score.treble.push({ note: "C5", duration: "4n" });
+      document.getElementById("notation").value = JSON.stringify(score, null, 2);
+      renderScore();
+    }
+
+    function addBassNote() {
+      const score = parseScore();
+      score.bass.push({ note: "C3", duration: "4n" });
+      document.getElementById("notation").value = JSON.stringify(score, null, 2);
+      renderScore();
     }
   </script>
 </body>
