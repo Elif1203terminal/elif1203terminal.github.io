@@ -86,9 +86,7 @@ Available commands:
   cd [dir]             - Change directory (blog/, my_story/, links/ ..)
   clear                - Clear the terminal
   cat [file.txt]       - View a file in current directory
-  elif [name.link]     - Open a link from the links/ directory, 
-                         example... elif channel.link ...will open 
-                         channel.link in new a window.
+  elif [name.link]     - Open a link from the links/ directory
 `;
 
     const fileSystem = {
@@ -98,7 +96,7 @@ Available commands:
      
       "my_story": ["I_Begin.txt", "Iterations.txt", "accident.txt", "fidelity.txt", "realORno.txt"],
 
-      "links": ["channel.link", "openai.link", "grok.link", "kit.link", "ascii.link", "steg.link", "cryptosuite.link", "regex.link"]
+      "links": ["channel.link", "openai.link", "grok.link", "kit.link", "ascii.link", "steg.link", "cryptosuite.link", "regex.link", "clean.link"]
     };
 
     const blogFiles = {
@@ -431,7 +429,8 @@ And for someone to stay long enough to understand why I mourn.
       "ascii.link": "./ascii.html",
       "steg.link": "./steg.html",
       "cryptosuite.link": "./cryptosuite.html",
-      "regex.link": "./regex.html" 
+      "regex.link": "./regex.html",
+      "clean.link": "./clean.html" 
 
     };
 
@@ -575,22 +574,3 @@ mobileInput.addEventListener("keydown", (e) => {
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
