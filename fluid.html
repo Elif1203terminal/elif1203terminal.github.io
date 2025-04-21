@@ -25,44 +25,45 @@
   <script>
     const width = 80;  // Width of the grid
     const height = 20; // Height of the grid
-    const fluidGrid = [];  // Fluid density grid
-    const velocityX = [];  // Horizontal velocity grid
-    const velocityY = [];  // Vertical velocity grid
+    const fluidGrid = []; // Fluid density grid
+    const velocityX = []; // Horizontal velocity grid
+    const velocityY = []; // Vertical velocity grid
 
-    // Initialize the fluid grid and velocity grids
+    // Initialize fluid grid and velocity maps
     for (let y = 0; y < height; y++) {
       fluidGrid[y] = [];
       velocityX[y] = [];
       velocityY[y] = [];
       for (let x = 0; x < width; x++) {
-        fluidGrid[y][x] = 0;  // No fluid initially
+        fluidGrid[y][x] = 0;  // Initial fluid density (0 = empty)
         velocityX[y][x] = 0;  // No horizontal velocity initially
         velocityY[y][x] = 0;  // No vertical velocity initially
       }
     }
 
-    // Function to add fluid at a point (user interaction simulation)
+    // Function to add fluid at a specific point (simulating user interaction)
     function addFluid(x, y, amount) {
       if (x >= 0 && x < width && y >= 0 && y < height) {
         fluidGrid[y][x] = Math.min(fluidGrid[y][x] + amount, 3); // Max fluid density of 3
       }
     }
 
-    // Update fluid simulation (basic diffusion and flow)
+    // Fluid simulation update (diffusion and velocity)
     function updateFluid() {
       const diffusion = 0.1;
-      const velocityFactor = 0.2;
+      const velocityFactor = 0.1;
 
+      // Diffuse fluid to neighboring cells
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
-          // Diffuse the fluid to neighboring cells (basic diffusion)
+          // Diffuse the fluid in all directions
           let fluidDensity = fluidGrid[y][x] * diffusion;
           if (x > 0) fluidGrid[y][x - 1] += fluidDensity;  // Diffuse left
           if (x < width - 1) fluidGrid[y][x + 1] += fluidDensity;  // Diffuse right
           if (y > 0) fluidGrid[y - 1][x] += fluidDensity;  // Diffuse up
           if (y < height - 1) fluidGrid[y + 1][x] += fluidDensity;  // Diffuse down
 
-          // Apply fluid velocity (random flow for simulation)
+          // Apply velocity (random flow for fluid movement)
           let velocityEffectX = Math.random() * velocityFactor;
           let velocityEffectY = Math.random() * velocityFactor;
 
@@ -76,7 +77,7 @@
       }
     }
 
-    // Render the fluid grid as ASCII characters
+    // Render the fluid simulation in ASCII characters
     function renderSimulation() {
       let output = '';
       for (let y = 0; y < height; y++) {
@@ -97,21 +98,21 @@
       document.getElementById('simulation').innerText = output;
     }
 
-    // Mouse interaction: Add fluid at mouse position
+    // Mouse interaction: Add fluid at the position of the mouse
     document.addEventListener('mousemove', (event) => {
       const x = Math.floor(event.clientX / window.innerWidth * width);
       const y = Math.floor(event.clientY / window.innerHeight * height);
-      addFluid(x, y, 1);  // Add fluid where mouse is
+      addFluid(x, y, 1);  // Add fluid at mouse position
     });
 
     // Continuous simulation loop
     function simulate() {
-      updateFluid();   // Update fluid dynamics (diffusion and flow)
-      renderSimulation(); // Render updated fluid grid to the screen
+      updateFluid();   // Update fluid dynamics (diffusion and velocity)
+      renderSimulation(); // Render updated fluid grid
       requestAnimationFrame(simulate);  // Keep updating the simulation
     }
 
-    simulate();  // Start the simulation loop
+    simulate();  // Start the simulation
   </script>
 </body>
 </html>
