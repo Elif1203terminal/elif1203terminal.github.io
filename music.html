@@ -364,33 +364,21 @@ function initializeApp() {
       const tempo = +tempoSl.value;
       Tone.Transport.bpm.value = tempo;
 
-      const InstrumentType = Tone[document.getElementById("instrument").value] || Tone.Synth;
-      const synthT = new InstrumentType();
-      const synthB = new InstrumentType();
-      const reverb = new Tone.Reverb(1.8).toDestination();
-      reverb.wet.value = +revSl.value;
-      synthT.connect(reverb); synthB.connect(reverb);
+const InstrumentType = Tone[document.getElementById("instrument").value] || Tone.Synth;
+const synthT = new InstrumentType();
+const synthB = new InstrumentType();
+const reverb = new Tone.Reverb(1.8);
+const gain = new Tone.Gain(0.9).toDestination(); // ✅ make sure gain is audible
 
-      let t = 0;
-      score.treble.forEach(n => { 
-        if (!n.isRest) {
-          synthT.triggerAttackRelease(n.note, n.duration, t); 
-        }
-        t += Tone.Time(n.duration).toSeconds(); 
-      });
-      
-      t = 0;
-      score.bass.forEach(n => { 
-        if (!n.isRest) {
-          synthB.triggerAttackRelease(n.note, n.duration, t); 
-        }
-        t += Tone.Time(n.duration).toSeconds(); 
-      });
+reverb.wet.value = +revSl.value;
 
-      const gain = new Tone.Gain().toDestination();
-synthT.connect(gain);
-synthB.connect(gain);
-startVis(gain); // Visualizer connects to a valid node now
+// Connect synths → reverb → gain → speakers
+synthT.connect(reverb);
+synthB.connect(reverb);
+reverb.connect(gain);
+
+// Send visualizer to valid node
+startVis(gain);
 
     
       
