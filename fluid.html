@@ -1,21 +1,23 @@
 <!DOCTYPE html>
 <!--
-Full‑screen WebGL‑2 fluid — small‑brush version • 22 Apr 2025
-MIT Licence – derived from Pavel Dobryakov’s original
+Full‑screen WebGL‑2 fluid with ASCII particles • 21 Apr 2025
+MIT Licence – derived from Pavel Dobryakov's original
 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WebGL Fluid – Small Brush</title>
+<title>WebGL Fluid – ASCII Particles</title>
 <style>
   html,body{margin:0;height:100%;background:#000;overflow:hidden}
   canvas{display:block;width:100%;height:100%}
+  #ascii-overlay{position:absolute;top:0;left:0;width:100%;height:100%;color:#fff;font-family:monospace;font-size:10px;overflow:hidden;pointer-events:none}
   *{-webkit-tap-highlight-color:transparent}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="ascii-overlay"></div>
 <script type="module">
 /* ---------- USER SETTINGS ---------- */
 const CONFIG={
@@ -25,15 +27,19 @@ const CONFIG={
   VELOCITY_DISS:0.98,
   PRESSURE_ITER:20,
   CURL:30,
-  SPLAT_RADIUS:0.04,           // **smaller brush (was 0.25)**
-  SPLAT_FORCE :1500,           // **gentler velocity (was 6000)**
+  SPLAT_RADIUS:0.02,           // **even smaller brush (was 0.04)**
+  SPLAT_FORCE :600,            // **adjusted velocity (was 1500)**
+  ASCII_GRID_SIZE: 60,         // number of ASCII chars in grid height
+  ASCII_CHARS: " .,:;+*?%S#@", // ASCII chars from darkest to brightest
 };
 /* ---------- HELPERS ---------- */
-function HSV(h,s,v){let r,g,b,i=Math.floor(h*6),f=h*6-i,p=v*(1-s),q=v*(1-f*s),t=v*(1-(1-f)*s);switch(i%6){case 0:r=v,g=t,b=p;break;case 1:r=q,g=v,b=p;break;case 2:r=p,g=v,b=t;break;case 3:r=p,g=q,b=v;break;case 4:r=t,g=p,b=v;break;case 5:r=v,g=p,b=q;break;}return[r*0.15,g*0.15,b*0.15]}
+function HSV(h,s,v){let r,g,b,i=Math.floor(h*6),f=h*6-i,p=v*(1-s),q=v*(1-f*s),t=v*(1-(1-f)*s);switch(i%6){case 0:r=v,g=t,b=p;break;case 1:r=q,g=v,b=p;break;case 2:r=p,g=v,b=t;break;case 3:r=p,g=q,b=v;break;case 4:r=t,g=p,b=v;break;case 5:r=v,g=p,b=q;break;}return[r,g,b]}
 const randColor=()=>HSV(Math.random(),1,1);
 const canvas=/**@type {HTMLCanvasElement}*/(document.getElementById('c'));
+const asciiOverlay = document.getElementById('ascii-overlay');
+let asciiCells = [];
 /* ---------- WEBGL & EXT ---------- */
-const gl=canvas.getContext('webgl2',{alpha:false});
+const gl=canvas.getContext('webgl2',{alpha:false,preserveDrawingBuffer:true});
 if(!gl)throw'WebGL2 not available';
 if(!gl.getExtension('EXT_color_buffer_float'))throw'EXT_color_buffer_float missing';
 /* ---------- GL UTILS ---------- */
@@ -98,7 +104,41 @@ function alloc(){const s=aspectRes(CONFIG.BASE_SIM_RES),d=aspectRes(CONFIG.BASE_
   div =FBO(s.w,s.h);
   pres=DoubleFBO(s.w,s.h);
 }
-function fitCanvas(){canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;alloc();}
+function setupAsciiGrid() {
+  const gridH = CONFIG.ASCII_GRID_SIZE;
+  const gridW = Math.round(gridH * (canvas.width / canvas.height));
+  
+  asciiOverlay.innerHTML = '';
+  asciiCells = [];
+  
+  // Create the ASCII grid
+  for (let y = 0; y < gridH; y++) {
+    const row = document.createElement('div');
+    row.style.height = (100 / gridH) + 'vh';
+    row.style.display = 'flex';
+    
+    const cellsRow = [];
+    for (let x = 0; x < gridW; x++) {
+      const cell = document.createElement('span');
+      cell.style.width = (100 / gridW) + 'vw';
+      cell.style.display = 'inline-block';
+      cell.style.textAlign = 'center';
+      cell.textContent = ' ';
+      row.appendChild(cell);
+      cellsRow.push(cell);
+    }
+    
+    asciiOverlay.appendChild(row);
+    asciiCells.push(cellsRow);
+  }
+}
+
+function fitCanvas(){
+  canvas.width=innerWidth*devicePixelRatio;
+  canvas.height=innerHeight*devicePixelRatio;
+  alloc();
+  setupAsciiGrid();
+}
 window.addEventListener('resize',fitCanvas);fitCanvas();
 /* ---------- POINTER ---------- */
 const pointer={down:false,moved:false,tx:0,ty:0,px:0,py:0,dX:0,dY:0,color:randColor()};
@@ -107,9 +147,10 @@ function updatePointer(x,y,down){
   if(down&&!pointer.down){pointer.down=true;pointer.color=randColor();}
   if(!down){pointer.down=false;pointer.moved=false;return;}
   pointer.px=pointer.tx;pointer.py=pointer.ty;
-  pointer.tx=x/w;pointer.ty=1-y/h;
+  pointer.tx=x/(canvas.width/devicePixelRatio)*(canvas.width/devicePixelRatio)/w;
+  pointer.ty=1-y/(canvas.height/devicePixelRatio)*(canvas.height/devicePixelRatio)/h;
   pointer.dX=pointer.tx-pointer.px;pointer.dY=pointer.ty-pointer.py;
-  pointer.moved=pointer.down&&(Math.abs(pointer.dX)||Math.abs(pointer.dY));
+  pointer.moved=pointer.down&&(Math.abs(pointer.dX)>0.0001||Math.abs(pointer.dY)>0.0001);
 }
 canvas.onpointerdown=e=>updatePointer(e.offsetX,e.offsetY,true);
 canvas.onpointermove=e=>updatePointer(e.offsetX,e.offsetY,pointer.down);
@@ -178,6 +219,46 @@ function pressureSolve(){
   gl.bindFramebuffer(gl.FRAMEBUFFER,sim.write.fbo);
   gl.drawArrays(gl.TRIANGLE_STRIP,0,4);sim.swap();
 }
+
+// Create a buffer for reading pixels
+const pixelBuffer = new Uint8Array(4);
+
+function updateAsciiGrid() {
+  const gridH = asciiCells.length;
+  const gridW = asciiCells[0].length;
+  const chars = CONFIG.ASCII_CHARS;
+  
+  // Bind framebuffer to read pixels
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  
+  for (let y = 0; y < gridH; y++) {
+    for (let x = 0; x < gridW; x++) {
+      // Calculate normalized coordinates
+      const nx = x / gridW;
+      const ny = y / gridH;
+      
+      // Convert to pixel coordinates
+      const px = Math.floor(nx * canvas.width);
+      const py = Math.floor((1 - ny) * canvas.height);
+      
+      // Read pixel at this position
+      gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixelBuffer);
+      
+      // Calculate brightness (simple average)
+      const brightness = (pixelBuffer[0] + pixelBuffer[1] + pixelBuffer[2]) / (3 * 255);
+      
+      // Map brightness to character
+      const charIndex = Math.min(chars.length - 1, Math.floor(brightness * chars.length));
+      const char = chars[charIndex];
+      
+      // Set character and color
+      const cell = asciiCells[y][x];
+      cell.textContent = char;
+      cell.style.color = `rgb(${pixelBuffer[0]}, ${pixelBuffer[1]}, ${pixelBuffer[2]})`;
+    }
+  }
+}
+
 function render(){
   gl.viewport(0,0,canvas.width,canvas.height);
   gl.useProgram(pDisp);
@@ -185,6 +266,9 @@ function render(){
   gl.uniform1i(gl.getUniformLocation(pDisp,'uTex'),0);
   gl.bindFramebuffer(gl.FRAMEBUFFER,null);
   gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  
+  // Update ASCII grid based on rendered image
+  updateAsciiGrid();
 }
 let lastT=performance.now();
 function frame(t){
