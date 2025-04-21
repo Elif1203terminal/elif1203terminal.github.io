@@ -387,7 +387,11 @@ function initializeApp() {
         t += Tone.Time(n.duration).toSeconds(); 
       });
 
-      startVis(new Tone.Gain().fan(synthT, synthB)); // visualiser tap
+      const gain = new Tone.Gain().toDestination();
+synthT.connect(gain);
+synthB.connect(gain);
+startVis(gain); // Visualizer connects to a valid node now
+
       Tone.Transport.start();
       
       errorBanner.classList.add('hidden');
