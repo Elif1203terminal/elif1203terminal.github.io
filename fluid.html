@@ -1,14 +1,13 @@
 <!DOCTYPE html>
 <!--
-Minimal WebGL‑2 fluid simulation
-Fixed‑aspect, full‑screen version – 22 Apr 2025
-Derived from Pavel Dobryakov’s MIT‑licensed original
+Full‑screen WebGL‑2 fluid — small‑brush version • 22 Apr 2025
+MIT Licence – derived from Pavel Dobryakov’s original
 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Full‑screen WebGL Fluid</title>
+<title>WebGL Fluid – Small Brush</title>
 <style>
   html,body{margin:0;height:100%;background:#000;overflow:hidden}
   canvas{display:block;width:100%;height:100%}
@@ -26,8 +25,8 @@ const CONFIG={
   VELOCITY_DISS:0.98,
   PRESSURE_ITER:20,
   CURL:30,
-  SPLAT_RADIUS:0.25,
-  SPLAT_FORCE :6000,
+  SPLAT_RADIUS:0.04,           // **smaller brush (was 0.25)**
+  SPLAT_FORCE :1500,           // **gentler velocity (was 6000)**
 };
 /* ---------- HELPERS ---------- */
 function HSV(h,s,v){let r,g,b,i=Math.floor(h*6),f=h*6-i,p=v*(1-s),q=v*(1-f*s),t=v*(1-(1-f)*s);switch(i%6){case 0:r=v,g=t,b=p;break;case 1:r=q,g=v,b=p;break;case 2:r=p,g=v,b=t;break;case 3:r=p,g=q,b=v;break;case 4:r=t,g=p,b=v;break;case 5:r=v,g=p,b=q;break;}return[r*0.15,g*0.15,b*0.15]}
