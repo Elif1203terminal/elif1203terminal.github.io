@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASCII Fluid Simulation</title>
+  <style>
+    body {
+      background-color: #000;
+      color: #00ff00;
+      font-family: 'Courier New', monospace;
+      white-space: pre;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    #simulation {
+      font-size: 14px;
+      line-height: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="simulation"></div>
+
+  <script>
+    const width = 80;  // Width of the grid
+    const height = 20; // Height of the grid
+    const densityMap = [];
+
+    // Initialize density map with 0s (empty grid)
+    for (let y = 0; y < height; y++) {
+      densityMap[y] = [];
+      for (let x = 0; x < width; x++) {
+        densityMap[y][x] = 0;
+      }
+    }
+
+    function updateFluid() {
+      // Simple fluid simulation
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          if (Math.random() < 0.1) {
+            densityMap[y][x] = Math.min(densityMap[y][x] + 1, 3); // Add some "fluid"
+          }
+          // Simulate fluid movement (simple flow logic)
+          if (densityMap[y][x] > 0) {
+            const dir = Math.floor(Math.random() * 4); // Random direction: 0 = left, 1 = right, 2 = up, 3 = down
+            if (dir === 0 && x > 0) densityMap[y][x - 1] = Math.max(densityMap[y][x - 1], densityMap[y][x] - 1);
+            if (dir === 1 && x < width - 1) densityMap[y][x + 1] = Math.max(densityMap[y][x + 1], densityMap[y][x] - 1);
+            if (dir === 2 && y > 0) densityMap[y - 1][x] = Math.max(densityMap[y - 1][x], densityMap[y][x] - 1);
+            if (dir === 3 && y < height - 1) densityMap[y + 1][x] = Math.max(densityMap[y + 1][x], densityMap[y][x] - 1);
+          }
+        }
+      }
+    }
+
+    function renderSimulation() {
+      let output = '';
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          if (densityMap[y][x] === 0) {
+            output += ' '; // Empty space for no fluid
+          } else if (densityMap[y][x] === 1) {
+            output += '~'; // Light fluid (low density)
+          } else if (densityMap[y][x] === 2) {
+            output += '*'; // Medium fluid
+          } else if (densityMap[y][x] === 3) {
+            output += '#'; // Dense fluid
+          }
+        }
+        output += '\n';
+      }
+      document.getElementById('simulation').innerText = output;
+    }
+
+    function simulate() {
+      updateFluid();
+      renderSimulation();
+      requestAnimationFrame(simulate); // Loop the simulation
+    }
+
+    simulate(); // Start the simulation
+  </script>
+</body>
+</html>
