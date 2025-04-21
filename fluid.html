@@ -29,13 +29,13 @@
     const velocityX = []; // Horizontal velocity grid
     const velocityY = []; // Vertical velocity grid
 
-    // Initialize fluid grid and velocity maps
+    // Initialize the fluid grid and velocity maps
     for (let y = 0; y < height; y++) {
       fluidGrid[y] = [];
       velocityX[y] = [];
       velocityY[y] = [];
       for (let x = 0; x < width; x++) {
-        fluidGrid[y][x] = 0;  // Initial fluid density (0 = empty)
+        fluidGrid[y][x] = 0;  // No fluid initially
         velocityX[y][x] = 0;  // No horizontal velocity initially
         velocityY[y][x] = 0;  // No vertical velocity initially
       }
@@ -51,19 +51,18 @@
     // Fluid simulation update (diffusion and velocity)
     function updateFluid() {
       const diffusion = 0.1;
-      const velocityFactor = 0.1;
+      const velocityFactor = 0.2;
 
-      // Diffuse fluid to neighboring cells
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
-          // Diffuse the fluid in all directions
+          // Diffuse fluid to neighboring cells
           let fluidDensity = fluidGrid[y][x] * diffusion;
           if (x > 0) fluidGrid[y][x - 1] += fluidDensity;  // Diffuse left
           if (x < width - 1) fluidGrid[y][x + 1] += fluidDensity;  // Diffuse right
           if (y > 0) fluidGrid[y - 1][x] += fluidDensity;  // Diffuse up
           if (y < height - 1) fluidGrid[y + 1][x] += fluidDensity;  // Diffuse down
 
-          // Apply velocity (random flow for fluid movement)
+          // Apply fluid velocity (random flow for simulation)
           let velocityEffectX = Math.random() * velocityFactor;
           let velocityEffectY = Math.random() * velocityFactor;
 
@@ -98,7 +97,7 @@
       document.getElementById('simulation').innerText = output;
     }
 
-    // Mouse interaction: Add fluid at the position of the mouse
+    // Mouse interaction: Add fluid at mouse position
     document.addEventListener('mousemove', (event) => {
       const x = Math.floor(event.clientX / window.innerWidth * width);
       const y = Math.floor(event.clientY / window.innerHeight * height);
