@@ -27,11 +27,11 @@
     const height = 20; // Height of the grid
     const fluidGrid = []; // Fluid density grid
 
-    // Initialize the fluid grid
+    // Initialize the fluid grid with zero (no fluid)
     for (let y = 0; y < height; y++) {
       fluidGrid[y] = [];
       for (let x = 0; x < width; x++) {
-        fluidGrid[y][x] = 0;  // No fluid initially
+        fluidGrid[y][x] = 0;  // Initialize fluid density to 0 (empty)
       }
     }
 
@@ -42,14 +42,16 @@
       }
     }
 
-    // Fluid simulation update (diffusion and velocity)
+    // Fluid simulation update (basic diffusion logic)
     function updateFluid() {
       const diffusion = 0.1;
 
+      // Diffuse fluid to neighboring cells
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
-          // Diffuse fluid to neighboring cells
           let fluidDensity = fluidGrid[y][x] * diffusion;
+          
+          // Spread fluid density to neighboring cells (left, right, up, down)
           if (x > 0) fluidGrid[y][x - 1] += fluidDensity;  // Diffuse left
           if (x < width - 1) fluidGrid[y][x + 1] += fluidDensity;  // Diffuse right
           if (y > 0) fluidGrid[y - 1][x] += fluidDensity;  // Diffuse up
