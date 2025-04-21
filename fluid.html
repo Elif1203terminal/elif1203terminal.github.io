@@ -1,101 +1,259 @@
 <!DOCTYPE html>
+<!--
+MIT License
+Forked & stripped‑down from Pavel Dobryakov’s WebGL‑Fluid‑Simulation
+https://github.com/PavelDoGreat/WebGL-Fluid-Simulation
+This minimal version keeps only the core solver + interaction.
+-->
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ASCII Fluid Simulation</title>
-  <style>
-    body {
-      background-color: #000;
-      color: #00ff00;
-      font-family: 'Courier New', monospace;
-      white-space: pre;
-      margin: 0;
-      padding: 0;
-    }
-    #simulation {
-      font-size: 12px;
-      line-height: 12px;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Minimal WebGL Fluid</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden}
+  canvas{display:block;width:100%;height:100%}
+  /* optional: hide iOS tap highlight */
+  *{-webkit-tap-highlight-color:transparent}
+</style>
 </head>
 <body>
-  <div id="simulation"></div>
-
-  <script>
-    const width = 80;  // Width of the grid
-    const height = 20; // Height of the grid
-    const fluidGrid = []; // Fluid density grid
-
-    // Initialize the fluid grid with zero (no fluid)
-    for (let y = 0; y < height; y++) {
-      fluidGrid[y] = [];
-      for (let x = 0; x < width; x++) {
-        fluidGrid[y][x] = 0;  // Initialize fluid density to 0 (empty)
-      }
-    }
-
-    // Function to add fluid at a specific point (simulating user interaction)
-    function addFluid(x, y, amount) {
-      if (x >= 0 && x < width && y >= 0 && y < height) {
-        fluidGrid[y][x] = Math.min(fluidGrid[y][x] + amount, 3); // Max fluid density of 3
-      }
-    }
-
-    // Fluid simulation update (basic diffusion logic)
-    function updateFluid() {
-      const diffusion = 0.1;
-
-      // Diffuse fluid to neighboring cells
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          let fluidDensity = fluidGrid[y][x] * diffusion;
-          
-          // Spread fluid density to neighboring cells (left, right, up, down)
-          if (x > 0) fluidGrid[y][x - 1] += fluidDensity;  // Diffuse left
-          if (x < width - 1) fluidGrid[y][x + 1] += fluidDensity;  // Diffuse right
-          if (y > 0) fluidGrid[y - 1][x] += fluidDensity;  // Diffuse up
-          if (y < height - 1) fluidGrid[y + 1][x] += fluidDensity;  // Diffuse down
-        }
-      }
-    }
-
-    // Render the fluid simulation in ASCII characters
-    function renderSimulation() {
-      let output = '';
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          // Convert fluid density into ASCII characters
-          if (fluidGrid[y][x] === 0) {
-            output += ' ';  // Empty space for no fluid
-          } else if (fluidGrid[y][x] === 1) {
-            output += '~';  // Light fluid (low density)
-          } else if (fluidGrid[y][x] === 2) {
-            output += '*';  // Medium fluid
-          } else if (fluidGrid[y][x] === 3) {
-            output += '#';  // Dense fluid
-          }
-        }
-        output += '\n';
-      }
-      document.getElementById('simulation').innerText = output;
-    }
-
-    // Mouse interaction: Add fluid at mouse position
-    document.addEventListener('mousemove', (event) => {
-      const x = Math.floor(event.clientX / window.innerWidth * width);
-      const y = Math.floor(event.clientY / window.innerHeight * height);
-      addFluid(x, y, 1);  // Add fluid at mouse position
-    });
-
-    // Continuous simulation loop
-    function simulate() {
-      updateFluid();   // Update fluid dynamics (diffusion)
-      renderSimulation(); // Render updated fluid grid
-      requestAnimationFrame(simulate);  // Keep updating the simulation
-    }
-
-    simulate();  // Start the simulation
-  </script>
+<canvas id="c"></canvas>
+<script type="module">
+/* ---------- USER‑TWEAKABLE PARAMS ---------- */
+const CONFIG = {
+  SIM_RESOLUTION : 128,
+  DYE_RESOLUTION : 512,
+  DENSITY_DISSIPATION : 0.98,
+  VELOCITY_DISSIPATION : 0.98,
+  PRESSURE_ITERATIONS : 20,
+  CURL : 30,
+  SPLAT_RADIUS : 0.25,
+  SPLAT_FORCE : 6000,
+};
+/* --------- INTERNALS / CONSTANTS ---------- */
+const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('c'));
+let pointers = [{id:-1,down:false,moved:false,texX:0,texY:0,pX:0,pY:0,dX:0,dY:0,color:randColor()}];
+function randColor(){const h=Math.random();return HSVtoRGB(h,1,1)}
+function HSVtoRGB(h,s,v){let r,g,b,i=Math.floor(h*6),f=h*6-i,p=v*(1-s),q=v*(1-f*s),t=v*(1-(1-f)*s);switch(i%6){case 0:r=v,g=t,b=p;break;case 1:r=q,g=v,b=p;break;case 2:r=p,g=v,b=t;break;case 3:r=p,g=q,b=v;break;case 4:r=t,g=p,b=v;break;case 5:r=v,g=p,b=q;break;}return[r*0.15,g*0.15,b*0.15]}
+function isMobile(){return /Mobi|Android/i.test(navigator.userAgent)}
+/* ---------- WEBGL SETUP ---------- */
+const gl = canvas.getContext('webgl2',{alpha:false});
+if(!gl){alert('WebGL 2 not supported :(');throw'no webgl2';}
+const ext = gl.getExtension('EXT_color_buffer_float');
+if(!ext){alert('FLOAT fbo not supported');throw'ext missing';}
+/* ---------- HELPERS ---------- */
+const QUAD_VS=`#version 300 es
+in vec2 a;out vec2 vUv;
+void main(){vUv=a*0.5+0.5;gl_Position=vec4(a,0,1);}
+`;
+function createProgram(vsSrc,fsSrc){
+  const vs=gl.createShader(gl.VERTEX_SHADER);gl.shaderSource(vs,vsSrc);gl.compileShader(vs);
+  const fs=gl.createShader(gl.FRAGMENT_SHADER);gl.shaderSource(fs,fsSrc);gl.compileShader(fs);
+  const p=gl.createProgram();gl.attachShader(p,vs);gl.attachShader(p,fs);gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw gl.getProgramInfoLog(p);
+  return p;
+}
+const quadVbo=gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER,quadVbo);
+gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
+function bindAttribs(p){const loc=gl.getAttribLocation(p,'a');gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);}
+function createFBO(w,h,intFmt=gl.RGBA16F,fmt=gl.RGBA){
+  const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D,0,intFmt,w,h,0,fmt,gl.FLOAT,null);
+  const fbo=gl.createFramebuffer();gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,tex,0);
+  return {tex,fbo,w,h};
+}
+function createDoubleFBO(w,h){const a=createFBO(w,h),b=createFBO(w,h);return{read:a,write:b,swap(){[this.read,this.write]=[this.write,this.read]}}}
+/* ---------- SHADERS ---------- */
+const SPLAT_FS=`#version 300 es
+precision highp float;in vec2 vUv;out vec4 o;
+uniform sampler2D uTex;uniform vec2 point;uniform float rad;uniform vec3 color;
+void main(){vec2 d=vUv-point;float p=exp(-dot(d,d)/rad);vec3 base=texture(uTex,vUv).rgb;o=vec4(base+color*p,1);}
+`;
+const ADVECTION_FS=`#version 300 es
+precision highp float;in vec2 vUv;out vec4 o;
+uniform sampler2D uVel,uSrc;uniform vec2 texel;uniform float dt;uniform float diss;
+void main(){vec2 vel=texture(uVel,vUv).xy;vec2 coord=vUv-dt*vel*texel;o=texture(uSrc,coord)*diss;}
+`;
+const DIVERGENCE_FS=`#version 300 es
+precision highp float;in vec2 vUv;out vec4 o;
+uniform sampler2D uVel;uniform vec2 texel;
+void main(){float l=texture(uVel,vUv-vec2(texel.x,0)).x;
+float r=texture(uVel,vUv+vec2(texel.x,0)).x;
+float b=texture(uVel,vUv-vec2(0,texel.y)).y;
+float t=texture(uVel,vUv+vec2(0,texel.y)).y;
+o=vec4(0.5*(r-l+t-b),0,0,1);}
+`;
+const CLEAR_FS=`#version 300 es
+precision highp float;in vec2 vUv;out vec4 o;
+uniform sampler2D uTex;uniform float value;
+void main(){o=texture(uTex,vUv)*value;}
+`;
+const PRESSURE_FS=`#version 300 es
+precision highp float;in vec2 vUv;out vec4 o;
+uniform sampler2D uPres,uDiv;uniform vec2 texel;
+void main(){float l=texture(uPres,vUv-vec2(texel.x,0)).x;
+float r=texture(uPres,vUv+vec2(texel.x,0)).x;
+float b=texture(uPres,vUv-vec2(0,texel.y)).x;
+float t=texture(uPres,vUv+vec2(0,texel.y)).x;
+float div=texture(uDiv,vUv).x;
+o=vec4((l+r+b+t-div)*0.25,0,0,1);}
+`;
+const GRAD_SUB_FS=`#version 300 es
+precision highp float;in vec2 vUv;out vec4 o;
+uniform sampler2D uPres,uVel;uniform vec2 texel;
+void main(){vec2 vel=texture(uVel,vUv).xy;
+float l=texture(uPres,vUv-vec2(texel.x,0)).x;
+float r=texture(uPres,vUv+vec2(texel.x,0)).x;
+float b=texture(uPres,vUv-vec2(0,texel.y)).x;
+float t=texture(uPres,vUv+vec2(0,texel.y)).x;
+vel-=vec2(r-l,t-b);
+o=vec4(vel,0,1);}
+`;
+const DISPLAY_FS=`#version 300 es
+precision highp float;in vec2 vUv;out vec4 o;
+uniform sampler2D uTex;void main(){o=texture(uTex,vUv);}
+`;
+/* ---------- PROGRAMS ---------- */
+const progSplat=createProgram(QUAD_VS,SPLAT_FS);bindAttribs(progSplat);
+const progAdvect=createProgram(QUAD_VS,ADVECTION_FS);bindAttribs(progAdvect);
+const progDiv=createProgram(QUAD_VS,DIVERGENCE_FS);bindAttribs(progDiv);
+const progClear=createProgram(QUAD_VS,CLEAR_FS);bindAttribs(progClear);
+const progPressure=createProgram(QUAD_VS,PRESSURE_FS);bindAttribs(progPressure);
+const progGradSub=createProgram(QUAD_VS,GRAD_SUB_FS);bindAttribs(progGradSub);
+const progDisplay=createProgram(QUAD_VS,DISPLAY_FS);bindAttribs(progDisplay);
+/* ---------- BUFFERS ---------- */
+let sim, dye, div, pres;
+function resize(){
+  canvas.width=window.innerWidth*devicePixelRatio;
+  canvas.height=window.innerHeight*devicePixelRatio;
+  const simRes=CONFIG.SIM_RESOLUTION;
+  const dyeRes=CONFIG.DYE_RESOLUTION;
+  sim=createDoubleFBO(simRes,simRes);
+  dye=createDoubleFBO(dyeRes,dyeRes);
+  div=createFBO(simRes,simRes);
+  pres=createDoubleFBO(simRes,simRes);
+}
+window.addEventListener('resize',resize);resize();
+/* ---------- INTERACTION ---------- */
+canvas.onmousedown=e=>startPointer(pointers[0],e.offsetX,e.offsetY);
+canvas.onmousemove=e=>movePointer(pointers[0],e.offsetX,e.offsetY);
+window.onmouseup=()=>endPointer(pointers[0]);
+canvas.ontouchstart=e=>{e.preventDefault();const t=e.targetTouches[0];startPointer(pointers[0],t.pageX,t.pageY);}
+canvas.ontouchmove=e=>{e.preventDefault();const t=e.targetTouches[0];movePointer(pointers[0],t.pageX,t.pageY);}
+canvas.ontouchend=e=>endPointer(pointers[0]);
+function startPointer(p,x,y){
+  const [w,h]=[canvas.width,canvas.height];
+  p.down=true;p.moved=false;p.pX=p.texX=pointers[0].texX=x/w;p.pY=p.texY=1-y/h;
+  p.color=randColor();
+}
+function movePointer(p,x,y){
+  if(!p.down)return;
+  const [w,h]=[canvas.width,canvas.height];
+  p.pX=p.texX;p.pY=p.texY;
+  p.texX=x/w;p.texY=1-y/h;
+  p.dX=p.texX-p.pX;p.dY=p.texY-p.pY;
+  p.moved=Math.abs(p.dX)||Math.abs(p.dY);
+}
+function endPointer(p){p.down=false;}
+/* ---------- SIMULATION STEP ---------- */
+function step(dt){
+  gl.viewport(0,0,sim.read.w,sim.read.h);
+  /* splats */
+  pointers.forEach(p=>{
+    if(!p.moved)return;
+    gl.useProgram(progSplat);
+    gl.uniform2f(gl.getUniformLocation(progSplat,'point'),p.texX,p.texY);
+    gl.uniform1f(gl.getUniformLocation(progSplat,'rad'),CONFIG.SPLAT_RADIUS);
+    gl.uniform3fv(gl.getUniformLocation(progSplat,'color'),[p.dX*CONFIG.SPLAT_FORCE,p.dY*CONFIG.SPLAT_FORCE,0]);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,sim.write.fbo);
+    gl.bindTexture(gl.TEXTURE_2D,sim.read.tex);
+    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);sim.swap();
+    /* dye */
+    gl.uniform3fv(gl.getUniformLocation(progSplat,'color'),p.color);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,dye.write.fbo);
+    gl.bindTexture(gl.TEXTURE_2D,dye.read.tex);
+    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);dye.swap();
+    p.moved=false;
+  });
+  /* advection velocity */
+  gl.useProgram(progAdvect);
+  gl.uniform2f(gl.getUniformLocation(progAdvect,'texel'),1/sim.read.w,1/sim.read.h);
+  gl.uniform1f(gl.getUniformLocation(progAdvect,'dt'),dt);
+  gl.uniform1f(gl.getUniformLocation(progAdvect,'diss'),CONFIG.VELOCITY_DISSIPATION);
+  gl.uniform1i(gl.getUniformLocation(progAdvect,'uVel'),0);
+  gl.uniform1i(gl.getUniformLocation(progAdvect,'uSrc'),0);
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,sim.read.tex);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,sim.write.fbo);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);sim.swap();
+  /* advection dye */
+  gl.viewport(0,0,dye.read.w,dye.read.h);
+  gl.uniform2f(gl.getUniformLocation(progAdvect,'texel'),1/dye.read.w,1/dye.read.h);
+  gl.uniform1f(gl.getUniformLocation(progAdvect,'diss'),CONFIG.DENSITY_DISSIPATION);
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,sim.read.tex);
+  gl.uniform1i(gl.getUniformLocation(progAdvect,'uVel'),0);
+  gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,dye.read.tex);
+  gl.uniform1i(gl.getUniformLocation(progAdvect,'uSrc'),1);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,dye.write.fbo);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);dye.swap();
+  /* divergence */
+  gl.viewport(0,0,sim.read.w,sim.read.h);
+  gl.useProgram(progDiv);
+  gl.uniform2f(gl.getUniformLocation(progDiv,'texel'),1/sim.read.w,1/sim.read.h);
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,sim.read.tex);
+  gl.uniform1i(gl.getUniformLocation(progDiv,'uVel'),0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,div.fbo);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  /* clear pressure */
+  gl.useProgram(progClear);
+  gl.uniform1f(gl.getUniformLocation(progClear,'value'),0.8);
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,pres.read.tex);
+  gl.uniform1i(gl.getUniformLocation(progClear,'uTex'),0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,pres.write.fbo);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);pres.swap();
+  /* pressure solve */
+  gl.useProgram(progPressure);
+  gl.uniform2f(gl.getUniformLocation(progPressure,'texel'),1/sim.read.w,1/sim.read.h);
+  for(let i=0;i<CONFIG.PRESSURE_ITERATIONS;i++){
+    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,pres.read.tex);
+    gl.uniform1i(gl.getUniformLocation(progPressure,'uPres'),0);
+    gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,div.tex);
+    gl.uniform1i(gl.getUniformLocation(progPressure,'uDiv'),1);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,pres.write.fbo);
+    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);pres.swap();
+  }
+  /* grad sub */
+  gl.useProgram(progGradSub);
+  gl.uniform2f(gl.getUniformLocation(progGradSub,'texel'),1/sim.read.w,1/sim.read.h);
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,pres.read.tex);
+  gl.uniform1i(gl.getUniformLocation(progGradSub,'uPres'),0);
+  gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,sim.read.tex);
+  gl.uniform1i(gl.getUniformLocation(progGradSub,'uVel'),1);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,sim.write.fbo);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);sim.swap();
+}
+/* ---------- RENDER ---------- */
+function draw(){
+  gl.viewport(0,0,canvas.width,canvas.height);
+  gl.useProgram(progDisplay);
+  gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,dye.read.tex);
+  gl.uniform1i(gl.getUniformLocation(progDisplay,'uTex'),0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+}
+let last=performance.now();
+function loop(t){
+  const dt=Math.min((t-last)/1000,0.016);last=t;
+  step(dt);draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
 </body>
 </html>
