@@ -26,18 +26,12 @@
     const width = 80;  // Width of the grid
     const height = 20; // Height of the grid
     const fluidGrid = []; // Fluid density grid
-    const velocityX = []; // Horizontal velocity grid
-    const velocityY = []; // Vertical velocity grid
 
-    // Initialize the fluid grid and velocity maps
+    // Initialize the fluid grid
     for (let y = 0; y < height; y++) {
       fluidGrid[y] = [];
-      velocityX[y] = [];
-      velocityY[y] = [];
       for (let x = 0; x < width; x++) {
         fluidGrid[y][x] = 0;  // No fluid initially
-        velocityX[y][x] = 0;  // No horizontal velocity initially
-        velocityY[y][x] = 0;  // No vertical velocity initially
       }
     }
 
@@ -51,7 +45,6 @@
     // Fluid simulation update (diffusion and velocity)
     function updateFluid() {
       const diffusion = 0.1;
-      const velocityFactor = 0.2;
 
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
@@ -61,17 +54,6 @@
           if (x < width - 1) fluidGrid[y][x + 1] += fluidDensity;  // Diffuse right
           if (y > 0) fluidGrid[y - 1][x] += fluidDensity;  // Diffuse up
           if (y < height - 1) fluidGrid[y + 1][x] += fluidDensity;  // Diffuse down
-
-          // Apply fluid velocity (random flow for simulation)
-          let velocityEffectX = Math.random() * velocityFactor;
-          let velocityEffectY = Math.random() * velocityFactor;
-
-          if (x + velocityEffectX >= 0 && x + velocityEffectX < width) {
-            fluidGrid[y][x + velocityEffectX] = Math.max(fluidGrid[y][x + velocityEffectX], fluidGrid[y][x]);
-          }
-          if (y + velocityEffectY >= 0 && y + velocityEffectY < height) {
-            fluidGrid[y + velocityEffectY][x] = Math.max(fluidGrid[y + velocityEffectY][x], fluidGrid[y][x]);
-          }
         }
       }
     }
@@ -106,7 +88,7 @@
 
     // Continuous simulation loop
     function simulate() {
-      updateFluid();   // Update fluid dynamics (diffusion and velocity)
+      updateFluid();   // Update fluid dynamics (diffusion)
       renderSimulation(); // Render updated fluid grid
       requestAnimationFrame(simulate);  // Keep updating the simulation
     }
