@@ -367,18 +367,33 @@ function initializeApp() {
 const InstrumentType = Tone[document.getElementById("instrument").value] || Tone.Synth;
 const synthT = new InstrumentType();
 const synthB = new InstrumentType();
-const reverb = new Tone.Reverb(1.8);
-const gain = new Tone.Gain(0.9).toDestination(); // ✅ make sure gain is audible
 
+const reverb = new Tone.Reverb(1.8);
 reverb.wet.value = +revSl.value;
 
-// Connect synths → reverb → gain → speakers
+const gain = new Tone.Gain(0.9).toDestination();
+
 synthT.connect(reverb);
 synthB.connect(reverb);
 reverb.connect(gain);
+startVis(gain); // hook up visualizer
 
-// Send visualizer to valid node
-startVis(gain);
+let t1 = Tone.now();
+score.treble.forEach(n => {
+  if (!n.isRest) {
+    synthT.triggerAttackRelease(n.note, n.duration, t1);
+  }
+  t1 += Tone.Time(n.duration).toSeconds();
+});
+
+let t2 = Tone.now();
+score.bass.forEach(n => {
+  if (!n.isRest) {
+    synthB.triggerAttackRelease(n.note, n.duration, t2);
+  }
+  t2 += Tone.Time(n.duration).toSeconds();
+});
+
 
     
       
