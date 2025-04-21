@@ -1,539 +1,272 @@
 <!DOCTYPE html>
+<!--
+Elif Composer – fixed build 22 Apr 2025
+MIT‑licensed; uses VexFlow, Tone.js, audio‑buffer‑to‑wav
+-->
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>🎼 Elif Composer (Final Build)</title>
-  <style>
-    body {
-      background: #000;
-      color: #33ff33;
-      font-family: 'Courier New', monospace;
-      padding: 20px;
-      max-width: 900px;
-      margin: 0 auto;
-    }
-    textarea, select, button, input {
-      width: 100%;
-      background: #111;
-      color: #33ff33;
-      border: 1px solid #33ff33;
-      padding: 10px;
-      margin: 10px 0;
-      font-family: 'Courier New', monospace;
-    }
-    button:hover {
-      background: #222;
-      cursor: pointer;
-    }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    canvas {
-      background: #111;
-      margin-top: 20px;
-      width: 100%;
-      height: 100px;
-    }
-    .control-row {
-      display: flex;
-      gap: 10px;
-      margin: 10px 0;
-    }
-    .control-row > * {
-      flex: 1;
-    }
-    .tooltip {
-      position: relative;
-      display: inline-block;
-    }
-    .tooltip .tooltiptext {
-      visibility: hidden;
-      width: 120px;
-      background-color: #333;
-      color: #33ff33;
-      text-align: center;
-      border-radius: 6px;
-      padding: 5px;
-      position: absolute;
-      z-index: 1;
-      bottom: 125%;
-      left: 50%;
-      margin-left: -60px;
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-    .tooltip:hover .tooltiptext {
-      visibility: visible;
-      opacity: 1;
-    }
-    .slider-container {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin: 10px 0;
-    }
-    .slider-container label {
-      flex: 1;
-    }
-    .slider-container input {
-      flex: 3;
-      margin: 0;
-    }
-    .slider-container span {
-      flex: 1;
-      text-align: right;
-    }
-    #visualizer {
-      border: 1px solid #33ff33;
-    }
-    .hidden {
-      display: none;
-    }
-    .notification {
-      padding: 10px;
-      background-color: #222;
-      border: 1px solid #33ff33;
-      margin: 10px 0;
-      border-radius: 4px;
-    }
-  </style>
-  <script src="https://cdn.jsdelivr.net/npm/vexflow@1.2.93/releases/vexflow-min.js"></script>
-  <script src="https://unpkg.com/tone@14.8.39/build/Tone.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/audio-buffer-to-wav/index.min.js"></script>
+<meta charset="UTF-8">
+<title>🎼 Elif Composer</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body{background:#000;color:#33ff33;font-family:"Courier New",monospace;padding:20px;max-width:900px;margin:0 auto}
+  textarea,select,button,input{width:100%;background:#111;color:#33ff33;border:1px solid #33ff33;padding:10px;margin:10px 0;font-family:"Courier New",monospace}
+  button:hover{background:#222;cursor:pointer}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  canvas{background:#111;margin-top:20px;width:100%;height:100px}
+  .control-row{display:flex;gap:10px;margin:10px 0}
+  .control-row>*{flex:1}
+  .tooltip{position:relative;display:inline-block}
+  .tooltip .tooltiptext{visibility:hidden;width:140px;background:#333;color:#33ff33;text-align:center;border-radius:6px;padding:5px;position:absolute;z-index:1;bottom:125%;left:50%;margin-left:-70px;opacity:0;transition:.3s}
+  .tooltip:hover .tooltiptext{visibility:visible;opacity:1}
+  .slider-container{display:flex;align-items:center;gap:10px;margin:10px 0}
+  .slider-container label{flex:1}
+  .slider-container input{flex:3;margin:0}
+  .slider-container span{flex:1;text-align:right}
+  #visualizer{border:1px solid #33ff33}
+  .notification{padding:10px;background:#222;border:1px solid #33ff33;margin:10px 0;border-radius:4px}
+  .hidden{display:none}
+</style>
+<!-- UMD builds (globals) -->
+<script src="https://cdn.jsdelivr.net/npm/vexflow@1.2.93/releases/vexflow-min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tone@14.8.39/build/Tone.js"></script>
 </head>
 <body>
-  <h2>🎼 Elif Music Composer</h2>
-  
-  <div id="startAudio" class="notification">
-    Please click this message to initialize audio playback ▶
-  </div>
+<h2>🎼 Elif Music Composer</h2>
 
-  <div class="control-row">
-    <div class="tooltip">
-      <label>Presets:</label>
-      <span class="tooltiptext">Load a preset composition</span>
-      <select id="presets" onchange="loadPreset()">
-        <option value="">-- Select Preset --</option>
-        <option value="scale">C Major Scale</option>
-        <option value="chord">C Major Chord</option>
-        <option value="melody">Simple Melody</option>
-      </select>
-    </div>
-    
-    <div class="tooltip">
-      <label>Instrument:</label>
-      <span class="tooltiptext">Choose your instrument</span>
-      <select id="instrument">
-        <option value="Synth">🎹 Synth</option>
-        <option value="AMSynth">🌙 AMSynth</option>
-        <option value="FMSynth">🔊 FMSynth</option>
-        <option value="PluckSynth">🎸 Pluck</option>
-        <option value="MetalSynth">🥁 Metal</option>
-        <option value="MembraneSynth">🪘 Membrane</option>
-      </select>
-    </div>
-  </div>
+<div id="startAudio" class="notification">Click here once to initialize audio ▶</div>
 
-  <div class="slider-container">
-    <label>Tempo:</label>
-    <input type="range" id="tempo" min="60" max="200" step="1" value="120">
-    <span id="tempoValue">120 BPM</span>
+<div class="control-row">
+  <div class="tooltip" style="flex:1.1">
+    <label>Presets</label><span class="tooltiptext">Load example score</span>
+    <select id="presets">
+      <option value="">-- Select Preset --</option>
+      <option value="scale">C Major Scale</option>
+      <option value="chord">C Major Chord</option>
+      <option value="melody">Simple Melody</option>
+    </select>
   </div>
-
-  <div class="slider-container">
-    <label>Reverb:</label>
-    <input type="range" id="reverb" min="0" max="1" step="0.1" value="0">
-    <span id="reverbValue">0</span>
+  <div class="tooltip" style="flex:0.9">
+    <label>Instrument</label><span class="tooltiptext">Tone.js synth family</span>
+    <select id="instrument">
+      <option>Synth</option><option>AMSynth</option><option>FMSynth</option>
+      <option>PluckSynth</option><option>MetalSynth</option><option>MembraneSynth</option>
+    </select>
   </div>
+</div>
 
-  <label>Enter JSON Score:</label>
-  <textarea id="notation" rows="10">{
-  "treble": [
-    { "note": "C5", "duration": "4n" },
-    { "note": "E5", "duration": "8n" },
-    { "note": "G5", "duration": "8n" },
-    { "note": "A5", "duration": "2n" }
-  ],
-  "bass": [
-    { "note": "C3", "duration": "1n" },
-    { "note": "F2", "duration": "1n" }
-  ]
+<div class="slider-container">
+  <label>Tempo</label>
+  <input type="range" id="tempo" min="60" max="200" step="1" value="120">
+  <span id="tempoVal">120 BPM</span>
+</div>
+
+<div class="slider-container">
+  <label>Reverb</label>
+  <input type="range" id="reverb" min="0" max="1" step="0.05" value="0">
+  <span id="reverbVal">0</span>
+</div>
+
+<label>JSON Score</label>
+<textarea id="notation" rows="10">{
+  "treble":[{"note":"C5","duration":"4n"},{"note":"E5","duration":"8n"},
+            {"note":"G5","duration":"8n"},{"note":"A5","duration":"2n"}],
+  "bass":[{"note":"C3","duration":"1n"},{"note":"F2","duration":"1n"}]
 }</textarea>
-  <div class="control-row">
-    <button id="renderBtn" onclick="renderScore()" class="tooltip">
-      <span class="tooltiptext">Space key</span>
-      ▶ Render & Play
-    </button>
-    <button id="exportBtn" onclick="exportWav()" class="tooltip">
-      <span class="tooltiptext">Ctrl+S</span>
-      💾 Export WAV
-    </button>
-    <button onclick="addTrebleNote()" class="tooltip">
-      <span class="tooltiptext">Add a treble note</span>
-      + Add Treble Note
-    </button>
-    <button onclick="addBassNote()" class="tooltip">
-      <span class="tooltiptext">Add a bass note</span>
-      + Add Bass Note
-    </button>
-  </div>
 
-  <div id="sheet"></div>
-  <canvas id="visualizer" width="850" height="100"></canvas>
-  <div id="status" class="hidden"></div>
+<div class="control-row">
+  <button id="renderBtn" class="tooltip"><span class="tooltiptext">Space</span>▶ Render & Play</button>
+  <button id="exportBtn" class="tooltip"><span class="tooltiptext">Ctrl + S</span>💾 Export WAV</button>
+  <button id="addT">+ Add Treble</button>
+  <button id="addB">+ Add Bass</button>
+</div>
 
-  <script>
-    const VF = Vex.Flow;
-    let latestScore = { treble: [], bass: [] };
-    let visualizerRunning = false;
-    let analyser = null;
-    let audioInitialized = false;
+<div id="sheet"></div>
+<canvas id="visualizer" width="850" height="100"></canvas>
+<div id="status" class="notification hidden"></div>
 
-    // Initialize audio context on user gesture
-    document.getElementById("startAudio").addEventListener("click", function() {
-      if (!audioInitialized) {
-        Tone.start();
-        audioInitialized = true;
-        this.style.display = "none";
-      }
-    });
+<script type="module">
+/* ---------- Globals ---------- */
+const VF=Vex.Flow;
+let latestScore={treble:[],bass:[]}, visualLoop=null, analyser=null, audioReady=false;
 
-    // Keyboard shortcuts
-    document.addEventListener("keydown", function(e) {
-      if (e.code === "Space" && e.target.tagName !== "TEXTAREA") {
-        e.preventDefault();
-        renderScore();
-      }
-      if (e.code === "KeyS" && e.ctrlKey) {
-        e.preventDefault();
-        exportWav();
-      }
-    });
+/* ---------- Helper maps ---------- */
+const DUR_TO_BEATS={"1n":4,"2n":2,"4n":1,"8n":0.5,"16n":0.25};
+const PRESETS={
+  scale:{treble:["C4","D4","E4","F4","G4","A4","B4","C5"].map(n=>({note:n,duration:"4n"})),
+         bass:[{note:"C3",duration:"1n"},{note:"G2",duration:"1n"}]},
+  chord:{treble:[{note:"C4",duration:"1n"},{note:"E4",duration:"1n"},{note:"G4",duration:"1n"}],
+         bass:[{note:"C3",duration:"1n"}]},
+  melody:{treble:[{note:"C4",duration:"4n"},{note:"E4",duration:"4n"},{note:"G4",duration:"4n"},
+                  {note:"C5",duration:"4n"},{note:"B4",duration:"4n"},{note:"A4",duration:"4n"},
+                  {note:"G4",duration:"2n"}],
+          bass:[{note:"C3",duration:"2n"},{note:"G2",duration:"2n"},
+                {note:"F2",duration:"2n"},{note:"G2",duration:"2n"}]}
+};
 
-    document.getElementById("tempo").addEventListener("input", function() {
-      document.getElementById("tempoValue").textContent = this.value + " BPM";
-    });
-    document.getElementById("reverb").addEventListener("input", function() {
-      document.getElementById("reverbValue").textContent = this.value;
-    });
+/* ---------- DOM refs ---------- */
+const txt=document.getElementById("notation");
+const sheetDiv=document.getElementById("sheet");
+const canvas=document.getElementById("visualizer");
+const ctx=canvas.getContext("2d");
+const tempoSlider=document.getElementById("tempo");
+const reverbSlider=document.getElementById("reverb");
+const tempoVal=document.getElementById("tempoVal");
+const reverbVal=document.getElementById("reverbVal");
+const statusDiv=document.getElementById("status");
 
-    function durationToBeats(d) {
-      return { "1n": 4, "2n": 2, "4n": 1, "8n": 0.5 }[d] || 1;
+/* ---------- Audio bootstrap ---------- */
+document.getElementById("startAudio").onclick=async e=>{
+  await Tone.start();audioReady=true;e.target.remove();
+};
+
+/* ---------- Utility ---------- */
+function beats(arr){return arr.reduce((s,n)=>s+(DUR_TO_BEATS[n.duration]||1),0);}
+function noteToVF(note){const m=note.match(/^([A-G][b#]?)(\d)$/);return m?`${m[1].toLowerCase()}/${m[2]}`:"b/4";}
+function ensureRests(part,total){
+  let cur=beats(part);
+  while(cur<total){part.push({note:"b4",duration:"4n"});cur+=1;}
+}
+/* ---------- Parse score ---------- */
+function getScore(){
+  try{const s=JSON.parse(txt.value||"{}");
+      s.treble=s.treble||[];s.bass=s.bass||[];
+      if(!s.treble.length)s.treble.push({note:"C4",duration:"4n"});
+      if(!s.bass.length)s.bass.push({note:"C3",duration:"4n"});
+      latestScore=s;return s;
+  }catch(e){alert("Invalid JSON: "+e.message);throw e;}
+}
+
+/* ---------- Render sheet ---------- */
+function renderSheet(score){
+  sheetDiv.innerHTML="";
+  const renderer=new VF.Renderer(sheetDiv,VF.Renderer.Backends.SVG);
+  renderer.resize(sheetDiv.clientWidth,400);
+  const ctxR=renderer.getContext();
+
+  const tStave=new VF.Stave(10,40,renderer.getContext().svg.offsetWidth-20)
+                 .addClef("treble").addTimeSignature("4/4");
+  const bStave=new VF.Stave(10,160,renderer.getContext().svg.offsetWidth-20)
+                 .addClef("bass").addTimeSignature("4/4");
+  tStave.setContext(ctxR).draw();bStave.setContext(ctxR).draw();
+
+  const maxB=Math.max(beats(score.treble),beats(score.bass));
+  ensureRests(score.treble,maxB);ensureRests(score.bass,maxB);
+
+  const tVoice=new VF.Voice({num_beats:maxB,beat_value:1});
+  const bVoice=new VF.Voice({num_beats:maxB,beat_value:1});
+
+  const vfT=score.treble.map(n=>new VF.StaveNote({
+      keys:[noteToVF(n.note)],duration:n.duration.replace("n","")
+    }));
+  const vfB=score.bass.map(n=>new VF.StaveNote({
+      keys:[noteToVF(n.note)],duration:n.duration.replace("n","")
+    }));
+
+  tVoice.addTickables(vfT);bVoice.addTickables(vfB);
+  new VF.Formatter().joinVoices([tVoice,bVoice]).format([tVoice,bVoice], tStave.getWidth()-50);
+  tVoice.draw(ctxR,tStave);bVoice.draw(ctxR,bStave);
+}
+
+/* ---------- Play ---------- */
+function clearVisual(){
+  ctx.fillStyle="#111";ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+function startVisualizer(node){
+  if(visualLoop)cancelAnimationFrame(visualLoop);
+  const fft=analyser=new Tone.Analyser("fft",32);node.connect(fft);
+  function draw(){
+    ctx.fillStyle="#111";ctx.fillRect(0,0,canvas.width,canvas.height);
+    const data=fft.getValue();const barW=canvas.width/data.length*0.8;
+    let x=0;
+    for(let d of data){
+      const h=Math.max(4,d*100+100);
+      ctx.fillStyle=`rgb(51,${Math.floor(h+100)},51)`;
+      ctx.fillRect(x,canvas.height-h,barW,h);x+=barW+1;
     }
+    visualLoop=requestAnimationFrame(draw);
+  }
+  draw();
+}
+function stopVisualizer(){
+  if(visualLoop)cancelAnimationFrame(visualLoop);
+  if(analyser){analyser.dispose();analyser=null;}
+  clearVisual();
+}
+async function play(score){
+  if(!audioReady){alert("Click the initialization banner first.");return;}
+  stopVisualizer();
+  Tone.Transport.stop();Tone.Transport.cancel(0);
 
-    function noteToVF(note) {
-      const m = note.match(/([A-G][#b]?)(\d)/);
-      return m ? `${m[1].toLowerCase()}/${m[2]}` : "b/4";
-    }
+  const Inst=Tone[document.getElementById("instrument").value]||Tone.Synth;
+  const revWet=parseFloat(reverbSlider.value);
+  const tempo=parseInt(tempoSlider.value);
+  Tone.Transport.bpm.value=tempo;
 
-    function parseScore() {
-      try {
-        const input = JSON.parse(document.getElementById("notation").value);
-        if (!input.treble) input.treble = [];
-        if (!input.bass) input.bass = [];
-        if (input.treble.length === 0) input.treble.push({ note: "C4", duration: "4n" });
-        if (input.bass.length === 0) input.bass.push({ note: "C3", duration: "4n" });
-        latestScore = input;
-        return input;
-      } catch (e) {
-        alert("Invalid JSON: " + e.message);
-        return { 
-          treble: [{ note: "C4", duration: "4n" }],
-          bass: [{ note: "C3", duration: "4n" }]
-        };
-      }
-    }
+  const reverb=new Tone.Reverb(1.5).toDestination();reverb.wet.value=revWet;
+  const tSynth=new Inst().connect(reverb);
+  const bSynth=new Inst().connect(reverb);
 
-    function fillVoiceWithRests(part, totalBeats) {
-      let current = part.reduce((sum, n) => sum + durationToBeats(n.duration), 0);
-      while (current < totalBeats) {
-        part.push({ note: "b4", duration: "4n" });
-        current += 1;
-      }
-      return part;
-    }
+  let tTime=0;score.treble.forEach(n=>{
+    tSynth.triggerAttackRelease(n.note,n.duration,tTime);tTime+=Tone.Time(n.duration).toSeconds();});
+  let bTime=0;score.bass.forEach(n=>{
+    bSynth.triggerAttackRelease(n.note,n.duration,bTime);bTime+=Tone.Time(n.duration).toSeconds();});
 
-    function renderScore() {
-      if (!audioInitialized) {
-        Tone.start();
-        audioInitialized = true;
-        document.getElementById("startAudio").style.display = "none";
-      }
+  startVisualizer(new Tone.Gain().fan(tSynth,bSynth)); // node feeding analyser
+  Tone.Transport.start();
+}
 
-      const score = parseScore();
-      const sheet = document.getElementById("sheet");
-      sheet.innerHTML = '';
-      try {
-        const renderer = new VF.Renderer(sheet, VF.Renderer.Backends.SVG);
-        renderer.resize(900, 400);
-        const context = renderer.getContext();
+/* ---------- Export ---------- */
+async function exportWav(){
+  if(!audioReady){alert("Initialize audio first.");return;}
+  const btn=document.getElementById("exportBtn");btn.disabled=true;btn.textContent="💾 Exporting…";
+  statusDiv.classList.remove("hidden");statusDiv.textContent="Rendering offline…";
+  const score=latestScore;const tempo=parseInt(tempoSlider.value);
+  const revWet=parseFloat(reverbSlider.value);
+  const Inst=Tone[document.getElementById("instrument").value]||Tone.Synth;
 
-        const trebleStave = new VF.Stave(10, 40, 800).addClef("treble").addTimeSignature("4/4");
-        const bassStave = new VF.Stave(10, 140, 800).addClef("bass").addTimeSignature("4/4");
-        trebleStave.setContext(context).draw();
-        bassStave.setContext(context).draw();
+  const dur=beats(score.treble)+2; // seconds (approx)
+  const buffer=await Tone.Offline(({transport})=>{
+    const reverb=new Tone.Reverb(1.5).toDestination();reverb.wet.value=revWet;
+    const tSynth=new Inst().connect(reverb);
+    const bSynth=new Inst().connect(reverb);
+    transport.bpm.value=tempo;
+    let t=0;score.treble.forEach(n=>{tSynth.triggerAttackRelease(n.note,n.duration,t);
+                                      t+=Tone.Time(n.duration).toSeconds();});
+    t=0;score.bass.forEach(n=>{bSynth.triggerAttackRelease(n.note,n.duration,t);
+                               t+=Tone.Time(n.duration).toSeconds();});
+    transport.start();
+  },dur);
 
-        const trebleBeats = score.treble.reduce((sum, n) => sum + durationToBeats(n.duration), 0);
-        const bassBeats = score.bass.reduce((sum, n) => sum + durationToBeats(n.duration), 0);
-        const maxBeats = Math.max(trebleBeats, bassBeats);
+  statusDiv.textContent="Encoding WAV…";
+  const {default:toWav}=await import('https://cdn.jsdelivr.net/npm/audio-buffer-to-wav@1.4.0/index.js');
+  const wavBlob=new Blob([toWav(buffer.get())],{type:"audio/wav"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(wavBlob);a.download="elif_song.wav";a.click();
+  statusDiv.textContent="Done ✓";setTimeout(()=>statusDiv.classList.add("hidden"),3000);
+  btn.disabled=false;btn.textContent="💾 Export WAV";
+}
 
-        const trebleFilled = fillVoiceWithRests([...score.treble], maxBeats);
-        const bassFilled = fillVoiceWithRests([...score.bass], maxBeats);
-
-        const trebleVoice = new VF.Voice({ num_beats: maxBeats, beat_value: 1 });
-        const bassVoice = new VF.Voice({ num_beats: maxBeats, beat_value: 1 });
-
-        const vfTreble = trebleFilled.map(n => new VF.StaveNote({
-          keys: [noteToVF(n.note)],
-          duration: n.duration.replace('n', '')
-        }));
-
-        const vfBass = bassFilled.map(n => new VF.StaveNote({
-          keys: [noteToVF(n.note)],
-          duration: n.duration.replace('n', '')
-        }));
-
-        trebleVoice.addTickables(vfTreble);
-        bassVoice.addTickables(vfBass);
-
-        new VF.Formatter().joinVoices([trebleVoice, bassVoice]).format([trebleVoice, bassVoice], 750);
-        trebleVoice.draw(context, trebleStave);
-        bassVoice.draw(context, bassStave);
-
-        playNow(score);
-      } catch (error) {
-        console.error("Render error:", error);
-        sheet.innerHTML = `<div class="notification">Error rendering score: ${error.message}</div>`;
-      }
-    }
-    function playNow(score) {
-      try {
-        const inst = document.getElementById("instrument").value;
-        const Synth = Tone[inst] || Tone.Synth;
-        const tempo = parseInt(document.getElementById("tempo").value);
-        const reverbWet = parseFloat(document.getElementById("reverb").value);
-
-        Tone.Transport.bpm.value = tempo;
-
-        const reverb = new Tone.Reverb(1.5).toDestination();
-        reverb.wet.value = reverbWet;
-
-        const synthT = new Synth().connect(reverb);
-        const synthB = new Synth().connect(reverb);
-
-        setupVisualizer(synthT, synthB);
-
-        let t = Tone.now();
-        score.treble.forEach(n => {
-          synthT.triggerAttackRelease(n.note, n.duration, t);
-          t += Tone.Time(n.duration).toSeconds();
-        });
-
-        t = Tone.now();
-        score.bass.forEach(n => {
-          synthB.triggerAttackRelease(n.note, n.duration, t);
-          t += Tone.Time(n.duration).toSeconds();
-        });
-      } catch (error) {
-        console.error("Playback error:", error);
-        document.getElementById("status").textContent = "Playback error: " + error.message;
-        document.getElementById("status").classList.remove("hidden");
-        setTimeout(() => {
-          document.getElementById("status").classList.add("hidden");
-        }, 3000);
-      }
-    }
-
-    function setupVisualizer(synthT, synthB) {
-      try {
-        visualizerRunning = false;
-        if (analyser) {
-          analyser.dispose();
-        }
-
-        analyser = new Tone.Analyser("fft", 32);
-        synthT.connect(analyser);
-        synthB.connect(analyser);
-        const canvas = document.getElementById("visualizer");
-        const canvasCtx = canvas.getContext("2d");
-
-        visualizerRunning = true;
-
-        function draw() {
-          if (!visualizerRunning) return;
-
-          requestAnimationFrame(draw);
-          const data = analyser.getValue();
-
-          canvasCtx.fillStyle = "rgb(17, 17, 17)";
-          canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-
-          const barWidth = (canvas.width / data.length) * 0.8;
-          let x = 0;
-
-          for (let i = 0; i < data.length; i++) {
-            const barHeight = Math.max(4, data[i] * 100 + 100);
-            canvasCtx.fillStyle = `rgb(51, ${Math.floor(barHeight + 100)}, 51)`;
-            canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-            x += barWidth + 1;
-          }
-        }
-
-        draw();
-      } catch (error) {
-        console.error("Visualizer error:", error);
-      }
-    }
-
-    async function exportWav() {
-      if (!audioInitialized) {
-        alert("Please click the initialization message at the top first");
-        return;
-      }
-
-      const exportBtn = document.getElementById("exportBtn");
-      exportBtn.textContent = "💾 Exporting...";
-      exportBtn.disabled = true;
-
-      const statusEl = document.getElementById("status");
-      statusEl.classList.remove("hidden");
-      statusEl.textContent = "Preparing to export...";
-
-      const inst = document.getElementById("instrument").value;
-      const Synth = Tone[inst] || Tone.Synth;
-      const score = latestScore;
-      const tempo = parseInt(document.getElementById("tempo").value);
-      const reverbWet = parseFloat(document.getElementById("reverb").value);
-
-      try {
-        statusEl.textContent = "Rendering audio...";
-
-        let totalDuration = 0;
-        score.treble.forEach(n => {
-          totalDuration += Tone.Time(n.duration).toSeconds();
-        });
-        totalDuration += 2;
-
-        const buffer = await Tone.Offline(({ transport }) => {
-          const reverb = new Tone.Reverb(1.5).toDestination();
-          reverb.wet.value = reverbWet;
-
-          const synthT = new Synth().connect(reverb);
-          const synthB = new Synth().connect(reverb);
-
-          transport.bpm.value = tempo;
-
-          let t = 0;
-          score.treble.forEach(n => {
-            synthT.triggerAttackRelease(n.note, n.duration, t);
-            t += Tone.Time(n.duration).toSeconds();
-          });
-
-          t = 0;
-          score.bass.forEach(n => {
-            synthB.triggerAttackRelease(n.note, n.duration, t);
-            t += Tone.Time(n.duration).toSeconds();
-          });
-
-          transport.start();
-        }, totalDuration);
-
-        statusEl.textContent = "Creating WAV file...";
-        const wav = audioBufferToWav(buffer.get());
-        const blob = new Blob([wav], { type: "audio/wav" });
-
-        statusEl.textContent = "Download ready!";
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = "elif_song.wav";
-        a.click();
-
-        setTimeout(() => {
-          statusEl.classList.add("hidden");
-        }, 3000);
-      } catch (error) {
-        console.error("Export error:", error);
-        statusEl.textContent = "Export failed: " + error.message;
-      } finally {
-        exportBtn.textContent = "💾 Export WAV";
-        exportBtn.disabled = false;
-      }
-    }
-    function loadPreset() {
-      const preset = document.getElementById("presets").value;
-      if (!preset) return;
-
-      const presets = {
-        scale: {
-          treble: [
-            { note: "C4", duration: "4n" },
-            { note: "D4", duration: "4n" },
-            { note: "E4", duration: "4n" },
-            { note: "F4", duration: "4n" },
-            { note: "G4", duration: "4n" },
-            { note: "A4", duration: "4n" },
-            { note: "B4", duration: "4n" },
-            { note: "C5", duration: "4n" }
-          ],
-          bass: [
-            { note: "C3", duration: "1n" },
-            { note: "G2", duration: "1n" }
-          ]
-        },
-        chord: {
-          treble: [
-            { note: "C4", duration: "1n" },
-            { note: "E4", duration: "1n" },
-            { note: "G4", duration: "1n" }
-          ],
-          bass: [
-            { note: "C3", duration: "1n" }
-          ]
-        },
-        melody: {
-          treble: [
-            { note: "C4", duration: "4n" },
-            { note: "E4", duration: "4n" },
-            { note: "G4", duration: "4n" },
-            { note: "C5", duration: "4n" },
-            { note: "B4", duration: "4n" },
-            { note: "A4", duration: "4n" },
-            { note: "G4", duration: "2n" }
-          ],
-          bass: [
-            { note: "C3", duration: "2n" },
-            { note: "G2", duration: "2n" },
-            { note: "F2", duration: "2n" },
-            { note: "G2", duration: "2n" }
-          ]
-        }
-      };
-
-      document.getElementById("notation").value = JSON.stringify(presets[preset], null, 2);
-      renderScore();
-    }
-
-    function addTrebleNote() {
-      const score = parseScore();
-      score.treble.push({ note: "C5", duration: "4n" });
-      document.getElementById("notation").value = JSON.stringify(score, null, 2);
-      renderScore();
-    }
-
-    function addBassNote() {
-      const score = parseScore();
-      score.bass.push({ note: "C3", duration: "4n" });
-      document.getElementById("notation").value = JSON.stringify(score, null, 2);
-      renderScore();
-    }
-
-    document.addEventListener("DOMContentLoaded", function () {
-      const canvas = document.getElementById("visualizer");
-      const canvasCtx = canvas.getContext("2d");
-      canvasCtx.fillStyle = "rgb(17, 17, 17)";
-      canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-    });
-  </script>
+/* ---------- UI bindings ---------- */
+tempoSlider.oninput=()=>tempoVal.textContent=tempoSlider.value+" BPM";
+reverbSlider.oninput=()=>reverbVal.textContent=reverbSlider.value;
+document.getElementById("presets").onchange=e=>{
+  const p=PRESETS[e.target.value];if(!p)return;
+  txt.value=JSON.stringify(p,null,2);renderSheet(p);play(p);
+};
+document.getElementById("renderBtn").onclick=()=>{const s=getScore();renderSheet(JSON.parse(JSON.stringify(s)));play(s);};
+document.getElementById("exportBtn").onclick=exportWav;
+document.getElementById("addT").onclick=()=>{const s=getScore();s.treble.push({note:"C5",duration:"4n"});
+                                             txt.value=JSON.stringify(s,null,2);renderSheet(s);};
+document.getElementById("addB").onclick=()=>{const s=getScore();s.bass.push({note:"C3",duration:"4n"});
+                                             txt.value=JSON.stringify(s,null,2);renderSheet(s);};
+/* Shortcuts */
+document.addEventListener("keydown",e=>{
+  if(e.code==="Space"&&e.target!==txt){e.preventDefault();document.getElementById("renderBtn").click();}
+  if(e.code==="KeyS"&&e.ctrlKey){e.preventDefault();document.getElementById("exportBtn").click();}
+});
+/* First paint */
+renderSheet(getScore());
+clearVisual();
+</script>
 </body>
 </html>
