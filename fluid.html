@@ -12,7 +12,6 @@
       white-space: pre;
       margin: 0;
       padding: 0;
-      overflow: hidden;
     }
     #simulation {
       font-size: 12px;
@@ -26,71 +25,70 @@
   <script>
     const width = 80;  // Width of the grid
     const height = 20; // Height of the grid
-    const fluidGrid = [];
-    const velocityX = [];
-    const velocityY = [];
+    const densityMap = [];  // Fluid density grid
+    const velocityMapX = [];  // Fluid velocity in X direction
+    const velocityMapY = [];  // Fluid velocity in Y direction
 
-    // Initialize the fluid grid and velocity grids
+    // Initialize fluid dynamics arrays
     for (let y = 0; y < height; y++) {
-      fluidGrid[y] = [];
-      velocityX[y] = [];
-      velocityY[y] = [];
+      densityMap[y] = [];
+      velocityMapX[y] = [];
+      velocityMapY[y] = [];
       for (let x = 0; x < width; x++) {
-        fluidGrid[y][x] = 0; // Fluid density (0 = empty)
-        velocityX[y][x] = 0; // Horizontal velocity
-        velocityY[y][x] = 0; // Vertical velocity
+        densityMap[y][x] = 0;
+        velocityMapX[y][x] = 0;
+        velocityMapY[y][x] = 0;
       }
     }
 
-    // Function to add fluid at a point (mouse interaction)
+    // Function to add fluid at a specific point (simulate drawing fluid)
     function addFluid(x, y, amount) {
       if (x >= 0 && x < width && y >= 0 && y < height) {
-        fluidGrid[y][x] = Math.min(fluidGrid[y][x] + amount, 3); // Cap at density 3
+        densityMap[y][x] = Math.min(densityMap[y][x] + amount, 3); // Max density is 3
       }
     }
 
-    // Fluid simulation logic (basic diffusion and flow)
+    // Fluid dynamics update (velocity and density change)
     function updateFluid() {
-      const diffusion = 0.1; // Fluid diffusion rate
-      const velocityFactor = 0.1; // Fluid movement based on velocity
+      const diffusionRate = 0.1;  // Rate of diffusion (fluid spread)
+      const velocityFactor = 0.2;  // Fluid velocity factor (fluid movement)
 
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
-          // Diffuse the fluid density
-          let diffuse = fluidGrid[y][x] * diffusion;
-          if (x > 0) fluidGrid[y][x - 1] += diffuse;
-          if (x < width - 1) fluidGrid[y][x + 1] += diffuse;
-          if (y > 0) fluidGrid[y - 1][x] += diffuse;
-          if (y < height - 1) fluidGrid[y + 1][x] += diffuse;
+          // Diffuse fluid to neighboring cells
+          if (x > 0) densityMap[y][x - 1] += densityMap[y][x] * diffusionRate;
+          if (x < width - 1) densityMap[y][x + 1] += densityMap[y][x] * diffusionRate;
+          if (y > 0) densityMap[y - 1][x] += densityMap[y][x] * diffusionRate;
+          if (y < height - 1) densityMap[y + 1][x] += densityMap[y][x] * diffusionRate;
 
-          // Simulate flow (fluid velocity)
-          velocityX[y][x] += (Math.random() - 0.5) * velocityFactor;
-          velocityY[y][x] += (Math.random() - 0.5) * velocityFactor;
+          // Apply simple fluid movement (velocity in both X and Y directions)
+          velocityMapX[y][x] += (Math.random() - 0.5) * velocityFactor;
+          velocityMapY[y][x] += (Math.random() - 0.5) * velocityFactor;
 
-          // Move the fluid based on velocity
-          const newX = Math.round(x + velocityX[y][x]);
-          const newY = Math.round(y + velocityY[y][x]);
+          // Simulate fluid flow based on velocity
+          const newX = Math.round(x + velocityMapX[y][x]);
+          const newY = Math.round(y + velocityMapY[y][x]);
           if (newX >= 0 && newX < width && newY >= 0 && newY < height) {
-            fluidGrid[newY][newX] = Math.max(fluidGrid[newY][newX], fluidGrid[y][x]);
+            densityMap[newY][newX] = Math.max(densityMap[newY][newX], densityMap[y][x]);
           }
         }
       }
     }
 
-    // Render the fluid grid with ASCII characters
+    // Render the fluid simulation in ASCII (based on density)
     function renderSimulation() {
       let output = '';
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
-          // Render fluid density with ASCII characters
-          if (fluidGrid[y][x] === 0) {
-            output += ' '; // Empty space for no fluid
-          } else if (fluidGrid[y][x] === 1) {
-            output += '~'; // Light fluid (low density)
-          } else if (fluidGrid[y][x] === 2) {
-            output += '*'; // Medium fluid
-          } else if (fluidGrid[y][x] === 3) {
-            output += '#'; // Dense fluid
+          // Convert fluid density into ASCII characters
+          if (densityMap[y][x] === 0) {
+            output += ' ';  // Empty space for no fluid
+          } else if (densityMap[y][x] === 1) {
+            output += '~';  // Light fluid
+          } else if (densityMap[y][x] === 2) {
+            output += '*';  // Medium fluid
+          } else if (densityMap[y][x] === 3) {
+            output += '#';  // Dense fluid
           }
         }
         output += '\n';
@@ -98,24 +96,21 @@
       document.getElementById('simulation').innerText = output;
     }
 
-    // Mouse interaction: Add fluid where the mouse moves
+    // Mouse interaction to add fluid where the mouse is
     document.addEventListener('mousemove', (event) => {
       const x = Math.floor(event.clientX / window.innerWidth * width);
       const y = Math.floor(event.clientY / window.innerHeight * height);
-      addFluid(x, y, 1); // Add fluid at the mouse position
+      addFluid(x, y, 1);  // Add fluid where the mouse is
     });
 
-    // Simulation loop
+    // Continuous simulation loop
     function simulate() {
       updateFluid();
       renderSimulation();
-      requestAnimationFrame(simulate); // Loop the simulation
+      requestAnimationFrame(simulate);  // Keep updating the simulation
     }
 
-    simulate(); // Start the simulation
+    simulate();  // Start the simulation
   </script>
 </body>
 </html>
-
-
-
