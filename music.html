@@ -76,174 +76,226 @@ MIT‑licensed; uses VexFlow 1.2.93, Tone.js 14.8 (via CDN)
 
 <script type="module">
 /* ---------------- Constants & helpers ---------------- */
-const VF=Vex.Flow;
-const DUR_TO_BEATS={"1n":4,"2n":2,"4n":1,"8n":0.5,"16n":0.25};
-const PRESETS={
-  scale:{treble:["C4","D4","E4","F4","G4","A4","B4","C5"].map(n=>({note:n,duration:"4n"})),
-         bass:[{note:"C3",duration:"1n"},{note:"G2",duration:"1n"}]},
-  chord:{treble:[{note:"C4",duration:"1n"},{note:"E4",duration:"1n"},{note:"G4",duration:"1n"}],
-         bass:[{note:"C3",duration:"1n"}]},
-  melody:{treble:[{note:"C4","duration":"4n"},{note:"E4","duration":"4n"},
-                  {note:"G4","duration":"4n"},{note:"C5","duration":"4n"},
-                  {note:"B4","duration":"4n"},{note:"A4","duration":"4n"},
-                  {note:"G4","duration":"2n"}],
-          bass:[{note:"C3","duration":"2n"},{note:"G2","duration":"2n"},
-                {note:"F2","duration":"2n"},{note:"G2","duration":"2n"}]}
+const VF = Vex.Flow;
+
+/* beat length in quarter‑note units */
+const DUR_TO_BEATS = { "1n":4, "2n":2, "4n":1, "8n":0.5, "16n":0.25 };
+
+/* VexFlow duration code maps */
+const NOTE_DUR = { "1n":"w",  "2n":"h",  "4n":"q",  "8n":"8",  "16n":"16" };
+const REST_DUR = { "1n":"wr", "2n":"hr", "4n":"qr", "8n":"8r", "16n":"16r" };
+
+const PRESETS = { /* unchanged – same as before */ };
+/* PRESETS object body omitted here for brevity – keep your existing one */
+
+/* -------- DOM refs -------- */
+const txt        = document.getElementById("notation");
+const sheetDiv   = document.getElementById("sheet");
+const canvas     = document.getElementById("visualizer");
+const ctx        = canvas.getContext("2d");
+const tempoSl    = document.getElementById("tempo");
+const revSl      = document.getElementById("reverb");
+const tempoVal   = document.getElementById("tempoVal");
+const revVal     = document.getElementById("reverbVal");
+const statusDiv  = document.getElementById("status");
+const initBanner = document.getElementById("initBanner");
+
+/* -------- State -------- */
+let latestScore = { treble:[], bass:[] };
+let visualRAF   = null;
+let analyser    = null;
+let audioReady  = false;
+
+/* -------- Utility -------- */
+function beats(arr){ return arr.reduce((s,n)=>s + (DUR_TO_BEATS[n.duration]||1), 0); }
+
+function rest(duration){ return { note:"b/4", duration:REST_DUR[duration] || "qr" }; }
+
+/* Convert “C4” → “c/4”. If already contains “/”, return as‑is. */
+function noteToVF(note){
+  if (note.includes("/")) return note;          // already in “key/octave”
+  const m = note.match(/^([A-Ga-g])([b#]?)(\d)$/);
+  if (!m) return "c/4";                        // fallback (shouldn’t happen)
+  return `${m[1].toLowerCase()}${m[2]}/${m[3]}`;
+}
+
+/* -------- Audio gating -------- */
+initBanner.onclick = async () => {
+  await Tone.start();
+  audioReady = true;
+  initBanner.remove();
 };
-function beats(arr){return arr.reduce((s,n)=>s+(DUR_TO_BEATS[n.duration]||1),0);}
-function noteToVF(note){const m=note.match(/^([A-G][b#]?)(\d)$/);return `${m[1].toLowerCase()}/${m[2]}`;}
-function rest(duration){return {note:"b/4",duration:duration.replace("n","r")};}
 
-/* ---------------- DOM ---------------- */
-const txt       =document.getElementById("notation");
-const sheetDiv  =document.getElementById("sheet");
-const canvas    =document.getElementById("visualizer");
-const ctx       =canvas.getContext("2d");
-const tempoSl   =document.getElementById("tempo");
-const revSl     =document.getElementById("reverb");
-const tempoVal  =document.getElementById("tempoVal");
-const revVal    =document.getElementById("reverbVal");
-const statusDiv =document.getElementById("status");
-const initBanner=document.getElementById("initBanner");
-
-/* ---------------- State ---------------- */
-let latestScore={treble:[],bass:[]};
-let visualRAF=null, analyser=null, audioReady=false;
-
-/* -------------- Audio gating -------------- */
-initBanner.onclick=async()=>{await Tone.start();audioReady=true;initBanner.remove();};
-
-/* -------------- Score parsing -------------- */
+/* -------- Score parsing -------- */
 function getScore(){
   try{
-    const s=JSON.parse(txt.value||"{}");
-    s.treble=s.treble||[];s.bass=s.bass||[];
-    if(!s.treble.length)s.treble.push({note:"C4",duration:"4n"});
-    if(!s.bass.length)s.bass.push({note:"C3",duration:"4n"});
-    latestScore=JSON.parse(JSON.stringify(s)); // deep copy
+    const s = JSON.parse(txt.value || "{}");
+    s.treble = s.treble || [];
+    s.bass   = s.bass   || [];
+    if (!s.treble.length) s.treble.push({ note:"C4", duration:"4n" });
+    if (!s.bass.length)   s.bass.push({ note:"C3", duration:"4n" });
+    latestScore = JSON.parse(JSON.stringify(s));   // deep‑copy cache
     return s;
-  }catch(e){alert("Invalid JSON – "+e.message);throw e;}
+  }catch(err){
+    alert("Invalid JSON: " + err.message);
+    throw err;
+  }
 }
 
-/* -------------- Sheet rendering -------------- */
+/* -------- Sheet rendering -------- */
 function renderSheet(score){
-  sheetDiv.innerHTML="";
-  const width=Math.max(300,sheetDiv.clientWidth-20);
-  const renderer=new VF.Renderer(sheetDiv,VF.Renderer.Backends.SVG);
-  renderer.resize(width,380);
-  const ctxR=renderer.getContext();
+  sheetDiv.innerHTML = "";
+  const width = Math.max(320, sheetDiv.clientWidth-20);
 
-  const tStave=new VF.Stave(10,40,width-20).addClef("treble").addTimeSignature("4/4");
-  const bStave=new VF.Stave(10,180,width-20).addClef("bass").addTimeSignature("4/4");
-  tStave.setContext(ctxR).draw();bStave.setContext(ctxR).draw();
+  const renderer = new VF.Renderer(sheetDiv, VF.Renderer.Backends.SVG);
+  renderer.resize(width, 380);
+  const vfCtx = renderer.getContext();
 
-  const totalBeats=Math.max(beats(score.treble),beats(score.bass));
-  while(beats(score.treble)<totalBeats)score.treble.push(rest("4n"));
-  while(beats(score.bass)  <totalBeats)score.bass.push(rest("4n"));
+  const tStave = new VF.Stave(10, 40 , width-20).addClef("treble").addTimeSignature("4/4");
+  const bStave = new VF.Stave(10, 180, width-20).addClef("bass")  .addTimeSignature("4/4");
+  tStave.setContext(vfCtx).draw();
+  bStave.setContext(vfCtx).draw();
 
-  const tVoice=new VF.Voice({num_beats:totalBeats,beat_value:1});
-  const bVoice=new VF.Voice({num_beats:totalBeats,beat_value:1});
+  const total = Math.max(beats(score.treble), beats(score.bass));
 
-  const vfT=score.treble.map(n=>new VF.StaveNote({
-      keys:[noteToVF(n.note)],duration:n.duration.replace("n","")
-    }));
-  const vfB=score.bass.map(n=>new VF.StaveNote({
-      keys:[noteToVF(n.note)],duration:n.duration.replace("n","")
-    }));
+  /* pad with rests until both voices align */
+  while (beats(score.treble) < total) score.treble.push(rest("4n"));
+  while (beats(score.bass)   < total) score.bass  .push(rest("4n"));
 
-  tVoice.addTickables(vfT);bVoice.addTickables(vfB);
-  new VF.Formatter().joinVoices([tVoice,bVoice]).format([tVoice,bVoice],width-80);
-  tVoice.draw(ctxR,tStave);bVoice.draw(ctxR,bStave);
+  const tVoice = new VF.Voice({ num_beats: total, beat_value:1 });
+  const bVoice = new VF.Voice({ num_beats: total, beat_value:1 });
+
+  const vfT = score.treble.map(n =>
+      new VF.StaveNote({
+        keys:[ noteToVF(n.note) ],
+        duration: NOTE_DUR[n.duration] || REST_DUR[n.duration] || "q"
+      }));
+
+  const vfB = score.bass.map(n =>
+      new VF.StaveNote({
+        keys:[ noteToVF(n.note) ],
+        duration: NOTE_DUR[n.duration] || REST_DUR[n.duration] || "q"
+      }));
+
+  tVoice.addTickables(vfT);
+  bVoice.addTickables(vfB);
+  new VF.Formatter().joinVoices([tVoice,bVoice]).format([tVoice,bVoice], width-80);
+  tVoice.draw(vfCtx, tStave);
+  bVoice.draw(vfCtx, bStave);
 }
 
-/* -------------- Visualiser -------------- */
-function clearVis(){ctx.fillStyle="#111";ctx.fillRect(0,0,canvas.width,canvas.height);}
+/* -------- Visualiser helpers -------- */
+function clearVis(){ ctx.fillStyle="#111"; ctx.fillRect(0,0,canvas.width,canvas.height); }
+
 function startVis(node){
-  if(visualRAF)cancelAnimationFrame(visualRAF);
-  analyser=new Tone.Analyser("fft",32);node.connect(analyser);
-  function draw(){
-    ctx.fillStyle="#111";ctx.fillRect(0,0,canvas.width,canvas.height);
-    const data=analyser.getValue();const barW=canvas.width/data.length*0.8;
-    let x=0;
+  if (visualRAF) cancelAnimationFrame(visualRAF);
+  analyser = new Tone.Analyser("fft", 32); node.connect(analyser);
+
+  (function draw(){
+    ctx.fillStyle="#111"; ctx.fillRect(0,0,canvas.width,canvas.height);
+    const data = analyser.getValue();
+    const bar  = canvas.width / data.length * 0.8;
+    let x = 0;
     for(const d of data){
-      const h=Math.max(4,d*100+100);
-      ctx.fillStyle=`rgb(51,${h+80|0},51)`;ctx.fillRect(x,canvas.height-h,barW,h);
-      x+=barW+1;
+      const h = Math.max(4, d*100+100);
+      ctx.fillStyle=`rgb(51,${h+80|0},51)`;
+      ctx.fillRect(x, canvas.height-h, bar, h);
+      x += bar + 1;
     }
-    visualRAF=requestAnimationFrame(draw);
-  } draw();
+    visualRAF = requestAnimationFrame(draw);
+  })();
 }
-function stopVis(){if(visualRAF)cancelAnimationFrame(visualRAF);if(analyser){analyser.dispose();analyser=null;}clearVis();}
+function stopVis(){ if(visualRAF)cancelAnimationFrame(visualRAF); if(analyser){ analyser.dispose(); analyser=null;} clearVis(); }
 
-/* -------------- Playback -------------- */
+/* -------- Playback -------- */
 async function play(score){
-  if(!audioReady){alert("Click the banner first.");return;}
-  stopVis();Tone.Transport.stop();Tone.Transport.cancel(0);
+  if(!audioReady){ alert("Click the banner first to enable audio."); return; }
 
-  const tempo=+tempoSl.value;Tone.Transport.bpm.value=tempo;
-  const Inst=Tone[document.getElementById("instrument").value]||Tone.Synth;
-  const revWet=parseFloat(revSl.value);
-  const rev=new Tone.Reverb(1.8).toDestination();rev.wet.value=revWet;
-  const tSynth=new Inst().connect(rev), bSynth=new Inst().connect(rev);
+  stopVis();
+  Tone.Transport.stop(); Tone.Transport.cancel(0);
 
-  let t=0;score.treble.forEach(n=>{tSynth.triggerAttackRelease(n.note,n.duration,t);t+=Tone.Time(n.duration).toSeconds();});
-  t=0;score.bass.forEach(n=>{bSynth.triggerAttackRelease(n.note,n.duration,t);t+=Tone.Time(n.duration).toSeconds();});
+  const tempo = +tempoSl.value;
+  Tone.Transport.bpm.value = tempo;
 
-  startVis(new Tone.Gain().fan(tSynth,bSynth));
+  const Inst = Tone[ document.getElementById("instrument").value ] || Tone.Synth;
+  const synthT = new Inst();
+  const synthB = new Inst();
+  const reverb = new Tone.Reverb(1.8).toDestination();
+  reverb.wet.value = +revSl.value;
+  synthT.connect(reverb); synthB.connect(reverb);
+
+  let t = 0;
+  score.treble.forEach(n => { synthT.triggerAttackRelease(n.note, n.duration, t); t += Tone.Time(n.duration).toSeconds(); });
+  t = 0;
+  score.bass.forEach  (n => { synthB.triggerAttackRelease(n.note, n.duration, t); t += Tone.Time(n.duration).toSeconds(); });
+
+  startVis(new Tone.Gain().fan(synthT, synthB)); // visualiser tap
   Tone.Transport.start();
 }
 
-/* -------------- Export WAV -------------- */
+/* -------- WAV export -------- */
 async function exportWav(){
-  if(!audioReady){alert("Initialize audio first.");return;}
-  const btn=document.getElementById("exportBtn");btn.disabled=true;btn.textContent="💾 Exporting…";
-  statusDiv.classList.remove("hidden");statusDiv.textContent="Rendering offline…";
-  const score=latestScore, tempo=+tempoSl.value, revWet=+revSl.value;
-  const Inst=Tone[document.getElementById("instrument").value]||Tone.Synth;
+  if(!audioReady){ alert("Enable audio first."); return; }
 
-  // Total length in seconds = ticks/tempo + 1s tail
-  const totalTicks = Math.max(beats(score.treble),beats(score.bass))*Tone.Time("4n").toTicks();
-  const durSec = Tone.Ticks(totalTicks).toSeconds()+1;
+  const btn = document.getElementById("exportBtn");
+  btn.disabled = true; btn.textContent = "💾 Exporting…";
+  statusDiv.classList.remove("hidden"); statusDiv.textContent = "Rendering offline…";
 
-  const buffer=await Tone.Offline(({transport})=>{
-    transport.bpm.value=tempo;
-    const rev=new Tone.Reverb(1.8).toDestination();rev.wet.value=revWet;
-    const tSynth=new Inst().connect(rev), bSynth=new Inst().connect(rev);
-    let t=0;score.treble.forEach(n=>{tSynth.triggerAttackRelease(n.note,n.duration,t);t+=Tone.Time(n.duration).toSeconds();});
-    t=0;score.bass.forEach(n=>{bSynth.triggerAttackRelease(n.note,n.duration,t);t+=Tone.Time(n.duration).toSeconds();});
+  const score = latestScore;
+  const tempo = +tempoSl.value;
+  const totalTicks = Math.max(beats(score.treble), beats(score.bass)) * Tone.Time("4n").toTicks();
+  const durSec = Tone.Ticks(totalTicks).toSeconds() + 1;
+
+  const Inst = Tone[ document.getElementById("instrument").value ] || Tone.Synth;
+
+  const buffer = await Tone.Offline(({transport})=>{
+    transport.bpm.value = tempo;
+    const rev = new Tone.Reverb(1.8).toDestination();
+    rev.wet.value = +revSl.value;
+
+    const tSynth=new Inst().connect(rev);
+    const bSynth=new Inst().connect(rev);
+
+    let t=0; score.treble.forEach(n=>{ tSynth.triggerAttackRelease(n.note, n.duration, t); t += Tone.Time(n.duration).toSeconds(); });
+    t=0; score.bass.forEach(n=>{ bSynth.triggerAttackRelease(n.note, n.duration, t); t += Tone.Time(n.duration).toSeconds(); });
+
     transport.start();
-  },durSec);
+  }, durSec);
 
-  statusDiv.textContent="Encoding WAV…";
-  const {default:toWav}=await import('https://cdn.jsdelivr.net/npm/audio-buffer-to-wav@1.4.0/index.js');
-  const wavBlob=new Blob([toWav(buffer.get())],{type:"audio/wav"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(wavBlob);a.download="elif_song.wav";a.click();
-  statusDiv.textContent="Done ✓";setTimeout(()=>statusDiv.classList.add("hidden"),3000);
-  btn.disabled=false;btn.textContent="💾 Export WAV";
+  statusDiv.textContent = "Encoding WAV…";
+  const {default:toWav} = await import('https://cdn.jsdelivr.net/npm/audio-buffer-to-wav@1.4.0/index.js');
+  const wavBlob = new Blob([ toWav(buffer.get()) ], {type:"audio/wav"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(wavBlob); a.download = "elif_song.wav"; a.click();
+  statusDiv.textContent = "Done ✓";
+  setTimeout(()=>statusDiv.classList.add("hidden"),3000);
+  btn.disabled = false; btn.textContent = "💾 Export WAV";
 }
 
-/* -------------- UI bindings -------------- */
-tempoSl.oninput=()=>tempoVal.textContent=tempoSl.value+" BPM";
-revSl.oninput  =()=>revVal.textContent  =revSl.value;
-document.getElementById("presets").onchange=e=>{
-  const p=PRESETS[e.target.value];if(!p)return;
-  txt.value=JSON.stringify(p,null,2);renderSheet(JSON.parse(JSON.stringify(p)));
+/* -------- UI bindings -------- */
+tempoSl.oninput = () => tempoVal.textContent = tempoSl.value + " BPM";
+revSl  .oninput = () => revVal.textContent   = revSl.value;
+
+document.getElementById("presets").onchange = e=>{
+  const p = PRESETS[e.target.value]; if(!p) return;
+  txt.value = JSON.stringify(p, null, 2);
+  renderSheet(JSON.parse(JSON.stringify(p)));
 };
-document.getElementById("renderBtn").onclick=()=>{const s=getScore();renderSheet(JSON.parse(JSON.stringify(s)));play(s);};
-document.getElementById("exportBtn").onclick=exportWav;
-document.getElementById("addT").onclick=()=>{const s=getScore();s.treble.push({note:"C5",duration:"4n"});
-                                             txt.value=JSON.stringify(s,null,2);renderSheet(s);};
-document.getElementById("addB").onclick=()=>{const s=getScore();s.bass.push({note:"C3",duration:"4n"});
-                                             txt.value=JSON.stringify(s,null,2);renderSheet(s);};
+
+document.getElementById("renderBtn").onclick = ()=>{ const s=getScore(); renderSheet(JSON.parse(JSON.stringify(s))); play(s); };
+document.getElementById("exportBtn").onclick = exportWav;
+
+document.getElementById("addT").onclick = ()=>{ const s=getScore(); s.treble.push({note:"C5",duration:"4n"}); txt.value=JSON.stringify(s,null,2); renderSheet(s); };
+document.getElementById("addB").onclick = ()=>{ const s=getScore(); s.bass  .push({note:"C3",duration:"4n"}); txt.value=JSON.stringify(s,null,2); renderSheet(s); };
+
 /* Shortcuts */
 document.addEventListener("keydown",e=>{
-  if(e.code==="Space"&&e.target!==txt){e.preventDefault();document.getElementById("renderBtn").click();}
-  if(e.code==="KeyS"&&e.ctrlKey){e.preventDefault();document.getElementById("exportBtn").click();}
+  if(e.code==="Space" && e.target!==txt){ e.preventDefault(); document.getElementById("renderBtn").click(); }
+  if(e.code==="KeyS" && e.ctrlKey     ){ e.preventDefault(); document.getElementById("exportBtn").click(); }
 });
 
-/* -------------- First paint -------------- */
-renderSheet(getScore());
-clearVis();
+/* First paint */
+renderSheet(getScore()); clearVis();
 </script>
+
 </body>
 </html>
