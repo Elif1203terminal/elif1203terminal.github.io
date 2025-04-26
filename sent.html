@@ -3,464 +3,1973 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ASCII Space Fly-Through</title>
+    <title>Ultra-Realistic ASCII Space Fly-Through</title>
     <style>
-        body {
+        body, html {
             margin: 0;
             padding: 0;
-            background-color: #000;
-            color: #fff;
+            height: 100%;
             overflow: hidden;
-            font-family: monospace;
+            background-color: #000;
         }
         
         #space {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            font-family: 'Courier New', monospace;
             font-size: 4pt;
             line-height: 1;
             white-space: pre;
             overflow: hidden;
+            color: #fff;
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
         }
         
-        .controls {
-            position: absolute;
+        .info {
+            position: fixed;
             bottom: 10px;
             left: 10px;
+            font-family: monospace;
             font-size: 12px;
-            background-color: rgba(0, 0, 0, 0.6);
+            color: rgba(255,255,255,0.7);
+            background: rgba(0,0,0,0.6);
             padding: 5px;
             border-radius: 3px;
-            z-index: 10;
+            z-index: 100;
+            pointer-events: none;
+        }
+        
+        .flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0);
+            z-index: 90;
+            pointer-events: none;
+            transition: background 0.1s ease;
         }
     </style>
 </head>
 <body>
     <pre id="space"></pre>
-    <div class="controls">Press SPACE to pause/resume</div>
+    <div class="info">LIGHT-YEARS TRAVELED: <span id="distance">0</span> | PRESS SPACE TO PAUSE</div>
+    <div class="flash" id="flash"></div>
 
     <script>
-        // Configuration
-        const config = {
-            stars: 500,           // Number of stars
-            maxDepth: 40,         // Maximum star depth
-            speed: 0.4,           // Animation speed
-            starChars: ['.', ',', '*', '+', 'o', 'O', '@'], // Characters for stars by brightness
-            eventProb: {          // Event probabilities (per frame)
-                planet: 0.001,
-                comet: 0.002,
-                galaxy: 0.0005,
-                alienShip: 0.0003
+    document.addEventListener('DOMContentLoaded', function() {
+        // Main display elements
+        const spaceElement = document.getElementById('space');
+        const distanceElement = document.getElementById('distance');
+        const flashElement = document.getElementById('flash');
+
+        // =================================================================
+        // CONFIGURATION
+        // =================================================================
+        const CONFIG = {
+            // Simulation settings
+            updateRate: 60,                // Updates per second
+            starfieldUpdateRate: 30,       // Starfield updates per second (can be lower for performance)
+            speed: 0.3,                    // Base movement speed
+            
+            // Universe settings
+            initialStars: 800,             // Initial number of stars
+            starGravity: true,             // Stars are affected by planet gravity
+            spaceDensity: 0.8,             // Density of stars and objects
+            
+            // Starfield settings
+            maxStarDepth: 60,              // Maximum Z distance for stars
+            minStarDepth: 0.1,             // Minimum Z distance (for projection)
+            starVariants: ['.', ',', '·', '˙', '⋅', '°', '*', '+', '✧', '✦', '✪', '✰'],  // Star shapes by brightness
+            parallaxLayers: 3,             // Number of star layers with differing speeds
+            
+            // Event probabilities per 10 light-years
+            eventProbabilities: {
+                planet: 0.4,               // Planets
+                star: 0.2,                 // Close flyby stars
+                comet: 0.3,                // Comets
+                asteroid: 0.5,             // Asteroids
+                galaxy: 0.08,              // Distant galaxies
+                nebula: 0.08,              // Nebulae
+                blackHole: 0.05,           // Black holes
+                alienShip: 0.01            // Alien ships (very rare)
             },
-            fps: 30               // Target frames per second
+            
+            // Visual settings
+            depthFading: true,             // Objects fade with distance
+            useColors: true,               // Enable colorization
+            useParallax: true,             // Enable parallax starfield movement
+            flashEffects: true,            // Enable flash effects for events
+            
+            // Planet generation settings
+            planetTypes: [
+                {name: 'Rocky', colors: ['gray', 'lightgray', 'brown', 'tan'], hasRings: 0.1, hasMoons: 0.3, textures: ['rough', 'cratered', 'mountainous']},
+                {name: 'Earth-like', colors: ['blue', 'green', 'cyan'], hasRings: 0, hasMoons: 0.6, textures: ['oceanic', 'continental', 'cloudCovered']},
+                {name: 'Gas Giant', colors: ['cyan', 'orange', 'yellow', 'red'], hasRings: 0.7, hasMoons: 0.9, textures: ['banded', 'stormy', 'swirled']},
+                {name: 'Ice Planet', colors: ['lightblue', 'white', 'azure'], hasRings: 0.2, hasMoons: 0.4, textures: ['icy', 'cracked', 'crystalline']},
+                {name: 'Volcanic', colors: ['darkred', 'red', 'orange'], hasRings: 0.05, hasMoons: 0.2, textures: ['volcanic', 'lava', 'smoking']},
+                {name: 'Desert', colors: ['tan', 'yellow', 'orange'], hasRings: 0.1, hasMoons: 0.3, textures: ['desert', 'dunes', 'dry']}
+            ],
+            
+            // Star types for close flybys
+            starTypes: [
+                {name: 'Yellow Dwarf', colors: ['yellow', 'gold'], size: 4, corona: true},
+                {name: 'Red Dwarf', colors: ['red', 'darkred'], size: 3, corona: true},
+                {name: 'Blue Giant', colors: ['lightblue', 'blue'], size: 6, corona: true},
+                {name: 'White Dwarf', colors: ['white', 'azure'], size: 2, corona: false},
+                {name: 'Red Giant', colors: ['red', 'orange'], size: 7, corona: true},
+                {name: 'Neutron Star', colors: ['white', 'lightblue'], size: 1, corona: false, pulsar: true}
+            ],
+            
+            // Nebula types
+            nebulaTypes: [
+                {name: 'Emission', colors: ['red', 'pink', 'magenta'], chars: '·˚*°✧✦.・'},
+                {name: 'Reflection', colors: ['blue', 'lightblue', 'azure'], chars: '·˚*°✧✦.・'},
+                {name: 'Dark', colors: ['purple', 'darkpurple', 'magenta'], chars: '·˚*°✧✦.・'},
+                {name: 'Planetary', colors: ['green', 'cyan', 'lightblue'], chars: '○◙◉◌◍◎●⦿'}
+            ],
+            
+            // Galaxy types
+            galaxyTypes: [
+                {name: 'Spiral', colors: ['white', 'yellow'], spiralArms: true, density: 0.6},
+                {name: 'Elliptical', colors: ['yellow', 'orange'], spiralArms: false, density: 0.8},
+                {name: 'Irregular', colors: ['blue', 'lightblue'], spiralArms: false, density: 0.5}
+            ],
+            
+            // Alien ships (very rare)
+            alienShips: [
+                ["    .-==-.    ", "  .'       '.  ", " /           \\ ", "( >---------< )", " \\           / ", "  '.       .'  ", "    '-==-'    "],
+                ["     _._     ", "    / | \\    ", "   /__|__\\   ", " >====|====< ", "   \\__|__/   ", "    \\ | /    ", "     '`'     "],
+                ["   _.-**-._   ", " .'         '. ", "/  >-------<  \\", "\\  \\_______/  /", " '.         .' ", "   '-._____.-'  "],
+                ["    /\\    ", " __/  \\__ ", "<________|", "/        \\", "\\________/"]
+            ],
+            
+            // Colors mapped to CSS colors
+            colors: {
+                white: '<span style="color: #ffffff;">',
+                lightgray: '<span style="color: #cccccc;">',
+                gray: '<span style="color: #888888;">',
+                black: '<span style="color: #333333;">',
+                red: '<span style="color: #ff3333;">',
+                darkred: '<span style="color: #aa0000;">',
+                green: '<span style="color: #33cc33;">',
+                blue: '<span style="color: #3333ff;">',
+                lightblue: '<span style="color: #33ccff;">',
+                cyan: '<span style="color: #00ffff;">',
+                azure: '<span style="color: #66ccff;">',
+                yellow: '<span style="color: #ffff00;">',
+                gold: '<span style="color: #ffcc00;">',
+                orange: '<span style="color: #ff9900;">',
+                brown: '<span style="color: #aa5500;">',
+                tan: '<span style="color: #ddaa77;">',
+                pink: '<span style="color: #ff66cc;">',
+                magenta: '<span style="color: #ff00ff;">',
+                purple: '<span style="color: #9900ff;">',
+                darkpurple: '<span style="color: #660099;">',
+                reset: '</span>'
+            }
         };
 
-        // State variables
-        let stars = [];
-        let objects = [];
-        let screenWidth = 100;
-        let screenHeight = 50;
-        let isRunning = true;
-        let distanceTraveled = 0;
-        let lastFrameTime = 0;
-        let screen = null;
-
-        // Color helpers for browser
-        const colors = {
-            white: '<span style="color: #fff;">',
-            red: '<span style="color: #f55;">',
-            green: '<span style="color: #5f5;">',
-            blue: '<span style="color: #55f;">',
-            yellow: '<span style="color: #ff5;">',
-            cyan: '<span style="color: #5ff;">',
-            magenta: '<span style="color: #f5f;">',
-            reset: '</span>'
+        // =================================================================
+        // STATE VARIABLES
+        // =================================================================
+        let stars = [];              // Star field
+        let objects = [];            // Space objects
+        let screenWidth = 100;       // Screen width in characters
+        let screenHeight = 50;       // Screen height in characters
+        let isRunning = true;        // Simulation running state
+        let distanceTraveled = 0;    // Distance counter
+        let lastUpdateTime = 0;      // Last update timestamp
+        let lastStarfieldTime = 0;   // Last starfield update timestamp
+        let randomSeed = Math.random() * 10000; // Random seed for procedural generation
+        let eventCooldowns = {       // Cooldowns for events (avoid clustering)
+            planet: 0,
+            star: 0,
+            comet: 0,
+            asteroid: 0,
+            galaxy: 0,
+            nebula: 0,
+            blackHole: 0,
+            alienShip: 0
         };
-
-        // Alien ship models
-        const alienShips = [
-            [
-                "  .---.  ",
-                " /     \\ ",
-                "<------->"
-            ],
-            [
-                "    ^    ",
-                "   /|\\   ",
-                "  / | \\  ",
-                " /__|__\\ "
-            ],
-            [
-                "  _____  ",
-                " /     \\ ",
-                "|=======|"
-            ]
-        ];
-
-        // Initialize
-        function init() {
-            screen = document.getElementById('space');
+        let notifications = [];      // On-screen notifications
+        let lastEventDistance = 0;   // Distance at last event
+        let screenBuffer = [];       // Screen buffer
+        let colorList = Object.keys(CONFIG.colors).filter(c => c !== 'reset');
+        let lastObjectType = null;   // Type of last object for variety
+        
+        // =================================================================
+        // INITIALIZATION
+        // =================================================================
+        
+        // Initialize screen dimensions and create stars
+        updateScreenDimensions();
+        createStars();
+        initBuffer();
+        
+        // Listen for keyboard input
+        window.addEventListener('keydown', (event) => {
+            if (event.key === ' ') {
+                isRunning = !isRunning;
+            }
+        });
+        
+        // Listen for window resize
+        window.addEventListener('resize', () => {
+            updateScreenDimensions();
+            initBuffer();
+        });
+        
+        // Start animation loop
+        requestAnimationFrame(mainLoop);
+        
+        // =================================================================
+        // CORE FUNCTIONS
+        // =================================================================
+        
+        // Main animation loop
+        function mainLoop(timestamp) {
+            // Calculate time since last update
+            const deltaTime = timestamp - lastUpdateTime;
+            const starDeltaTime = timestamp - lastStarfieldTime;
             
-            // Listen for window resize
-            window.addEventListener('resize', updateDimensions);
-            
-            // Listen for keyboard input
-            window.addEventListener('keydown', function(e) {
-                if (e.key === ' ') {
-                    isRunning = !isRunning;
+            // Update if enough time has passed
+            if (deltaTime >= 1000 / CONFIG.updateRate) {
+                if (isRunning) {
+                    update(deltaTime / 1000);
                 }
-            });
-
-            // Set initial dimensions
-            updateDimensions();
+                
+                // Always render
+                render();
+                lastUpdateTime = timestamp;
+            }
             
-            // Create initial stars
-            createStars();
+            // Update starfield at potentially lower rate for performance
+            if (starDeltaTime >= 1000 / CONFIG.starfieldUpdateRate) {
+                if (isRunning) {
+                    updateStarfield(starDeltaTime / 1000);
+                }
+                lastStarfieldTime = timestamp;
+            }
             
-            // Start animation loop
-            requestAnimationFrame(animationLoop);
+            // Continue animation
+            requestAnimationFrame(mainLoop);
         }
-
-        // Update screen dimensions
-        function updateDimensions() {
-            // Create a test element to measure character size
-            const test = document.createElement('span');
-            test.style.fontFamily = 'monospace';
-            test.style.fontSize = '4pt';
-            test.style.position = 'absolute';
-            test.style.visibility = 'hidden';
-            test.textContent = 'X';
-            document.body.appendChild(test);
+        
+        // Update all simulation elements
+        function update(deltaTime) {
+            // Update distance traveled
+            distanceTraveled += CONFIG.speed * deltaTime;
+            distanceElement.textContent = Math.floor(distanceTraveled);
             
-            // Calculate available space
-            const charWidth = test.offsetWidth || 4;
-            const charHeight = test.offsetHeight || 6;
-            document.body.removeChild(test);
+            // Update space objects
+            updateObjects(deltaTime);
+            
+            // Check for new events
+            checkForEvents();
+            
+            // Update notifications
+            updateNotifications(deltaTime);
+            
+            // Reduce cooldowns
+            for (const key in eventCooldowns) {
+                if (eventCooldowns[key] > 0) {
+                    eventCooldowns[key] -= deltaTime;
+                }
+            }
+        }
+        
+        // Initialize screen buffer
+        function initBuffer() {
+            screenBuffer = Array(screenHeight).fill().map(() => Array(screenWidth).fill(' '));
+        }
+        
+        // Update screen dimensions based on viewport size
+        function updateScreenDimensions() {
+            // Create test element to measure character dimensions
+            const testChar = document.createElement('div');
+            testChar.style.fontFamily = 'Courier New, monospace';
+            testChar.style.fontSize = '4pt';
+            testChar.style.position = 'absolute';
+            testChar.style.visibility = 'hidden';
+            testChar.textContent = 'X';
+            document.body.appendChild(testChar);
+            
+            // Calculate screen dimensions
+            const charWidth = testChar.offsetWidth || 5;  // Fallback if measurement fails
+            const charHeight = testChar.offsetHeight || 8;
+            document.body.removeChild(testChar);
             
             screenWidth = Math.floor(window.innerWidth / charWidth);
             screenHeight = Math.floor(window.innerHeight / charHeight);
             
-            // Recreate stars for new dimensions
+            // Recreate stars
             createStars();
         }
-
+        
         // Create initial stars
         function createStars() {
             stars = [];
-            for (let i = 0; i < config.stars; i++) {
-                stars.push({
-                    x: (Math.random() - 0.5) * screenWidth * 2,
-                    y: (Math.random() - 0.5) * screenHeight * 2,
-                    z: Math.random() * config.maxDepth,
-                    color: getRandomColor(),
-                    brightness: Math.random()
-                });
+            for (let i = 0; i < CONFIG.initialStars; i++) {
+                stars.push(createRandomStar(null, true));
             }
         }
-
-        // Get random color
+        
+        // Create a random star
+        function createRandomStar(atDistance = null, initial = false) {
+            // Create wider distribution if initial population
+            const spreadFactor = initial ? 2 : 1;
+            
+            // The star object
+            return {
+                x: (Math.random() - 0.5) * screenWidth * spreadFactor,
+                y: (Math.random() - 0.5) * screenHeight * spreadFactor,
+                z: atDistance || Math.random() * CONFIG.maxStarDepth + CONFIG.minStarDepth,
+                brightness: Math.random(),
+                color: getRandomColor(),
+                layer: Math.floor(Math.random() * CONFIG.parallaxLayers),
+                twinkle: Math.random() > 0.8,  // 20% of stars twinkle
+                twinklePhase: Math.random() * Math.PI * 2
+            };
+        }
+        
+        // Get random color from color list
         function getRandomColor() {
-            const colorNames = Object.keys(colors).filter(c => c !== 'reset');
-            return colorNames[Math.floor(Math.random() * colorNames.length)];
+            return colorList[Math.floor(Math.random() * colorList.length)];
         }
-
-        // Main animation loop
-        function animationLoop(timestamp) {
-            const deltaTime = timestamp - lastFrameTime;
-            lastFrameTime = timestamp;
-            
-            if (deltaTime > 1000 / config.fps && isRunning) {
-                update(deltaTime / (1000 / 30)); // Normalize for 30fps
-                draw();
-            }
-            
-            requestAnimationFrame(animationLoop);
-        }
-
-        // Update simulation
-        function update(speedFactor) {
-            // Move stars
+        
+        // Update starfield
+        function updateStarfield(deltaTime) {
             for (let i = 0; i < stars.length; i++) {
-                stars[i].z -= config.speed * speedFactor;
+                const star = stars[i];
+                
+                // Apply parallax effect based on star layer
+                let speedMultiplier = 1;
+                if (CONFIG.useParallax && CONFIG.parallaxLayers > 1) {
+                    speedMultiplier = 0.5 + (star.layer / (CONFIG.parallaxLayers - 1)) * 1.5;
+                }
+                
+                // Move star toward viewer
+                star.z -= CONFIG.speed * deltaTime * speedMultiplier;
+                
+                // Update twinkle phase
+                if (star.twinkle) {
+                    star.twinklePhase += deltaTime * 5;
+                    star.twinkleValue = Math.sin(star.twinklePhase) * 0.5 + 0.5;
+                }
                 
                 // Recycle stars that pass viewer
-                if (stars[i].z <= 0) {
-                    stars[i].z = config.maxDepth;
-                    stars[i].x = (Math.random() - 0.5) * screenWidth * 2;
-                    stars[i].y = (Math.random() - 0.5) * screenHeight * 2;
+                if (star.z <= CONFIG.minStarDepth) {
+                    stars[i] = createRandomStar(CONFIG.maxStarDepth);
+                }
+                
+                // Apply gravity from nearby objects
+                if (CONFIG.starGravity && objects.length > 0) {
+                    for (const obj of objects) {
+                        if (obj.type === 'planet' || obj.type === 'star' || obj.type === 'blackHole') {
+                            // Calculate distance to object
+                            const proj = project(obj.x, obj.y, obj.z);
+                            const starProj = project(star.x, star.y, star.z);
+                            const dx = proj.x - starProj.x;
+                            const dy = proj.y - starProj.y;
+                            const dist = Math.sqrt(dx*dx + dy*dy);
+                            
+                            // Only apply gravity if star is close enough
+                            if (dist < (obj.radius || 5) * 2) {
+                                const force = (obj.radius || 5) * 0.02 / Math.max(1, dist);
+                                const angle = Math.atan2(dy, dx);
+                                
+                                star.x += Math.cos(angle) * force;
+                                star.y += Math.sin(angle) * force;
+                            }
+                        }
+                    }
                 }
             }
-            
-            // Update space objects
+        }
+        
+        // Update space objects
+        function updateObjects(deltaTime) {
             for (let i = objects.length - 1; i >= 0; i--) {
-                objects[i].z -= objects[i].speed * speedFactor;
-                objects[i].age += speedFactor;
+                const obj = objects[i];
                 
-                // Remove objects that pass viewer
-                if (objects[i].z <= 0) {
+                // Move object toward viewer
+                obj.z -= obj.speed * deltaTime;
+                
+                // Age the object
+                obj.age += deltaTime;
+                
+                // Object-specific updates
+                switch (obj.type) {
+                    case 'planet':
+                        if (obj.rotationSpeed) {
+                            obj.rotation += obj.rotationSpeed * deltaTime;
+                        }
+                        
+                        // Update moons
+                        if (obj.moons) {
+                            for (const moon of obj.moons) {
+                                moon.angle += moon.speed * deltaTime;
+                            }
+                        }
+                        break;
+                        
+                    case 'star':
+                        if (obj.pulsing) {
+                            obj.pulsePhase = (obj.pulsePhase || 0) + deltaTime * obj.pulseSpeed;
+                            obj.pulseFactor = Math.sin(obj.pulsePhase) * 0.2 + 1;
+                        }
+                        if (obj.coronaRotation) {
+                            obj.coronaAngle = (obj.coronaAngle || 0) + obj.coronaRotation * deltaTime;
+                        }
+                        break;
+                        
+                    case 'comet':
+                        // Comets may curve slightly in their path
+                        if (obj.curve) {
+                            obj.angle += obj.curve * deltaTime;
+                        }
+                        break;
+                        
+                    case 'galaxy':
+                        obj.rotationAngle = (obj.rotationAngle || 0) + obj.rotationSpeed * deltaTime;
+                        break;
+                        
+                    case 'blackHole':
+                        obj.rotationAngle = (obj.rotationAngle || 0) + obj.rotationSpeed * deltaTime;
+                        obj.pulsePhase = (obj.pulsePhase || 0) + deltaTime * 2;
+                        obj.pulseFactor = Math.sin(obj.pulsePhase) * 0.2 + 1;
+                        
+                        // Black holes attract stars more strongly
+                        if (CONFIG.starGravity) {
+                            for (const star of stars) {
+                                const projHole = project(obj.x, obj.y, obj.z);
+                                const projStar = project(star.x, star.y, star.z);
+                                const dx = projHole.x - projStar.x;
+                                const dy = projHole.y - projStar.y;
+                                const dist = Math.sqrt(dx*dx + dy*dy);
+                                
+                                if (dist < obj.radius * 5) {
+                                    const force = obj.radius * 0.1 / Math.max(1, dist);
+                                    const angle = Math.atan2(dy, dx);
+                                    
+                                    star.x += Math.cos(angle) * force;
+                                    star.y += Math.sin(angle) * force;
+                                    
+                                    // Stars too close are consumed
+                                    if (dist < obj.radius * 0.8) {
+                                        star.z = CONFIG.minStarDepth;  // Reset the star
+                                    }
+                                }
+                            }
+                        }
+                        break;
+                        
+                    case 'alienShip':
+                        // Aliens might move a bit erratically
+                        if (obj.movePattern === 'zigzag') {
+                            obj.patternPhase = (obj.patternPhase || 0) + deltaTime * obj.patternSpeed;
+                            obj.x += Math.sin(obj.patternPhase) * deltaTime * 2;
+                        } else if (obj.movePattern === 'circle') {
+                            obj.patternPhase = (obj.patternPhase || 0) + deltaTime * obj.patternSpeed;
+                            const circleX = Math.cos(obj.patternPhase) * obj.patternSize;
+                            const circleY = Math.sin(obj.patternPhase) * obj.patternSize;
+                            obj.x = obj.baseX + circleX;
+                            obj.y = obj.baseY + circleY;
+                        }
+                        break;
+                }
+                
+                // Remove objects that pass the viewer or are too old
+                if (obj.z <= CONFIG.minStarDepth || (obj.maxAge && obj.age > obj.maxAge)) {
                     objects.splice(i, 1);
                 }
             }
+        }
+        
+        // Create flash effect
+        function createFlash(color = 'white', duration = 0.1) {
+            if (!CONFIG.flashEffects) return;
             
-            // Check for new events
-            for (const [type, prob] of Object.entries(config.eventProb)) {
-                if (Math.random() < prob * speedFactor) {
-                    createSpaceObject(type);
+            flashElement.style.background = `rgba(255,255,255,0.2)`;
+            setTimeout(() => {
+                flashElement.style.background = 'rgba(255,255,255,0)';
+            }, duration * 1000);
+        }
+        
+        // Add notification
+        function addNotification(text, duration = 5) {
+            notifications.push({
+                text: text,
+                duration: duration,
+                age: 0
+            });
+        }
+        
+        // Update notifications
+        function updateNotifications(deltaTime) {
+            for (let i = notifications.length - 1; i >= 0; i--) {
+                notifications[i].age += deltaTime;
+                if (notifications[i].age >= notifications[i].duration) {
+                    notifications.splice(i, 1);
                 }
             }
-            
-            distanceTraveled += config.speed * speedFactor;
         }
-
-        // Create a space object
+        
+        // Check for events (based on distance)
+        function checkForEvents() {
+            // Check if we've traveled far enough for a new event check
+            const currentSegment = Math.floor(distanceTraveled / 10);
+            const lastSegment = Math.floor(lastEventDistance / 10);
+            
+            if (currentSegment > lastSegment) {
+                // Check for each event type
+                for (const [type, probability] of Object.entries(CONFIG.eventProbabilities)) {
+                    // Only create an event if cooldown is expired and probability check passes
+                    if (eventCooldowns[type] <= 0 && Math.random() < probability) {
+                        // Don't generate the same type twice in a row for variety
+                        if (type !== lastObjectType) {
+                            createSpaceObject(type);
+                            eventCooldowns[type] = 5;  // 5 second cooldown
+                            lastObjectType = type;
+                            lastEventDistance = distanceTraveled;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Create space object of specified type
         function createSpaceObject(type) {
-            const baseObj = {
-                x: (Math.random() - 0.5) * screenWidth,
-                y: (Math.random() - 0.5) * screenHeight * 0.8,
-                z: config.maxDepth,
+            let obj = {
                 type: type,
-                color: getRandomColor(),
+                x: (Math.random() - 0.5) * screenWidth,
+                y: (Math.random() - 0.5) * screenHeight,
+                z: CONFIG.maxStarDepth,
+                speed: CONFIG.speed,
                 age: 0
             };
             
             switch (type) {
                 case 'planet':
-                    baseObj.radius = 2 + Math.floor(Math.random() * 5);
-                    baseObj.speed = config.speed * 0.7;
-                    baseObj.texture = Math.floor(Math.random() * 3);
+                    obj = createPlanet(obj);
+                    break;
+                    
+                case 'star':
+                    obj = createStar(obj);
                     break;
                     
                 case 'comet':
-                    baseObj.length = 5 + Math.floor(Math.random() * 10);
-                    baseObj.angle = Math.random() * Math.PI * 2;
-                    baseObj.speed = config.speed * 2;
+                    obj = createComet(obj);
+                    break;
+                    
+                case 'asteroid':
+                    obj = createAsteroid(obj);
                     break;
                     
                 case 'galaxy':
-                    baseObj.size = 10 + Math.floor(Math.random() * 15);
-                    baseObj.density = 0.3 + Math.random() * 0.3;
-                    baseObj.speed = config.speed * 0.4;
-                    baseObj.rotation = Math.random() * Math.PI * 2;
+                    obj = createGalaxy(obj);
+                    break;
+                    
+                case 'nebula':
+                    obj = createNebula(obj);
+                    break;
+                    
+                case 'blackHole':
+                    obj = createBlackHole(obj);
                     break;
                     
                 case 'alienShip':
-                    baseObj.model = Math.floor(Math.random() * alienShips.length);
-                    baseObj.speed = config.speed * (1 + Math.random());
-                    baseObj.secondaryColor = getRandomColor();
+                    obj = createAlienShip(obj);
                     break;
             }
             
-            objects.push(baseObj);
+            objects.push(obj);
         }
-
+        
+        // Create a planet
+        function createPlanet(baseObj) {
+            // Select planet type
+            const planetType = CONFIG.planetTypes[Math.floor(Math.random() * CONFIG.planetTypes.length)];
+            
+            // Set planet properties
+            const planet = {
+                ...baseObj,
+                radius: 5 + Math.floor(Math.random() * 10),  // Larger planets
+                planetType: planetType.name,
+                color: planetType.colors[Math.floor(Math.random() * planetType.colors.length)],
+                secondaryColor: planetType.colors[Math.floor(Math.random() * planetType.colors.length)],
+                texture: planetType.textures[Math.floor(Math.random() * planetType.textures.length)],
+                speed: CONFIG.speed * (0.5 + Math.random() * 0.3),  // Slower than player
+                rotation: Math.random() * Math.PI * 2,
+                rotationSpeed: (Math.random() - 0.5) * 0.5,
+                hasAtmosphere: Math.random() > 0.5
+            };
+            
+            // Add rings if this planet type can have them
+            if (Math.random() < planetType.hasRings) {
+                planet.rings = {
+                    innerRadius: planet.radius * 1.2,
+                    outerRadius: planet.radius * 2.5,
+                    color: getRandomColor(),
+                    gap: Math.random() > 0.7  // 30% chance for a gap in the rings
+                };
+            }
+            
+            // Add moons if this planet type can have them
+            if (Math.random() < planetType.hasMoons) {
+                const moonCount = Math.floor(Math.random() * 3) + 1;  // 1-3 moons
+                planet.moons = [];
+                
+                for (let i = 0; i < moonCount; i++) {
+                    planet.moons.push({
+                        distance: planet.radius * (1.5 + Math.random()),
+                        radius: 1 + Math.floor(Math.random() * 2),
+                        angle: Math.random() * Math.PI * 2,
+                        speed: 0.3 + Math.random() * 0.5,
+                        color: 'lightgray'
+                    });
+                }
+            }
+            
+            // Generate notification
+            addNotification(`APPROACHING ${planetType.name.toUpperCase()} PLANET`, 5);
+            
+            return planet;
+        }
+        
+        // Create a star for close fly-by
+        function createStar(baseObj) {
+            // Select star type
+            const starType = CONFIG.starTypes[Math.floor(Math.random() * CONFIG.starTypes.length)];
+            
+            // Create flash for star appearing
+            createFlash(starType.colors[0], 0.2);
+            
+            // Set star properties
+            const star = {
+                ...baseObj,
+                starType: starType.name,
+                color: starType.colors[0],
+                secondaryColor: starType.colors[1],
+                radius: starType.size,
+                speed: CONFIG.speed * 0.4,  // Stars move slower to stay on screen longer
+                corona: starType.corona,
+                coronaSize: starType.size * 2,
+                coronaAngle: Math.random() * Math.PI * 2,
+                coronaRotation: (Math.random() - 0.5) * 0.2
+            };
+            
+            // Add pulsing for neutron stars/pulsars
+            if (starType.pulsar) {
+                star.pulsing = true;
+                star.pulseSpeed = 3 + Math.random() * 5;
+                star.pulsePhase = 0;
+            }
+            
+            // Notification
+            addNotification(`APPROACHING ${starType.name.toUpperCase()}`, 5);
+            
+            return star;
+        }
+        
+        // Create a comet
+        function createComet(baseObj) {
+            // Set comet properties
+            const comet = {
+                ...baseObj,
+                length: 20 + Math.floor(Math.random() * 30),  // Longer tails for visibility
+                angle: Math.random() * Math.PI * 2,
+                color: ['blue', 'cyan', 'white'][Math.floor(Math.random() * 3)],
+                speed: CONFIG.speed * (1.5 + Math.random()),  // Faster than player
+                curve: (Math.random() - 0.5) * 0.2,  // Slight curve in path
+                tailFade: 0.9 + Math.random() * 0.1
+            };
+            
+            return comet;
+        }
+        
+        // Create an asteroid
+        function createAsteroid(baseObj) {
+            // Set asteroid properties
+            const asteroid = {
+                ...baseObj,
+                radius: 1 + Math.floor(Math.random() * 3),
+                color: ['gray', 'brown', 'tan'][Math.floor(Math.random() * 3)],
+                speed: CONFIG.speed * (0.8 + Math.random() * 0.8),
+                rotation: Math.random() * Math.PI * 2,
+                rotationSpeed: (Math.random() - 0.5) * 2,
+                shape: Math.floor(Math.random() * 3)  // 0: round, 1: irregular, 2: oblong
+            };
+            
+            return asteroid;
+        }
+        
+        // Create a galaxy
+        function createGalaxy(baseObj) {
+            // Select galaxy type
+            const galaxyType = CONFIG.galaxyTypes[Math.floor(Math.random() * CONFIG.galaxyTypes.length
+           // Select galaxy type
+            const galaxyType = CONFIG.galaxyTypes[Math.floor(Math.random() * CONFIG.galaxyTypes.length)];
+            
+            // Set galaxy properties
+            const galaxy = {
+                ...baseObj,
+                galaxyType: galaxyType.name,
+                color: galaxyType.colors[0],
+                secondaryColor: galaxyType.colors[1],
+                size: 20 + Math.floor(Math.random() * 30),
+                density: galaxyType.density * (0.7 + Math.random() * 0.6),
+                speed: CONFIG.speed * 0.2,  // Very slow movement
+                spiralArms: galaxyType.spiralArms ? 2 + Math.floor(Math.random() * 4) : 0,
+                rotationAngle: Math.random() * Math.PI * 2,
+                rotationSpeed: 0.05 + Math.random() * 0.1,
+                maxAge: 30  // Disappear after 30 seconds
+            };
+            
+            // Notification
+            addNotification(`DISTANT ${galaxyType.name.toUpperCase()} GALAXY DETECTED`, 5);
+            
+            return galaxy;
+        }
+        
+        // Create a nebula
+        function createNebula(baseObj) {
+            // Select nebula type
+            const nebulaType = CONFIG.nebulaTypes[Math.floor(Math.random() * CONFIG.nebulaTypes.length)];
+            
+            // Set nebula properties
+            const nebula = {
+                ...baseObj,
+                nebulaType: nebulaType.name,
+                color: nebulaType.colors[0],
+                secondaryColor: nebulaType.colors[1],
+                tertiaryColor: nebulaType.colors[2],
+                size: 30 + Math.floor(Math.random() * 40),
+                density: 0.2 + Math.random() * 0.3,
+                speed: CONFIG.speed * 0.15,  // Very slow movement
+                chars: nebulaType.chars,
+                seed: Math.random() * 1000,
+                colorShift: Math.random() > 0.5,
+                maxAge: 40  // Disappear after 40 seconds
+            };
+            
+            // Notification
+            addNotification(`ENTERING ${nebulaType.name.toUpperCase()} NEBULA`, 5);
+            
+            return nebula;
+        }
+        
+        // Create a black hole
+        function createBlackHole(baseObj) {
+            // Create flash effect
+            createFlash('blue', 0.3);
+            
+            // Set black hole properties
+            const blackHole = {
+                ...baseObj,
+                radius: 4 + Math.floor(Math.random() * 3),
+                color: 'black',
+                secondaryColor: ['blue', 'purple', 'cyan'][Math.floor(Math.random() * 3)],
+                speed: CONFIG.speed * 0.3,
+                accretionDisk: Math.random() > 0.3,  // 70% chance for accretion disk
+                diskInnerRadius: 5,
+                diskOuterRadius: 12,
+                rotationAngle: Math.random() * Math.PI * 2,
+                rotationSpeed: 0.2 + Math.random() * 0.3,
+                eventHorizon: true
+            };
+            
+            // Notification with warning
+            addNotification(`WARNING: BLACK HOLE DETECTED`, 8);
+            
+            return blackHole;
+        }
+        
+        // Create an alien ship
+        function createAlienShip(baseObj) {
+            // Create flash effect for dramatic entrance
+            createFlash('green', 0.2);
+            
+            // Select ship model
+            const modelIndex = Math.floor(Math.random() * CONFIG.alienShips.length);
+            const model = CONFIG.alienShips[modelIndex];
+            
+            // Calculate ship dimensions
+            const width = model[0].length;
+            const height = model.length;
+            
+            // Movement pattern
+            const patterns = ['straight', 'zigzag', 'circle'];
+            const selectedPattern = patterns[Math.floor(Math.random() * patterns.length)];
+            
+            // Set alien ship properties
+            const alienShip = {
+                ...baseObj,
+                model: modelIndex,
+                width: width,
+                height: height,
+                color: ['green', 'cyan', 'magenta', 'yellow'][Math.floor(Math.random() * 4)],
+                secondaryColor: ['white', 'blue', 'red'][Math.floor(Math.random() * 3)],
+                speed: CONFIG.speed * (0.8 + Math.random() * 0.7),
+                movePattern: selectedPattern,
+                baseX: baseObj.x,  // Original position for pattern reference
+                baseY: baseObj.y,
+                patternSpeed: 0.5 + Math.random() * 2,
+                patternSize: 5 + Math.random() * 10,
+                maxAge: 15  // Disappear after 15 seconds
+            };
+            
+            // Notification
+            addNotification(`ALIEN VESSEL DETECTED!`, 10);
+            
+            return alienShip;
+        }
+        
         // Project 3D coordinates to 2D screen position
         function project(x, y, z) {
-            const factor = 10 / Math.max(z, 0.1);
+            const factor = 15 / Math.max(z, CONFIG.minStarDepth);
+            
             return {
                 x: Math.round(x * factor + screenWidth / 2),
                 y: Math.round(y * factor + screenHeight / 2),
+                factor: factor,
                 size: Math.max(1, factor / 3)
             };
         }
-
-        // Draw everything
-        function draw() {
-            // Create screen buffer
-            const buffer = Array(screenHeight).fill().map(() => Array(screenWidth).fill(' '));
+        
+        // =================================================================
+        // RENDERING FUNCTIONS
+        // =================================================================
+        
+        // Main render function
+        function render() {
+            // Clear screen buffer
+            for (let y = 0; y < screenHeight; y++) {
+                for (let x = 0; x < screenWidth; x++) {
+                    screenBuffer[y][x] = ' ';
+                }
+            }
             
-            // Draw stars
+            // Draw objects (render background to foreground)
+            renderGalaxies();
+            renderNebulae();
+            renderStars();
+            renderBlackHoles();
+            renderCometsAndAsteroids();
+            renderPlanets();
+            renderStarsFlyby();
+            renderAlienShips();
+            renderNotifications();
+            
+            // Convert buffer to text
+            const output = screenBuffer.map(row => row.join('')).join('\n');
+            
+            // Update display
+            spaceElement.innerHTML = output;
+        }
+        
+        // Draw all stars
+        function renderStars() {
             for (const star of stars) {
                 const proj = project(star.x, star.y, star.z);
                 
-                // Only draw if on screen
+                // Check if star is on screen
                 if (proj.x >= 0 && proj.x < screenWidth && proj.y >= 0 && proj.y < screenHeight) {
-                    // Select character based on distance
-                    const brightness = Math.min(1, Math.max(0, 1 - star.z / config.maxDepth));
-                    const charIndex = Math.floor(brightness * (config.starChars.length - 1));
-                    let char = config.starChars[charIndex];
+                    // Calculate brightness based on distance and twinkle
+                    let brightness = star.brightness;
                     
-                    // Add color
-                    char = colors[star.color] + char + colors.reset;
+                    if (CONFIG.depthFading) {
+                        brightness *= (1 - star.z / CONFIG.maxStarDepth);
+                    }
                     
-                    buffer[proj.y][proj.x] = char;
+                    if (star.twinkle) {
+                        brightness *= star.twinkleValue || 1;
+                    }
+                    
+                    // Select star character based on brightness
+                    const charIndex = Math.min(
+                        CONFIG.starVariants.length - 1,
+                        Math.floor(brightness * CONFIG.starVariants.length)
+                    );
+                    let char = CONFIG.starVariants[charIndex];
+                    
+                    // Add color if enabled
+                    if (CONFIG.useColors) {
+                        const colorName = star.color;
+                        char = CONFIG.colors[colorName] + char + CONFIG.colors.reset;
+                    }
+                    
+                    // Draw star
+                    screenBuffer[proj.y][proj.x] = char;
                 }
             }
-            
-            // Draw space objects
-            for (const obj of objects) {
-                drawSpaceObject(obj, buffer);
-            }
-            
-            // Add status line
-            const status = `SPACE: ${isRunning ? 'RUNNING' : 'PAUSED'} | DISTANCE: ${Math.floor(distanceTraveled)} | OBJECTS: ${objects.length}`;
-            for (let i = 0; i < status.length && i < screenWidth; i++) {
-                buffer[screenHeight - 1][i] = status.charAt(i);
-            }
-            
-            // Convert buffer to text
-            const output = buffer.map(row => row.join('')).join('\n');
-            
-            // Update display
-            screen.innerHTML = output;
         }
-
-        // Draw space object
-        function drawSpaceObject(obj, buffer) {
-            const proj = project(obj.x, obj.y, obj.z);
-            const colorStart = colors[obj.color];
-            const colorEnd = colors.reset;
-            const secondaryColorStart = obj.secondaryColor ? colors[obj.secondaryColor] : colorStart;
-            
-            switch (obj.type) {
-                case 'planet':
-                    drawPlanet(obj, proj, buffer, colorStart, secondaryColorStart, colorEnd);
-                    break;
-                    
-                case 'comet':
-                    drawComet(obj, proj, buffer, colorStart, colorEnd);
-                    break;
-                    
-                case 'galaxy':
-                    drawGalaxy(obj, proj, buffer, colorStart, colorEnd);
-                    break;
-                    
-                case 'alienShip':
-                    drawAlienShip(obj, proj, buffer, colorStart, secondaryColorStart, colorEnd);
-                    break;
-            }
-        }
-
-        // Draw planet
-        function drawPlanet(obj, proj, buffer, colorStart, secondaryColorStart, colorEnd) {
-            const radius = Math.floor(obj.radius * proj.size);
-            
-            if (radius < 1) return;
-            
-            for (let y = -radius; y <= radius; y++) {
-                for (let x = -radius; x <= radius; x++) {
-                    if (x*x + y*y <= radius*radius) {
-                        const screenX = proj.x + x;
-                        const screenY = proj.y + y;
+        
+        // Draw planets
+        function renderPlanets() {
+            for (const planet of objects.filter(o => o.type === 'planet')) {
+                const proj = project(planet.x, planet.y, planet.z);
+                
+                // Only draw if sufficiently visible
+                const radius = Math.max(1, Math.floor(planet.radius * proj.size));
+                if (radius < 1) continue;
+                
+                // Color settings
+                const colorStart = CONFIG.useColors ? CONFIG.colors[planet.color] : '';
+                const colorEnd = CONFIG.useColors ? CONFIG.colors.reset : '';
+                const secondaryColorStart = CONFIG.useColors ? CONFIG.colors[planet.secondaryColor] : '';
+                
+                // Draw planet circle
+                for (let y = -radius; y <= radius; y++) {
+                    for (let x = -radius; x <= radius; x++) {
+                        const distSq = x*x + y*y;
                         
-                        if (screenX >= 0 && screenX < screenWidth && screenY >= 0 && screenY < screenHeight) {
-                            // Apply texture
-                            let char = 'O';
+                        // Check if point is part of circle
+                        if (distSq <= radius*radius) {
+                            const screenX = proj.x + x;
+                            const screenY = proj.y + y;
                             
-                            if (obj.texture === 0) {
-                                // Smooth
-                                const dist = Math.sqrt(x*x + y*y) / radius;
-                                if (dist > 0.8) char = '.';
-                                else if (dist > 0.5) char = 'o';
-                                else char = 'O';
-                            } else if (obj.texture === 1) {
-                                // Cratered
-                                const noise = Math.sin(x * 0.7) * Math.cos(y * 0.7);
-                                if (noise > 0.3) char = '.';
-                                else if (noise > -0.3) char = 'o';
-                                else char = 'O';
-                            } else {
-                                // Banded
-                                const band = Math.sin(y * 0.5);
-                                if (band > 0.3) char = '.';
-                                else if (band > -0.3) char = 'o';
-                                else char = 'O';
+                            // Only draw if on screen
+                            if (screenX >= 0 && screenX < screenWidth && screenY >= 0 && screenY < screenHeight) {
+                                // Default character
+                                let char = 'O';
+                                let useSecondary = false;
+                                
+                                // Get normalized distance from center
+                                const dist = Math.sqrt(distSq) / radius;
+                                
+                                // Apply texture based on planet type
+                                switch (planet.texture) {
+                                    case 'rough':
+                                        // Rocky uneven surface
+                                        const noise = Math.sin(x*0.6 + planet.rotation) * Math.cos(y*0.6 + planet.rotation);
+                                        if (noise > 0.3) char = '.';
+                                        else if (noise > -0.3) char = 'o';
+                                        else char = 'O';
+                                        break;
+                                    
+                                    case 'cratered':
+                                        // Cratered surface with circular patterns
+                                        const craterNoise = Math.sin(x*x*0.1 + y*y*0.1 + planet.rotation) * 0.5 + 0.5;
+                                        if (craterNoise > 0.8) char = ' ';
+                                        else if (craterNoise > 0.6) char = '.';
+                                        else if (craterNoise > 0.3) char = 'o';
+                                        else char = 'O';
+                                        break;
+                                    
+                                    case 'mountainous':
+                                        // Mountainous with sharp features
+                                        const mtn = Math.abs(Math.sin(x*0.5 + planet.rotation) * Math.cos(y*0.5));
+                                        if (mtn > 0.8) char = '^';
+                                        else if (mtn > 0.5) char = '/';
+                                        else if (mtn > 0.3) char = 'o';
+                                        else char = 'O';
+                                        break;
+                                    
+                                    case 'oceanic':
+                                        // Oceanic planet with large water bodies
+                                        const oceanNoise = Math.sin(x*0.3 + planet.rotation) * Math.sin(y*0.3 + planet.rotation);
+                                        if (oceanNoise > 0.2) {
+                                            char = '~';
+                                            useSecondary = true;  // Water is secondary color
+                                        } else {
+                                            char = '#';
+                                        }
+                                        break;
+                                        
+                                    case 'continental':
+                                        // Continental with distinct landmasses
+                                        const continentNoise = Math.sin(x*0.2 + planet.rotation) * Math.cos(y*0.2);
+                                        if (continentNoise > 0.1) {
+                                            char = '#';
+                                        } else {
+                                            char = '~';
+                                            useSecondary = true;
+                                        }
+                                        break;
+                                    
+                                    case 'cloudCovered':
+                                        // Cloud covered with swirls
+                                        const cloudNoise = Math.sin(x*0.3 + planet.rotation) * Math.cos(y*0.3);
+                                        if (cloudNoise > 0.5) {
+                                            char = '@';
+                                            useSecondary = true;
+                                        } else if (cloudNoise > 0) {
+                                            char = 'o';
+                                            useSecondary = true;
+                                        } else {
+                                            char = '~';
+                                        }
+                                        break;
+                                    
+                                    case 'banded':
+                                        // Gas giant with horizontal bands
+                                        const band = Math.sin(y*0.5 + planet.rotation);
+                                        if (band > 0.7) {
+                                            char = '=';
+                                            useSecondary = true;
+                                        } else if (band > 0.2) {
+                                            char = '-';
+                                        } else if (band > -0.3) {
+                                            char = 'o';
+                                        } else if (band > -0.7) {
+                                            char = '-';
+                                            useSecondary = true;
+                                        } else {
+                                            char = '=';
+                                        }
+                                        break;
+                                    
+                                    case 'stormy':
+                                        // Stormy with vortex patterns
+                                        const stormX = Math.cos(planet.rotation) * radius * 0.5;
+                                        const stormY = Math.sin(planet.rotation) * radius * 0.5;
+                                        const stormDist = Math.sqrt((x-stormX)*(x-stormX) + (y-stormY)*(y-stormY));
+                                        
+                                        if (stormDist < radius * 0.3) {
+                                            char = '@';
+                                            useSecondary = true;
+                                        } else {
+                                            const bandNoise = Math.sin(y*0.7);
+                                            if (bandNoise > 0.5) char = '=';
+                                            else if (bandNoise > 0) char = '-';
+                                            else if (bandNoise > -0.5) char = 'o';
+                                            else char = '=';
+                                        }
+                                        break;
+                                        
+                                    case 'swirled':
+                                        // Swirled gas patterns
+                                        const angle = Math.atan2(y, x) + planet.rotation;
+                                        const swirl = Math.sin(angle * 5 + dist * 5);
+                                        
+                                        if (swirl > 0.7) {
+                                            char = '~';
+                                            useSecondary = true;
+                                        } else if (swirl > 0.2) {
+                                            char = '~';
+                                        } else if (swirl > -0.3) {
+                                            char = 'o';
+                                        } else if (swirl > -0.7) {
+                                            char = '~';
+                                        } else {
+                                            char = '~';
+                                            useSecondary = true;
+                                        }
+                                        break;
+                                    
+                                    case 'icy':
+                                        // Icy with crystalline patterns
+                                        if (dist > 0.85) {
+                                            char = '*';
+                                        } else if (dist > 0.6) {
+                                            char = '+';
+                                        } else {
+                                            char = '#';
+                                        }
+                                        break;
+                                    
+                                    case 'cracked':
+                                        // Cracked ice surface
+                                        const crackX = Math.abs(Math.sin(x*0.8));
+                                        const crackY = Math.abs(Math.cos(y*0.8));
+                                        
+                                        if (crackX < 0.1 || crackY < 0.1) {
+                                            char = '-';
+                                            useSecondary = true;
+                                        } else {
+                                            char = '#';
+                                        }
+                                        break;
+                                    
+                                    case 'crystalline':
+                                        // Crystalline surface
+                                        const crystalNoise = Math.abs(Math.sin(x*0.5) * Math.cos(y*0.5));
+                                        
+                                        if (crystalNoise > 0.9) {
+                                            char = '*';
+                                            useSecondary = true;
+                                        } else if (crystalNoise > 0.7) {
+                                            char = '+';
+                                        } else if (crystalNoise > 0.4) {
+                                            char = '#';
+                                        } else {
+                                            char = '=';
+                                        }
+                                        break;
+                                    
+                                    case 'volcanic':
+                                        // Volcanic surface with lava flows
+                                        const lavaNoise = Math.sin(x*0.4) * Math.cos(y*0.4);
+                                        
+                                        if (lavaNoise > 0.7) {
+                                            char = '%';
+                                            useSecondary = true;
+                                        } else if (lavaNoise > 0.3) {
+                                            char = '*';
+                                            useSecondary = true;
+                                        } else {
+                                            char = '#';
+                                        }
+                                        break;
+                                    
+                                    case 'lava':
+                                        // Lava planet
+                                        const lavaLevel = Math.sin(x*0.3 + planet.rotation) * Math.cos(y*0.3);
+                                        
+                                        if (lavaLevel > 0.6) {
+                                            char = '*';
+                                            useSecondary = true;
+                                        } else if (lavaLevel > 0.2) {
+                                            char = '~';
+                                            useSecondary = true;
+                                        } else {
+                                            char = '#';
+                                        }
+                                        break;
+                                    
+                                    case 'smoking':
+                                        // Smoking with vents
+                                        const ventX = Math.sin(planet.rotation * 2) * radius * 0.6;
+                                        const ventY = Math.cos(planet.rotation * 2) * radius * 0.6;
+                                        const ventDist = Math.sqrt((x-ventX)*(x-ventX) + (y-ventY)*(y-ventY));
+                                        
+                                        if (ventDist < 1.5) {
+                                            char = '^';
+                                            useSecondary = true;
+                                        } else {
+                                            const surfaceNoise = Math.sin(x*0.5) * Math.cos(y*0.5);
+                                            if (surfaceNoise > 0.7) char = '*';
+                                            else if (surfaceNoise > 0.3) char = '#';
+                                            else if (surfaceNoise > -0.3) char = 'o';
+                                            else char = '#';
+                                        }
+                                        break;
+                                    
+                                    case 'desert':
+                                        // Desert planet
+                                        if (dist > 0.9) {
+                                            char = '.';
+                                        } else {
+                                            const dunePattern = Math.sin(y*0.8 + planet.rotation);
+                                            if (dunePattern > 0.7) char = '.';
+                                            else if (dunePattern > 0.3) char = ':';
+                                            else if (dunePattern > -0.3) char = '~';
+                                            else if (dunePattern > -0.7) char = ':';
+                                            else char = '.';
+                                        }
+                                        break;
+                                    
+                                    case 'dunes':
+                                        // Dune patterns
+                                        const duneY = Math.sin(y*0.3 + x*0.1 + planet.rotation) * 0.5 + 0.5;
+                                        
+                                        if (duneY > 0.8) {
+                                            char = '.';
+                                        } else if (duneY > 0.6) {
+                                            char = ':';
+                                        } else if (duneY > 0.4) {
+                                            char = '~';
+                                        } else if (duneY > 0.2) {
+                                            char = ':';
+                                        } else {
+                                            char = '.';
+                                        }
+                                        break;
+                                    
+                                    case 'dry':
+                                        // Dry cracked planet
+                                        const dryPattern = Math.abs(Math.sin(x*0.5) * Math.cos(y*0.5));
+                                        
+                                        if (dryPattern < 0.1) {
+                                            char = '-';
+                                            useSecondary = true;
+                                        } else if (dist > 0.85) {
+                                            char = '.';
+                                        } else {
+                                            char = '#';
+                                        }
+                                        break;
+                                        
+                                    default:
+                                        // Simple gradient by default
+                                        if (dist > 0.9) char = '.';
+                                        else if (dist > 0.7) char = 'o';
+                                        else if (dist > 0.4) char = 'O';
+                                        else char = '@';
+                                }
+                                
+                                // Add atmosphere glow at edges if planet has atmosphere
+                                if (planet.hasAtmosphere && dist > 0.9) {
+                                    char = '.';
+                                    useSecondary = true;
+                                }
+                                
+                                // Apply appropriate color
+                                const finalColor = useSecondary ? secondaryColorStart : colorStart;
+                                screenBuffer[screenY][screenX] = finalColor + char + colorEnd;
                             }
-                            
-                            buffer[screenY][screenX] = colorStart + char + colorEnd;
                         }
                     }
                 }
-            }
-        }
-
-        // Draw comet
-        function drawComet(obj, proj, buffer, colorStart, colorEnd) {
-            const length = Math.floor(obj.length * proj.size);
-            
-            if (length < 1) return;
-            
-            const dx = Math.cos(obj.angle);
-            const dy = Math.sin(obj.angle);
-            
-            for (let i = 0; i < length; i++) {
-                const x = Math.round(proj.x - dx * i);
-                const y = Math.round(proj.y - dy * i);
                 
-                if (x >= 0 && x < screenWidth && y >= 0 && y < screenHeight) {
-                    let char = i === 0 ? '*' : 
-                              i < length / 3 ? '-' : 
-                              i < length * 2/3 ? '.' : ' ';
-                    
-                    if (char !== ' ') {
-                        buffer[y][x] = colorStart + char + colorEnd;
-                    }
+                // Draw rings if present
+                if (planet.rings) {
+                    drawPlanetRings(planet, proj, colorStart, secondaryColorStart, colorEnd);
+                }
+                
+                // Draw moons if present
+                if (planet.moons) {
+                    drawPlanetMoons(planet, proj);
                 }
             }
         }
-
-        // Draw galaxy
-        function drawGalaxy(obj, proj, buffer, colorStart, colorEnd) {
-            const size = Math.floor(obj.size * proj.size);
+        
+        // Draw planet rings
+        function drawPlanetRings(planet, proj, colorStart, secondaryColorStart, colorEnd) {
+            const rings = planet.rings;
+            const innerRadius = Math.floor(rings.innerRadius * proj.size);
+            const outerRadius = Math.floor(rings.outerRadius * proj.size);
             
-            if (size < 1) return;
+            // Only draw if visible
+            if (innerRadius < 1) return;
             
-            for (let y = -size; y <= size; y++) {
-                for (let x = -size; x <= size; x++) {
-                    const distSq = x*x + y*y;
-                    const dist = Math.sqrt(distSq) / size;
-                    
-                    if (dist <= 1) {
-                        const angle = Math.atan2(y, x) - obj.rotation;
-                        const spiral = Math.sin(angle * 3 + dist * 5) * 0.3 + 0.5;
-                        
-                        if (Math.random() < obj.density * (1 - dist) * spiral) {
+            // The ring color
+            const ringColor = CONFIG.useColors ? CONFIG.colors[rings.color || planet.secondaryColor] : '';
+            
+            // Draw ring as an ellipse (perspective effect)
+            const ringCompression = 0.3; // Vertical compression for perspective
+            
+            for (let x = -outerRadius; x <= outerRadius; x++) {
+                // Calculate y positions using ellipse equation
+                const y1 = Math.round(Math.sqrt(1 - (x*x)/(outerRadius*outerRadius)) * outerRadius * ringCompression);
+                const y2 = -y1;
+                
+                // Calculate whether this x position is in a gap (if planet has ring gaps)
+                let inGap = false;
+                if (rings.gap) {
+                    const gapStart = innerRadius + (outerRadius - innerRadius) * 0.4;
+                    const gapEnd = innerRadius + (outerRadius - innerRadius) * 0.6;
+                    const distFromCenter = Math.abs(x);
+                    inGap = (distFromCenter >= gapStart && distFromCenter <= gapEnd);
+                }
+                
+                // Only draw if not in a gap
+                if (!inGap) {
+                    // Check if point is beyond inner radius
+                    if (Math.abs(x) >= innerRadius) {
+                        for (const y of [y1, y2]) {
                             const screenX = proj.x + x;
                             const screenY = proj.y + y;
                             
                             if (screenX >= 0 && screenX < screenWidth && screenY >= 0 && screenY < screenHeight) {
-                                let char = '.';
-                                if (dist < 0.2) char = '@';
-                                else if (Math.random() < 0.3) char = '*';
+                                // Don't draw over the planet
+                                const distSq = x*x + (y/ringCompression)*(y/ringCompression);
+                                const planetRadiusSq = (planet.radius * proj.size) ** 2;
                                 
-                                buffer[screenY][screenX] = colorStart + char + colorEnd;
+                                if (distSq > planetRadiusSq) {
+                                    // Vary ring character based on position for texture
+                                    let char = '-';
+                                    const pos = Math.abs(x) / outerRadius;
+                                    
+                                    if (pos > 0.9) char = '.';
+                                    else if (pos > 0.7) char = '-';
+                                    else if (pos > 0.4) char = '=';
+                                    else char = '-';
+                                    
+                                    screenBuffer[screenY][screenX] = ringColor + char + colorEnd;
+                                }
                             }
                         }
                     }
                 }
             }
         }
-
-        // Draw alien ship
-        function drawAlienShip(obj, proj, buffer, colorStart, secondaryColorStart, colorEnd) {
-            const ship = alienShips[obj.model];
-            const height = ship.length;
-            const width = ship[0].length;
-            
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    const screenX = Math.floor(proj.x + (x - width/2) * proj.size);
-                    const screenY = Math.floor(proj.y + (y - height/2) * proj.size);
+        
+        // Draw planet moons
+        function drawPlanetMoons(planet, proj) {
+            for (const moon of planet.moons) {
+                // Calculate moon position in orbit
+                const moonX = Math.cos(moon.angle) * moon.distance;
+                const moonY = Math.sin(moon.angle) * moon.distance * 0.3; // Compress vertically for perspective
+                
+                // Project moon position
+                const moonScreenX = proj.x + Math.round(moonX * proj.size);
+                const moonScreenY = proj.y + Math.round(moonY * proj.size);
+                
+                // Draw moon if on screen
+                if (moonScreenX >= 0 && moonScreenX < screenWidth && moonScreenY >= 0 && moonScreenY < screenHeight) {
+                    const moonColor = CONFIG.useColors ? CONFIG.colors[moon.color] : '';
+                    const moonChar = moon.radius > 1 ? 'o' : '.';
                     
-                    if (screenX >= 0 && screenX < screenWidth && screenY >= 0 && screenY < screenHeight) {
-                        const char = ship[y][x];
+                    screenBuffer[moonScreenY][moonScreenX] = moonColor + moonChar + CONFIG.colors.reset;
+                }
+            }
+        }
+        
+        // Draw comets and asteroids
+        function renderCometsAndAsteroids() {
+            // Draw comets
+            for (const comet of objects.filter(o => o.type === 'comet')) {
+                const proj = project(comet.x, comet.y, comet.z);
+                const length = Math.max(3, Math.floor(comet.length * proj.size));
+                
+                // Skip if too small
+                if (length < 2) continue;
+                
+                // Colors
+                const colorStart = CONFIG.useColors ? CONFIG.colors[comet.color] : '';
+                const colorEnd = CONFIG.useColors ? CONFIG.colors.reset : '';
+                
+                // Calculate direction vector
+                const dx = Math.cos(comet.angle);
+                const dy = Math.sin(comet.angle);
+                
+                // Draw comet head and tail
+                for (let i = 0; i < length; i++) {
+                    const x = Math.round(proj.x - dx * i);
+                    const y = Math.round(proj.y - dy * i);
+                    
+                    if (x >= 0 && x < screenWidth && y >= 0 && y < screenHeight) {
+                        let char;
                         
-                        if (char !== ' ') {
-                            // Use secondary color for certain characters
-                            const useSecondary = (char === '=' || char === '-' || char === '|');
-                            const color = useSecondary ? secondaryColorStart : colorStart;
+                        // Character varies based on position in tail
+                        if (i === 0) {
+                            char = '*'; // Head of comet
+                        } else {
+                            const tailPos = i / length;
                             
-                            buffer[screenY][screenX] = color + char + colorEnd;
+                            if (tailPos < 0.1) char = '*';
+                            else if (tailPos < 0.3) char = '+';
+                            else if (tailPos < 0.5) char = '-';
+                            else if (tailPos < 0.7) char = '.';
+                            else char = ' '; // Invisible end of tail
+                        }
+                        
+                        // Skip empty space
+                        if (char !== ' ') {
+                            screenBuffer[y][x] = colorStart + char + colorEnd;
+                        }
+                    }
+                }
+            }
+            
+            // Draw asteroids
+            for (const asteroid of objects.filter(o => o.type === 'asteroid')) {
+                const proj = project(asteroid.x, asteroid.y, asteroid.z);
+                
+                // Only draw if sufficiently visible
+                const size = Math.max(1, Math.floor(asteroid.radius * proj.size));
+                if (size < 1) continue;
+                
+                // Colors
+                const colorStart = CONFIG.useColors ? CONFIG.colors[asteroid.color] : '';
+                const colorEnd = CONFIG.useColors ? CONFIG.colors.reset : '';
+                
+                // Small asteroids are just a single character
+                if (size === 1) {
+                    if (proj.x >= 0 && proj.x < screenWidth && proj.y >= 0 && proj.y < screenHeight) {
+                        let char = 'o';
+                        if (asteroid.shape === 1) char = '&'; // Irregular
+                        if (asteroid.shape === 2) char = '()'; // Oblong
+                        
+                        screenBuffer[proj.y][proj.x] = colorStart + char + colorEnd;
+                    }
+                } else {
+                    // Larger asteroids
+                    for (let y = -size; y <= size; y++) {
+                        for (let x = -size; x <= size; x++) {
+                            const distSq = x*x + y*y;
+                            
+                            if (distSq <= size*size) {
+                                const screenX = proj.x + x;
+                                const screenY = proj.y + y;
+                                
+                                if (screenX >= 0 && screenX < screenWidth && screenY >= 0 && screenY < screenHeight) {
+                                    let char = '#';
+                                    
+                                    // Apply texture based on asteroid shape
+                                    if (asteroid.shape === 0) { // Round
+                                        const dist = Math.sqrt(distSq) / size;
+                                        if (dist > 0.8) char = '.';
+                                        else char = '#';
+                                    } else if (asteroid.shape === 1) { // Irregular
+                                        const noise = Math.sin(x * 0.8 + asteroid.rotation) * Math.cos(y * 0.8 + asteroid.rotation);
+                                        if (noise > 0.5) char = '#';
+                                        else if (noise > 0) char = '&';
+                                        else char = '.';
+                                    } else { // Oblong
+                                        const angle = Math.atan2(y, x) - asteroid.rotation;
+                                        const r = Math.sqrt(distSq);
+                                        const stretchX = Math.abs(Math.cos(angle)) * 1.5;
+                                        const stretchY = Math.abs(Math.sin(angle)) * 0.7;
+                                        const stretchedDist = r * (stretchX + stretchY) / 2;
+                                        
+                                        if (stretchedDist > size * 0.8) char = '.';
+                                        else char
+}
+                                    
+                                    screenBuffer[screenY][screenX] = colorStart + char + colorEnd;
+                                }
+                            }
                         }
                     }
                 }
             }
         }
-
-        // Start on page load
-        window.addEventListener('load', init);
+        
+        // Render galaxies (distant background objects)
+        function renderGalaxies() {
+            for (const galaxy of objects.filter(o => o.type === 'galaxy')) {
+                const proj = project(galaxy.x, galaxy.y, galaxy.z);
+                
+                // Only draw if on screen and visible
+                if (proj.size < 0.1) continue;
+                
+                // Colors
+                const colorStart = CONFIG.useColors ? CONFIG.colors[galaxy.color] : '';
+                const secondaryColorStart = CONFIG.useColors ? CONFIG.colors[galaxy.secondaryColor] : '';
+                const colorEnd = CONFIG.useColors ? CONFIG.colors.reset : '';
+                
+                // Draw galaxy
+                const size = Math.max(3, Math.floor(galaxy.size * proj.size));
+                const density = galaxy.density * proj.size;
+                
+                for (let y = -size; y <= size; y++) {
+                    for (let x = -size; x <= size; x++) {
+                        // Calculate distance from center
+                        const distSq = x*x + y*y;
+                        const dist = Math.sqrt(distSq);
+                        
+                        // Only draw if within galaxy size
+                        if (dist <= size) {
+                            const screenX = proj.x + x;
+                            const screenY = proj.y + y;
+                            
+                            // Only draw if on screen
+                            if (screenX >= 0 && screenX < screenWidth && screenY >= 0 && screenY < screenHeight) {
+                                // Calculate probability of drawing a star at this position
+                                let starProb = (1 - dist/size) * density;
+                                
+                                // Apply spiral arms if needed
+                                if (galaxy.spiralArms > 0) {
+                                    const angle = Math.atan2(y, x) - galaxy.rotationAngle;
+                                    const normalizedAngle = ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+                                    const armPhase = normalizedAngle * galaxy.spiralArms / (2 * Math.PI);
+                                    const armValue = Math.abs((armPhase - Math.floor(armPhase + 0.5)) * 2);
+                                    
+                                    // Adjust probability based on spiral arm pattern
+                                    starProb *= Math.max(0.3, 1 - armValue);
+                                }
+                                
+                                // Draw star if probability check passes
+                                if (Math.random() < starProb) {
+                                    const useSecondary = Math.random() > 0.7;
+                                    const thisColorStart = useSecondary ? secondaryColorStart : colorStart;
+                                    const char = (Math.random() > 0.8) ? '*' : '.';
+                                    
+                                    screenBuffer[screenY][screenX] = thisColorStart + char + colorEnd;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Render nebulae
+        function renderNebulae() {
+            for (const nebula of objects.filter(o => o.type === 'nebula')) {
+                const proj = project(nebula.x, nebula.y, nebula.z);
+                
+                // Only draw if on screen and visible
+                if (proj.size < 0.05) continue;
+                
+                // Colors
+                const colorStart = CONFIG.useColors ? CONFIG.colors[nebula.color] : '';
+                const secondaryColorStart = CONFIG.useColors ? CONFIG.colors[nebula.secondaryColor] : '';
+                const tertiaryColorStart = CONFIG.useColors ? CONFIG.colors[nebula.tertiaryColor] : '';
+                const colorEnd = CONFIG.useColors ? CONFIG.colors.reset : '';
+                
+                // Draw nebula
+                const size = Math.max(5, Math.floor(nebula.size * proj.size));
+                const density = nebula.density * proj.size;
+                
+                // Create a pseudo-random pattern based on nebula seed
+                for (let y = -size; y <= size; y++) {
+                    for (let x = -size; x <= size; x++) {
+                        // Calculate distance from center
+                        const distSq = x*x + y*y;
+                        const dist = Math.sqrt(distSq);
+                        
+                        // Only draw if within nebula size with some random variation at the edges
+                        const edgeFactor = 0.8 + Math.sin(x * y * 0.1 + nebula.seed) * 0.2;
+                        if (dist <= size * edgeFactor) {
+                            const screenX = proj.x + x;
+                            const screenY = proj.y + y;
+                            
+                            // Only draw if on screen
+                            if (screenX >= 0 && screenX < screenWidth && screenY >= 0 && screenY < screenHeight) {
+                                // Calculate probability of drawing a nebula particle at this position
+                                let particleProb = (1 - dist/(size * edgeFactor)) * density;
+                                
+                                // Apply noise pattern
+                                const noise = Math.sin(x * 0.2 + nebula.seed) * Math.cos(y * 0.2 + nebula.seed * 2);
+                                particleProb *= 0.5 + Math.abs(noise) * 0.8;
+                                
+                                // Draw particle if probability check passes
+                                if (Math.random() < particleProb) {
+                                    // Select color
+                                    let thisColorStart;
+                                    if (nebula.colorShift) {
+                                        // Create color gradient based on position
+                                        const colorPos = (dist / size) * 3;
+                                        if (colorPos < 1) thisColorStart = colorStart;
+                                        else if (colorPos < 2) thisColorStart = secondaryColorStart;
+                                        else thisColorStart = tertiaryColorStart;
+                                    } else {
+                                        // Random color selection
+                                        const colorRoll = Math.random();
+                                        if (colorRoll < 0.5) thisColorStart = colorStart;
+                                        else if (colorRoll < 0.8) thisColorStart = secondaryColorStart;
+                                        else thisColorStart = tertiaryColorStart;
+                                    }
+                                    
+                                    // Select character
+                                    const charIndex = Math.floor(Math.random() * nebula.chars.length);
+                                    const char = nebula.chars[charIndex];
+                                    
+                                    screenBuffer[screenY][screenX] = thisColorStart + char + colorEnd;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Render black holes
+        function renderBlackHoles() {
+            for (const blackHole of objects.filter(o => o.type === 'blackHole')) {
+                const proj = project(blackHole.x, blackHole.y, blackHole.z);
+                
+                // Only draw if sufficiently visible
+                const radius = Math.max(1, Math.floor(blackHole.radius * proj.size * (blackHole.pulseFactor || 1)));
+                if (radius < 1) continue;
+                
+                // Colors
+                const colorStart = CONFIG.useColors ? CONFIG.colors[blackHole.color] : '';
+                const secondaryColorStart = CONFIG.useColors ? CONFIG.colors[blackHole.secondaryColor] : '';
+                const colorEnd = CONFIG.useColors ? CONFIG.colors.reset : '';
+                
+                // Draw accretion disk first (behind black hole)
+                if (blackHole.accretionDisk) {
+                    const innerRadius = Math.max(1, Math.floor(blackHole.diskInnerRadius * proj.size));
+                    const outerRadius = Math.max(2, Math.floor(blackHole.diskOuterRadius * proj.size));
+                    
+                    // Draw as an ellipse with rotation
+                    const diskCompression = 0.4; // Vertical compression for perspective
+                    const angleOffset = blackHole.rotationAngle || 0;
+                    
+                    for (let x = -outerRadius; x <= outerRadius; x++) {
+                        for (let y = -Math.floor(outerRadius * diskCompression); y <= Math.floor(outerRadius * diskCompression); y++) {
+                            // Calculate distance from center using ellipse equation
+                            const a = outerRadius;
+                            const b = outerRadius * diskCompression;
+                            const distSq = (x*x)/(a*a) + (y*y)/(b*b);
+                            
+                            // Only draw if within disk bounds
+                            if (distSq <= 1) {
+                                // Calculate rotated coordinates
+                                const cosA = Math.cos(angleOffset);
+                                const sinA = Math.sin(angleOffset);
+                                const rotX = x * cosA - y * sinA;
+                                const rotY = x * sinA + y * cosA;
+                                
+                                // Apply inner radius cutoff
+                                const innerCutoff = (rotX*rotX)/(innerRadius*innerRadius) + (rotY*rotY)/((innerRadius*diskCompression)*(innerRadius*diskCompression));
+                                if (innerCutoff >= 1) {
+                                    const screenX = proj.x + x;
+                                    const screenY = proj.y + y;
+                                    
+                                    if (screenX >= 0 && screenX < screenWidth && screenY >= 0 && screenY < screenHeight) {
+                                        // Create swirl pattern
+                                        const dist = Math.sqrt(distSq);
+                                        const swirl = Math.sin(Math.sqrt(dist) * 10 + angleOffset * 3);
+                                        
+                                        // Select character based on position in disk
+                                        let char;
+                                        if (swirl > 0.7) char = '*';
+                                        else if (swirl > 0.3) char = '+';
+                                        else if (swirl > -0.3) char = '-';
+                                        else if (swirl > -0.7) char = '.';
+                                        else char = ' ';
+                                        
+                                        if (char !== ' ') {
+                                            screenBuffer[screenY][screenX] = secondaryColorStart + char + colorEnd;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Draw event horizon (black circle)
+                for (let y = -radius; y <= radius; y++) {
+                    for (let x = -radius; x <= radius; x++) {
+                        const distSq = x*x + y*y;
+                        
+                        if (distSq <= radius*radius) {
+                            const screenX = proj.x + x;
+                            const screenY = proj.y + y;
+                            
+                            if (screenX >= 0 && screenX < screenWidth && screenY >= 0 && screenY < screenHeight) {
+                                // For black hole interior, use either space or special chars for event horizon edge
+                                const dist = Math.sqrt(distSq) / radius;
+                                let char = ' ';  // Default empty space for interior
+                                
+                                // Draw event horizon edge
+                                if (dist > 0.85) {
+                                    if (dist > 0.95) char = '.';
+                                    else char = '·';
+                                    
+                                    // Use secondary color for edge
+                                    screenBuffer[screenY][screenX] = secondaryColorStart + char + colorEnd;
+                                } else {
+                                    // Pure black for interior
+                                    screenBuffer[screenY][screenX] = colorStart + char + colorEnd;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Render comets and asteroids
+        function renderCometsAndAsteroids() {
+            // Draw comets
+            for (const comet of objects.filter(o => o.type === 'comet')) {
+                const proj = project(comet.x, comet.y, comet.z);
+                const length = Math.max(3, Math.floor(comet.length * proj.size));
+                
+                // Skip if too small
+                if (length < 2) continue;
+                
+                // Colors
+                const colorStart = CONFIG.useColors ? CONFIG.colors[comet.color] : '';
+                const colorEnd = CONFIG.useColors ? CONFIG.colors.reset : '';
+                
+                // Calculate direction vector
+                const dx = Math.cos(comet.angle);
+                const dy = Math.sin(comet.angle);
+                
+                // Draw comet head and tail
+                for (let i = 0; i < length; i++) {
+                    const x = Math.round(proj.x - dx * i);
+                    const y = Math.round(proj.y - dy * i);
+                    
+                    if (x >= 0 && x < screenWidth && y >= 0 && y < screenHeight) {
+                        let char;
+                        
+                        // Character varies based on position in tail
+                        if (i === 0) {
+                            char = '*'; // Head of comet
+                        } else {
+                            const tailPos = i / length;
+                            
+                            if (tailPos < 0.1) char = '*';
+                            else if (tailPos < 0.3) char = '+';
+                            else if (tailPos < 0.5) char = '-';
+                            else if (tailPos < 0.7) char = '.';
+                            else char = ' '; // Invisible end of tail
+                        }
+                        
+                        // Skip empty space
+                        if (char !== ' ') {
+                            screenBuffer[y][x] = colorStart + char + colorEnd;
+                        }
+                    }
+                }
+            }
+            
+            // Draw asteroids
+            for (const asteroid of objects.filter(o => o.type === 'asteroid')) {
+                const proj = project(asteroid.x, asteroid.y, asteroid.z);
+                
+                // Only draw if sufficiently visible
+                const size = Math.max(1, Math.floor(asteroid.radius * proj.size));
+                if (size < 1) continue;
+                
+                // Colors
+                const colorStart = CONFIG.useColors ? CONFIG.colors[asteroid.color] : '';
+                const colorEnd = CONFIG.useColors ? CONFIG.colors.reset : '';
+                
+                // Small asteroids are just a single character
+                if (size === 1) {
+                    if (proj.x >= 0 && proj.x < screenWidth && proj.y >= 0 && proj.y < screenHeight) {
+                        let char = 'o';
+                        if (asteroid.shape === 1) char = '&'; // Irregular
+                        if (asteroid.shape === 2) char = '()'; // Oblong
+                        
+                        screenBuffer[proj.y][proj.x] = colorStart + char + colorEnd;
+                    }
+                } else {
+                    // Larger asteroids
+                    for (let y = -size; y <= size; y++) {
+                        for (let x = -size; x <= size; x++) {
+                            const distSq = x*x + y*y;
+                            
+                            if (distSq <= size*size) {
+                                const screenX = proj.x + x;
+                                const screenY = proj.y + y;
+                                
+                                if (screenX >= 0 && screenX < screenWidth && screenY >= 0 && screenY < screenHeight) {
+                                    let char = '#';
+                                    
+                                    // Apply texture based on asteroid shape
+                                    if (asteroid.shape === 0) { // Round
+                                        const dist = Math.sqrt(distSq) / size;
+                                        if (dist > 0.8) char = '.';
+                                        else char = '#';
+                                    } else if (asteroid.shape === 1) { // Irregular
+                                        const noise = Math.sin(x * 0.8 + asteroid.rotation) * Math.cos(y * 0.8 + asteroid.rotation);
+                                        if (noise > 0.5) char = '#';
+                                        else if (noise > 0) char = '&';
+                                        else char = '.';
+                                    } else { // Oblong
+                                        const angle = Math.atan2(y, x) - asteroid.rotation;
+                                        const r = Math.sqrt(distSq);
+                                        const stretchX = Math.abs(Math.cos(angle)) * 1.5;
+                                        const stretchY = Math.abs(Math.sin(angle)) * 0.7;
+                                        const stretchedDist = r * (stretchX + stretchY) / 2;
+                                        
+                                        if (stretchedDist > size * 0.8) char = '.';
+                                        else char = '#';
+                                    }
+                                    
+                                    screenBuffer[screenY][screenX] = colorStart + char + colorEnd;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Render close flyby stars
+        function renderStarsFlyby() {
+            for (const star of objects.filter(o => o.type === 'star')) {
+                const proj = project(star.x, star.y, star.z);
+                
+                // Only draw if sufficiently visible
+                const radius = Math.max(1, Math.floor(star.radius * proj.size * (star.pulseFactor || 1)));
+                if (radius < 1) continue;
+                
+                // Colors
+                const colorStart = CONFIG.useColors ? CONFIG.colors[star.color] : '';
+                const secondaryColorStart = CONFIG.useColors ? CONFIG.colors[star.secondaryColor] : '';
+                const colorEnd = CONFIG.useColors ? CONFIG.colors.reset : '';
+                
+                // Draw corona first if star has one
+                if (star.corona) {
+                    const coronaRadius = star.coronaSize ? Math.floor(star.coronaSize * proj.size) : radius * 2;
+                    
+                    for (let y = -coronaRadius; y <= coronaRadius; y++) {
+                        for (let x = -coronaRadius; x <= coronaRadius; x++) {
+                            const distSq = x*x + y*y;
+                            const dist = Math.sqrt(distSq);
+                            
+                            // Only draw if within corona but outside star
+                            if (dist <= coronaRadius && dist > radius) {
+                                const screenX = proj.x + x;
+                                const screenY = proj.y + y;
+                                
+                                if (screenX >= 0 && screenX < screenWidth && screenY >= 0 && screenY < screenHeight) {
+                                    // Calculate corona pattern based on angle and distance
+                                    const angle = Math.atan2(y, x) + (star.coronaAngle || 0);
+                                    const normalizedDist = dist / coronaRadius;
+                                    
+                                    // Create spiky corona pattern
+                                    const coronaPattern = Math.sin(angle * 12) * 0.5 + 0.5;
+                                    const threshold = 0.2 + coronaPattern * 0.4;
+                                    
+                                    // Draw only if matches pattern and passes random check
+                                    if (normalizedDist < (1 - normalizedDist) * threshold + 0.2 && Math.random() < 0.3) {
+                                        let char;
+                                        if (normalizedDist > 0.8) char = '.';
+                                        else if (normalizedDist > 0.6) char = '·';
+                                        else if (normalizedDist > 0.4) char = '*';
+                                        else char = '+';
+                                        
+                                        screenBuffer[screenY][screenX] = secondaryColorStart + char + colorEnd;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Draw star itself
+                for (let y = -radius; y <= radius; y++) {
+                    for (let x = -radius; x <= radius; x++) {
+                        const distSq = x*x + y*y;
+                        
+                        if (distSq <= radius*radius) {
+                            const screenX = proj.x + x;
+                            const screenY = proj.y + y;
+                            
+                            if (screenX >= 0 && screenX < screenWidth && screenY >= 0 && screenY < screenHeight) {
+                                // Determine character based on distance from center
+                                const dist = Math.sqrt(distSq) / radius;
+                                let char = '@';
+                                
+                                if (dist > 0.8) char = 'O';
+                                else if (dist > 0.5) char = 'o';
+                                else if (dist > 0.2) char = '@';
+                                else char = '#';
+                                
+                                // For pulsars, add special effect
+                                if (star.pulsing) {
+                                    const pulsePhase = star.pulsePhase || 0;
+                                    if (Math.sin(pulsePhase) > 0.7) {
+                                        char = '*';
+                                    }
+                                }
+                                
+                                screenBuffer[screenY][screenX] = colorStart + char + colorEnd;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Render alien ships
+        function renderAlienShips() {
+            for (const ship of objects.filter(o => o.type === 'alienShip')) {
+                const proj = project(ship.x, ship.y, ship.z);
+                
+                // Only draw if sufficiently visible
+                if (proj.size < 0.2) continue;
+                
+                // Get ship model
+                const model = CONFIG.alienShips[ship.model];
+                if (!model) continue;
+                
+                // Colors
+                const colorStart = CONFIG.useColors ? CONFIG.colors[ship.color] : '';
+                const secondaryColorStart = CONFIG.useColors ? CONFIG.colors[ship.secondaryColor] : '';
+                const colorEnd = CONFIG.useColors ? CONFIG.colors.reset : '';
+                
+                // Draw ship line by line
+                const height = model.length;
+                const width = model[0].length;
+                
+                for (let y = 0; y < height; y++) {
+                    const line = model[y];
+                    for (let x = 0; x < width; x++) {
+                        const char = line[x];
+                        
+                        // Skip spaces
+                        if (char === ' ') continue;
+                        
+                        // Calculate screen position
+                        const screenX = Math.round(proj.x + (x - width/2) * proj.size);
+                        const screenY = Math.round(proj.y + (y - height/2) * proj.size);
+                        
+                        // Check if on screen
+                        if (screenX >= 0 && screenX < screenWidth && screenY >= 0 && screenY < screenHeight) {
+                            // Select color based on character type
+                            let thisColorStart = colorStart;
+                            if (char === '>' || char === '<' || char === '^' || char === 'v' || 
+                                char === '*' || char === '-' || char === '=' || char === '|') {
+                                thisColorStart = secondaryColorStart;  // Use secondary color for details
+                            }
+                            
+                            screenBuffer[screenY][screenX] = thisColorStart + char + colorEnd;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Render notifications
+        function renderNotifications() {
+            if (notifications.length === 0) return;
+            
+            // Only show the most recent notification
+            const notification = notifications[notifications.length - 1];
+            
+            // Calculate position (centered, near bottom)
+            const x = Math.floor((screenWidth - notification.text.length) / 2);
+            const y = Math.floor(screenHeight * 0.85);
+            
+            // Draw notification with fade out effect
+            if (notification.age < 1 || notification.age > notification.duration - 1) {
+                // Fade in/out effect - draw with spaces between characters
+                for (let i = 0; i < notification.text.length; i++) {
+                    if (Math.random() > 0.5) {
+                        const screenX = x + i;
+                        if (screenX >= 0 && screenX < screenWidth && y >= 0 && y < screenHeight) {
+                            screenBuffer[y][screenX] = notification.text[i];
+                        }
+                    }
+                }
+            } else {
+                // Full visibility
+                for (let i = 0; i < notification.text.length; i++) {
+                    const screenX = x + i;
+                    if (screenX >= 0 && screenX < screenWidth && y >= 0 && y < screenHeight) {
+                        screenBuffer[y][screenX] = notification.text[i];
+                    }
+                }
+            }
+        }
+        
+        // Project 3D coordinates to 2D screen position
+        function project(x, y, z) {
+            const factor = 15 / Math.max(z, CONFIG.minStarDepth);
+            
+            return {
+                x: Math.round(x * factor + screenWidth / 2),
+                y: Math.round(y * factor + screenHeight / 2),
+                factor: factor,
+                size: Math.max(1, factor / 3)
+            };
+        }
+// Main render function
+        function render() {
+            // Clear screen buffer
+            for (let y = 0; y < screenHeight; y++) {
+                for (let x = 0; x < screenWidth; x++) {
+                    screenBuffer[y][x] = ' ';
+                }
+            }
+            
+            // Draw objects (render background to foreground)
+            renderGalaxies();
+            renderNebulae();
+            renderStars();
+            renderBlackHoles();
+            renderCometsAndAsteroids();
+            renderPlanets();
+            renderStarsFlyby();
+            renderAlienShips();
+            renderNotifications();
+            
+            // Convert buffer to text
+            const output = screenBuffer.map(row => row.join('')).join('\n');
+            
+            // Update display
+            spaceElement.innerHTML = output;
+        }
+    });
     </script>
 </body>
 </html>
