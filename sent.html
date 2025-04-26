@@ -12,8 +12,7 @@
             overflow: hidden;
             background-color: #000;
         }
-        
-        #space {
+#space {
             font-family: 'Courier New', monospace;
             font-size: 8pt;
             line-height: 1;
@@ -26,8 +25,7 @@
             top: 0;
             left: 0;
         }
-        
-        .info {
+.info {
             position: fixed;
             bottom: 10px;
             left: 10px;
@@ -40,8 +38,7 @@
             z-index: 100;
             pointer-events: none;
         }
-        
-        .flash {
+.flash {
             position: fixed;
             top: 0;
             left: 0;
@@ -58,15 +55,13 @@
     <pre id="space"></pre>
     <div class="info">LIGHT-YEARS TRAVELED: <span id="distance">0</span> | PRESS SPACE TO PAUSE</div>
     <div class="flash" id="flash"></div>
-    
-    <script>
+<script>
 document.addEventListener('DOMContentLoaded', function() {
     // Main display elements
     const spaceElement = document.getElementById('space');
     const distanceElement = document.getElementById('distance');
     const flashElement = document.getElementById('flash');
-
-    // =================================================================
+// =================================================================
     // CONFIGURATION
     // =================================================================
     const CONFIG = {
@@ -74,19 +69,16 @@ document.addEventListener('DOMContentLoaded', function() {
         updateRate: 60,                // Updates per second
         starfieldUpdateRate: 30,       // Starfield updates per second (for performance)
         speed: 0.3,                    // Base movement speed
-        
-        // Universe settings
+// Universe settings
         initialStars: 800,             // Initial number of stars
         starGravity: true,             // Stars are affected by planet gravity
         spaceDensity: 0.8,             // Density of stars and objects
-        
-        // Starfield settings
+// Starfield settings
         maxStarDepth: 60,              // Maximum Z distance for stars
         minStarDepth: 0.1,             // Minimum Z distance (for projection)
         starVariants: ['.', ',', '·', '˙', '⋅', '°', '*', '+', '✧', '✦', '✪', '✰'],  // Star shapes by brightness
         parallaxLayers: 3,             // Number of star layers with differing speeds
-        
-        // Event probabilities per 10 light-years
+// Event probabilities per 10 light-years
         eventProbabilities: {
             planet: 0.4,               // Planets
             star: 0.2,                 // Close flyby stars
@@ -97,14 +89,12 @@ document.addEventListener('DOMContentLoaded', function() {
             blackHole: 0.05,           // Black holes
             alienShip: 0.01            // Alien ships (very rare)
         },
-        
-        // Visual settings
+// Visual settings
         depthFading: true,             // Objects fade with distance
         useColors: true,               // Enable colorization
         useParallax: true,             // Enable parallax starfield movement
         flashEffects: true,            // Enable flash effects for events
-        
-        // Colors mapped to CSS colors
+// Colors mapped to CSS colors
         colors: {
             white: '<span style="color: #ffffff;">',
             lightgray: '<span style="color: #cccccc;">',
@@ -115,7 +105,7 @@ document.addEventListener('DOMContentLoaded', function() {
             green: '<span style="color: #33cc33;">',
             blue: '<span style="color: #3333ff;">',
             lightblue: '<span style="color: #33ccff;">',
-            cyan: '<span style="color: #00ffff;">',
+cyan: '<span style="color: #00ffff;">',
             azure: '<span style="color: #66ccff;">',
             yellow: '<span style="color: #ffff00;">',
             gold: '<span style="color: #ffcc00;">',
@@ -129,7 +119,28 @@ document.addEventListener('DOMContentLoaded', function() {
             reset: '</span>'
         }
     };
-});
+// Planet types configuration
+    const planetTypes = [
+        {name: 'Rocky', colors: ['gray', 'lightgray', 'brown', 'tan'], hasRings: 0.1, hasMoons: 0.3, textures: ['rough', 'cratered', 'mountainous']},
+        {name: 'Earth-like', colors: ['blue', 'green', 'cyan'], hasRings: 0, hasMoons: 0.6, textures: ['oceanic', 'continental', 'cloudCovered']},
+        {name: 'Gas Giant', colors: ['cyan', 'orange', 'yellow', 'red'], hasRings: 0.7, hasMoons: 0.9, textures: ['banded', 'stormy', 'swirled']},
+        {name: 'Ice Planet', colors: ['lightblue', 'white', 'azure'], hasRings: 0.2, hasMoons: 0.4, textures: ['icy', 'cracked', 'crystalline']},
+        {name: 'Volcanic', colors: ['darkred', 'red', 'orange'], hasRings: 0.05, hasMoons: 0.2, textures: ['volcanic', 'lava', 'smoking']},
+        {name: 'Desert', colors: ['tan', 'yellow', 'orange'], hasRings: 0.1, hasMoons: 0.3, textures: ['desert', 'dunes', 'dry']}
+    ];
+// Star types for close flybys
+    const starTypes = [
+        {name: 'Yellow Dwarf', colors: ['yellow', 'gold'], size: 4, corona: true},
+        {name: 'Red Dwarf', colors: ['red', 'darkred'], size: 3, corona: true},
+        {name: 'Blue Giant', colors: ['lightblue', 'blue'], size: 6, corona: true},
+        {name: 'White Dwarf', colors: ['white', 'azure'], size: 2, corona: false},
+        {name: 'Red Giant', colors: ['red', 'orange'], size: 7, corona: true},
+        {name: 'Neutron Star', colors: ['white', 'lightblue'], size: 1, corona: false, pulsar: true}
+    ];
+
+    // Add these configurations to the CONFIG object
+    CONFIG.planetTypes = planetTypes;
+    CONFIG.starTypes = starTypes;
 // =================================================================
     // STATE VARIABLES
     // =================================================================
@@ -141,7 +152,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let distanceTraveled = 0;    // Distance counter
     let lastUpdateTime = 0;      // Last update timestamp
     let lastStarfieldTime = 0;   // Last starfield update timestamp
-    let randomSeed = Math.random() * 10000; // Random seed for procedural generation
+let randomSeed = Math.random() * 10000; // Random seed for procedural generation
     let eventCooldowns = {       // Cooldowns for events (avoid clustering)
         planet: 0,
         star: 0,
@@ -157,8 +168,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let screenBuffer = [];       // Screen buffer
     let colorList = Object.keys(CONFIG.colors).filter(c => c !== 'reset');
     let lastObjectType = null;   // Type of last object for variety
-    
-    // Initialize screen dimensions and create stars
+// Initialize screen dimensions and create stars
     updateScreenDimensions();
     createStars();
     initBuffer();
@@ -175,8 +185,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateScreenDimensions();
         initBuffer();
     });
-    
-    // Update screen dimensions based on window size
+// Update screen dimensions based on window size
     function updateScreenDimensions() {
         screenWidth = Math.floor(window.innerWidth / 8);  // Characters per row
         screenHeight = Math.floor(window.innerHeight / 16); // Rows
@@ -207,8 +216,7 @@ document.addEventListener('DOMContentLoaded', function() {
             twinklePhase: Math.random() * Math.PI * 2
         };
     }
-
-    // Get random color from color list
+// Get random color from color list
     function getRandomColor() {
         return colorList[Math.floor(Math.random() * colorList.length)];
     }
@@ -221,8 +229,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         console.log(`Created ${stars.length} stars`);
     }
-    
-    // Project 3D coordinates to 2D screen position
+// Project 3D coordinates to 2D screen position
     function project(x, y, z) {
         const factor = 15 / Math.max(z, CONFIG.minStarDepth);
         
@@ -250,8 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (star.twinkle) {
                     brightness *= (Math.sin(star.twinklePhase) * 0.3 + 0.7);
                 }
-                
-                // Select star character based on brightness
+// Select star character based on brightness
                 const charIndex = Math.min(
                     CONFIG.starVariants.length - 1,
                     Math.floor(brightness * CONFIG.starVariants.length)
@@ -269,8 +275,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
-
-    // Update starfield
+// Update starfield
     function updateStarfield(deltaTime) {
         for (let i = 0; i < stars.length; i++) {
             const star = stars[i];
@@ -295,29 +300,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
-// Planet types configuration
-    const planetTypes = [
-        {name: 'Rocky', colors: ['gray', 'lightgray', 'brown', 'tan'], hasRings: 0.1, hasMoons: 0.3, textures: ['rough', 'cratered', 'mountainous']},
-        {name: 'Earth-like', colors: ['blue', 'green', 'cyan'], hasRings: 0, hasMoons: 0.6, textures: ['oceanic', 'continental', 'cloudCovered']},
-        {name: 'Gas Giant', colors: ['cyan', 'orange', 'yellow', 'red'], hasRings: 0.7, hasMoons: 0.9, textures: ['banded', 'stormy', 'swirled']},
-        {name: 'Ice Planet', colors: ['lightblue', 'white', 'azure'], hasRings: 0.2, hasMoons: 0.4, textures: ['icy', 'cracked', 'crystalline']},
-        {name: 'Volcanic', colors: ['darkred', 'red', 'orange'], hasRings: 0.05, hasMoons: 0.2, textures: ['volcanic', 'lava', 'smoking']},
-        {name: 'Desert', colors: ['tan', 'yellow', 'orange'], hasRings: 0.1, hasMoons: 0.3, textures: ['desert', 'dunes', 'dry']}
-    ];
-
-    // Star types for close flybys
-    const starTypes = [
-        {name: 'Yellow Dwarf', colors: ['yellow', 'gold'], size: 4, corona: true},
-        {name: 'Red Dwarf', colors: ['red', 'darkred'], size: 3, corona: true},
-        {name: 'Blue Giant', colors: ['lightblue', 'blue'], size: 6, corona: true},
-        {name: 'White Dwarf', colors: ['white', 'azure'], size: 2, corona: false},
-        {name: 'Red Giant', colors: ['red', 'orange'], size: 7, corona: true},
-        {name: 'Neutron Star', colors: ['white', 'lightblue'], size: 1, corona: false, pulsar: true}
-    ];
-
-    // Add these configurations to the CONFIG object
-    CONFIG.planetTypes = planetTypes;
-    CONFIG.starTypes = starTypes;
 // Check for events (based on distance)
     function checkForEvents() {
         // Check if we've traveled far enough for a new event check
@@ -341,8 +323,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
-
-    // Create space object of specified type
+// Create space object of specified type
     function createSpaceObject(type) {
         let obj = {
             type: type,
@@ -397,8 +378,7 @@ document.addEventListener('DOMContentLoaded', function() {
             rotationSpeed: (Math.random() - 0.5) * 0.5,
             hasAtmosphere: Math.random() > 0.5
         };
-        
-        // Add rings if this planet type can have them
+// Add rings if this planet type can have them
         if (Math.random() < planetType.hasRings) {
             planet.rings = {
                 innerRadius: planet.radius * 1.2,
@@ -429,8 +409,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         return planet;
     }
-
-    // Create a star for close fly-by
+// Create a star for close fly-by
     function createStar(baseObj) {
         // Select star type
         const starType = CONFIG.starTypes[Math.floor(Math.random() * CONFIG.starTypes.length)];
@@ -451,8 +430,7 @@ document.addEventListener('DOMContentLoaded', function() {
             coronaAngle: Math.random() * Math.PI * 2,
             coronaRotation: (Math.random() - 0.5) * 0.2
         };
-        
-        // Add pulsing for neutron stars/pulsars
+// Add pulsing for neutron stars/pulsars
         if (starType.pulsar) {
             star.pulsing = true;
             star.pulseSpeed = 3 + Math.random() * 5;
@@ -464,7 +442,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         return star;
     }
-// Create a comet
+
+    // Create a comet
     function createComet(baseObj) {
         // Set comet properties
         const comet = {
@@ -482,8 +461,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         return comet;
     }
-
-    // Create an asteroid
+// Create an asteroid
     function createAsteroid(baseObj) {
         // Set asteroid properties
         const asteroid = {
@@ -503,7 +481,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         return asteroid;
     }
-// Add notification
+
+    // Add notification
     function addNotification(text, duration = 5) {
         notifications.push({
             text: text,
@@ -511,8 +490,7 @@ document.addEventListener('DOMContentLoaded', function() {
             age: 0
         });
     }
-
-    // Create flash effect
+// Create flash effect
     function createFlash(color = 'white', intensity = 0.2) {
         if (!CONFIG.flashEffects) return;
         
@@ -538,8 +516,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Position at the top center
         const x = Math.floor((screenWidth - notification.text.length) / 2);
         const y = 2;
-        
-        // Render the text with a blink effect
+// Render the text with a blink effect
         if (Math.floor(notification.age * 4) % 2 === 0 || notification.age > 1) {
             // Add colored styling
             const notificationText = `${CONFIG.colors.yellow}${notification.text}${CONFIG.colors.reset}`;
@@ -619,331 +596,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
-// Render space objects
-    function renderObjects() {
-        // Sort objects by z-distance (furthest first for proper overlapping)
-        const sortedObjects = [...objects].sort((a, b) => b.z - a.z);
-        
-        for (const obj of sortedObjects) {
-            switch (obj.type) {
-                case 'planet':
-                    renderPlanet(obj);
-                    break;
-                    
-                case 'star':
-                    renderStar(obj);
-                    break;
-                    
-                case 'comet':
-                    renderComet(obj);
-                    break;
-                    
-                case 'asteroid':
-                    renderAsteroid(obj);
-                    break;
-            }
-        }
-    }
-
-    // Render a planet
-    function renderPlanet(planet) {
-        const proj = project(planet.x, planet.y, planet.z);
-        
-        // Skip if off screen or too small
-        if (proj.x < -planet.radius || proj.x >= screenWidth + planet.radius || 
-            proj.y < -planet.radius || proj.y >= screenHeight + planet.radius ||
-            proj.factor < 0.1) {
-            return;
-        }
-        
-        // Scale radius based on distance
-        const radius = Math.max(1, Math.round(planet.radius * proj.factor));
-        
-        // Choose planet character based on texture
-        let planetChar = 'O';
-        switch (planet.texture) {
-            case 'rough':
-            case 'cratered':
-                planetChar = '#';
-                break;
-            case 'mountainous':
-                planetChar = '^';
-                break;
-            case 'oceanic':
-                planetChar = '~';
-                break;
-            case 'continental':
-                planetChar = '■';
-                break;
-            case 'cloudCovered':
-                planetChar = '○';
-                break;
-            case 'banded':
-                planetChar = '=';
-                break;
-            case 'stormy':
-                planetChar = '%';
-                break;
-            case 'swirled':
-                planetChar = '@';
-                break;
-            case 'icy':
-            case 'crystalline':
-                planetChar = '✦';
-                break;
-            case 'cracked':
-                planetChar = '⊞';
-                break;
-            case 'volcanic':
-            case 'lava':
-                planetChar = '♨';
-                break;
-            case 'smoking':
-                planetChar = '≈';
-                break;
-            case 'desert':
-            case 'dunes':
-            case 'dry':
-                planetChar = '≡';
-                break;
-        }
-        
-        // Render the planet
-        renderCircle(
-            proj.x, proj.y, radius, 
-            CONFIG.colors[planet.color] + planetChar + CONFIG.colors.reset
-        );
-        
-        // Render rings if present
-        if (planet.rings) {
-            const innerRadius = Math.max(1, Math.round(planet.rings.innerRadius * proj.factor));
-            const outerRadius = Math.max(innerRadius + 1, Math.round(planet.rings.outerRadius * proj.factor));
-            
-            renderRing(
-                proj.x, proj.y, 
-                innerRadius, outerRadius, 
-                planet.rotation,
-                CONFIG.colors[planet.rings.color] + '·' + CONFIG.colors.reset,
-                planet.rings.gap
-            );
-        }
-        
-        // Render moons if present
-        if (planet.moons) {
-            for (const moon of planet.moons) {
-                const moonDist = moon.distance * proj.factor;
-                const moonX = proj.x + Math.cos(moon.angle) * moonDist;
-                const moonY = proj.y + Math.sin(moon.angle) * moonDist;
-                
-                // Make sure it's on screen
-                if (moonX >= 0 && moonX < screenWidth && moonY >= 0 && moonY < screenHeight) {
-                    const moonChar = CONFIG.colors[moon.color] + '○' + CONFIG.colors.reset;
-                    screenBuffer[Math.floor(moonY)][Math.floor(moonX)] = moonChar;
-                }
-            }
-        }
-    }
-// Render a star (close flyby)
-    function renderStar(star) {
-        const proj = project(star.x, star.y, star.z);
-        
-        // Skip if off screen or too small
-        if (proj.x < -star.radius*2 || proj.x >= screenWidth + star.radius*2 || 
-            proj.y < -star.radius*2 || proj.y >= screenHeight + star.radius*2) {
-            return;
-        }
-        
-        // Apply pulsing effect if applicable
-        let sizeFactor = 1;
-        if (star.pulsing) {
-            sizeFactor = star.pulseFactor || 1;
-        }
-        
-        // Scale radius based on distance
-        const radius = Math.max(1, Math.round(star.radius * proj.factor * sizeFactor));
-        
-        // Render the star's core
-        renderCircle(
-            proj.x, proj.y, radius, 
-            CONFIG.colors[star.color] + '*' + CONFIG.colors.reset
-        );
-        
-        // Render corona if present
-        if (star.corona) {
-            const coronaRadius = Math.max(radius + 1, Math.round(star.coronaSize * proj.factor));
-            
-            renderCorona(
-                proj.x, proj.y, 
-                radius, coronaRadius,
-                star.coronaAngle,
-                CONFIG.colors[star.secondaryColor] + '.' + CONFIG.colors.reset
-            );
-        }
-        
-        // Create occasional flashes for pulsars
-        if (star.pulsing && Math.random() < 0.05) {
-            createFlash(star.color, 0.1);
-        }
-    }
-
-    // Render a comet
-    function renderComet(comet) {
-        const headProj = project(comet.x, comet.y, comet.z);
-        
-        // Skip if head is off screen
-        if (headProj.x < 0 || headProj.x >= screenWidth || 
-            headProj.y < 0 || headProj.y >= screenHeight) {
-            return;
-        }
-        
-        // Render comet head
-        screenBuffer[headProj.y][headProj.x] = CONFIG.colors[comet.color] + 'O' + CONFIG.colors.reset;
-        
-        // Render comet tail
-        const tailLength = Math.max(3, Math.round(comet.length * headProj.factor));
-        
-        for (let i = 1; i <= tailLength; i++) {
-            // Calculate position along tail
-            const distance = i / headProj.factor;
-            const tailX = comet.x - Math.cos(comet.angle) * distance;
-            const tailY = comet.y - Math.sin(comet.angle) * distance;
-            const tailZ = comet.z;
-            
-            const tailProj = project(tailX, tailY, tailZ);
-            
-            // Check if this segment is on screen
-            if (tailProj.x >= 0 && tailProj.x < screenWidth && 
-                tailProj.y >= 0 && tailProj.y < screenHeight) {
-                
-                // Fade tail out with distance
-                const fadeAlpha = Math.pow(comet.tailFade, i);
-                let tailChar = CONFIG.colors[comet.color] + '-' + CONFIG.colors.reset;
-                
-                // Change character based on distance
-                if (i > tailLength * 0.3) {
-                    tailChar = CONFIG.colors[comet.color] + '·' + CONFIG.colors.reset;
-                }
-                if (i > tailLength * 0.7) {
-                    tailChar = CONFIG.colors[comet.color] + '.' + CONFIG.colors.reset;
-                }
-                
-                screenBuffer[tailProj.y][tailProj.x] = tailChar;
-            }
-        }
-    }
-
-    // Render an asteroid
-    function renderAsteroid(asteroid) {
-        const proj = project(asteroid.x, asteroid.y, asteroid.z);
-        
-        // Skip if off screen
-        if (proj.x < 0 || proj.x >= screenWidth || 
-            proj.y < 0 || proj.y >= screenHeight) {
-            return;
-        }
-        
-        // Choose character based on shape
-        let char = 'o';
-        if (asteroid.shape === 1) {
-            char = '&';  // Irregular shape
-        } else if (asteroid.shape === 2) {
-            char = '◊';  // Oblong shape
-        }
-        
-        screenBuffer[proj.y][proj.x] = CONFIG.colors[asteroid.color] + char + CONFIG.colors.reset;
-    }
-// Render a circle (using Bresenham's circle algorithm)
-    function renderCircle(centerX, centerY, radius, char) {
-        if (radius <= 0) {
-            // Just render a single point
-            if (centerX >= 0 && centerX < screenWidth && centerY >= 0 && centerY < screenHeight) {
-                screenBuffer[centerY][centerX] = char;
-            }
-            return;
-        }
-        
-        let x = radius;
-        let y = 0;
-        let err = 0;
-        
-        while (x >= y) {
-            plotCirclePoints(centerX, centerY, x, y, char);
-            
-            y += 1;
-            if (err <= 0) {
-                err += 2 * y + 1;
-            }
-            if (err > 0) {
-                x -= 1;
-                err -= 2 * x + 1;
-            }
-        }
-    }
-    
-    // Plot points for circle algorithm
-    function plotCirclePoints(centerX, centerY, x, y, char) {
-        const points = [
-            [centerX + x, centerY + y],
-            [centerX - x, centerY + y],
-            [centerX + x, centerY - y],
-            [centerX - x, centerY - y],
-            [centerX + y, centerY + x],
-            [centerX - y, centerY + x],
-            [centerX + y, centerY - x],
-            [centerX - y, centerY - x]
-        ];
-        
-        for (const [px, py] of points) {
-            if (px >= 0 && px < screenWidth && py >= 0 && py < screenHeight) {
-                screenBuffer[py][px] = char;
-            }
-        }
-    }
-    
-    // Render ring (for planets)
-    function renderRing(centerX, centerY, innerRadius, outerRadius, rotation, char, hasGap) {
-        const stepAngle = 0.1;  // Smaller for higher resolution
-        
-        for (let angle = 0; angle < Math.PI * 2; angle += stepAngle) {
-            // Skip if in the gap zone
-            if (hasGap && angle > Math.PI * 0.8 && angle < Math.PI * 1.2) {
-                continue;
-            }
-            
-            // Elliptical projection to simulate viewing angle
-            const cosAngle = Math.cos(angle + rotation);
-            const sinAngle = Math.sin(angle + rotation) * 0.5;  // Flatten by 50%
-            
-            for (let r = innerRadius; r <= outerRadius; r += 0.5) {
-                const x = Math.round(centerX + cosAngle * r);
-                const y = Math.round(centerY + sinAngle * r);
-                
-                if (x >= 0 && x < screenWidth && y >= 0 && y < screenHeight) {
-                    screenBuffer[y][x] = char;
-                }
-            }
-        }
-    }
-    
-    // Render corona (for stars)
-    function renderCorona(centerX, centerY, innerRadius, outerRadius, rotation, char) {
-        const rays = 8 + Math.floor(Math.random() * 5);
-        const angleStep = Math.PI * 2 / rays;
-        
-        for (let i = 0; i < rays; i++) {
-            const angle = i * angleStep + rotation;
-            const length = innerRadius + Math.random() * (outerRadius - innerRadius);
-            
-            for (let r = innerRadius; r <= length; r += 0.5) {
-                const x = Math.round(centerX + Math.cos(angle) * r);
-                const y = Math.round(centerY + Math.sin(angle) * r);
-                
-                if (x >= 0 && x < screenWidth && y >= 0 && y < screenHeight) {
-                    screenBuffer[y][x] = char;
-                }
-            }
-        }
-    }
 // Main animation loop
     function mainLoop(timestamp) {
         // Calculate time since last update
@@ -973,60 +625,11 @@ document.addEventListener('DOMContentLoaded', function() {
         requestAnimationFrame(mainLoop);
     }
 
-    // Main update function
-    function update(deltaTime) {
-        // Update distance traveled
-        distanceTraveled += CONFIG.speed * deltaTime;
-        distanceElement.textContent = Math.floor(distanceTraveled);
-        
-        // Update space objects
-        updateObjects(deltaTime);
-        
-        // Check for new events
-        checkForEvents();
-        
-        // Update notifications
-        updateNotifications(deltaTime);
-        
-        // Reduce cooldowns
-        for (const key in eventCooldowns) {
-            if (eventCooldowns[key] > 0) {
-                eventCooldowns[key] -= deltaTime;
-            }
-        }
-    }
-
-    // Main render function
-    function render() {
-        // Clear screen buffer
-        for (let y = 0; y < screenHeight; y++) {
-            for (let x = 0; x < screenWidth; x++) {
-                screenBuffer[y][x] = ' ';
-            }
-        }
-        
-        // Draw stars
-        renderStars();
-        
-        // Draw space objects
-        renderObjects();
-        
-        // Draw notifications
-        renderNotifications();
-        
-        // Convert buffer to text
-        const output = screenBuffer.map(row => row.join('')).join('\n');
-        
-        // Update display
-        spaceElement.innerHTML = output;
-    }
-
     // Start animation loop
     requestAnimationFrame(mainLoop);
 });
-
-        // JavaScript code will be added in the following steps
     </script>
 </body>
 </html>
+
 
