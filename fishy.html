@@ -1,1 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Evolutionary Fish Simulation</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000033; }
+        canvas { display: block; }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            background: rgba(255,255,255,0.8);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        button { padding: 5px 10px; margin: 2px; }
+    </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="controls">
+    <button id="resetBtn">Reset Simulation</button>
+</div>
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let width = canvas.width = window.innerWidth;
+    let height = canvas.height = window.innerHeight;
 
+    class Fish {
+        constructor(parents = null) {
+            // Physical traits
+            this.bodyWidth = 0.8 + Math.random() * 0.4;
+            this.bodyHeight = 0.8 + Math.random() * 0.4;
+            this.eyeSize = 0.1 + Math.random() * 0.2;
+            this.finSize = 0.3 + Math.random() * 0.4;
+            this.symmetry = 0.8 + Math.random() * 0.4;
+            
+            // Color traits 
+            this.bodyColor = [Math.random(), Math.random(), Math.random()];
+            this.eyeColor = [Math.random(), Math.random(), Math.random()];
+            this.finColor = [Math.random(), Math.random(), Math.random()];
+            
+            // Position & movement
+            this.x = Math.random() * width;
+            this.y = Math.random() * height;
+            this.angle = Math.random() * Math.PI * 2;
+            this.speed = 1 + Math.random() * 0.5;
+            
+            // Beauty preferences
+            this.beautyWeights = {
+                symmetry: 0.8 + Math.random() * 0.4,
+                eyeSize: 0.8 + Math.random() * 0.4,
+                finSize: 0.8 + Math.random() * 0.4,
+                bodyShape: 0.8 + Math.random() * 0.4,
+                colorVibrancy: 0.8 + Math.random() * 0.4
+            };
+            
+            // Breeding state
+            this.isFemale = Math.random() < 0.5;
+            this.hasMated = false;
+            this.eggsLaid = 0;
+            this.cooldown = 0;
+            this.searchingTime = 0;
+            this.preferredMate = null;
+            this.attractionThreshold = 1.5; // Lower initial threshold
+            this.courtingPartner = null;
+            this.courtingTime = 0;
+            this.dancePhase = 0;
+            
+            // Food and energy system
+            this.foodPoints = 0;
+            this.hunger = 0;
+            this.targetFood = null;
+            this.canMate = false;
+            
+            // Food finding abilities (evolvable traits)
+            this.visionRange = 30 + Math.random() * 70; // Visual detection range
+            this.visionAngle = Math.PI / 4 + Math.random() * Math.PI / 2; // Field of view
+            this.smellSensitivity = 0.01 + Math.random() * 0.09; // How well they detect faint scents
+            this.foodSpeed = 0.8 + Math.random() * 0.4; // Speed boost when hunting
+            
+            // Hunting strategy (0-1, where 0 = vision-based, 1 = smell-based)
+            this.huntingStrategy = Math.random();
+            
+            if (parents) this.inheritTraits(parents);
+        }
+
+        inheritTraits(parents) {
+            // Mutation rate approximately 5% per trait
+            const mutationRate = 0.05;
+            
+            // Inherit physical traits with mutation
+            this.bodyWidth = this.inheritTrait(parents[0].bodyWidth, parents[1].bodyWidth, mutationRate);
+            this.bodyHeight = this.inheritTrait(parents[0].bodyHeight, parents[1].bodyHeight, mutationRate);
+            this.eyeSize = this.inheritTrait(parents[0].eyeSize, parents[1].eyeSize, mutationRate);
+            this.finSize = this.inheritTrait(parents[0].finSize, parents[1].finSize, mutationRate);
+            this.symmetry = this.inheritTrait(parents[0].symmetry, parents[1].symmetry, mutationRate);
+            
+            // Inherit color traits with mutation
+            for (let i = 0; i < 3; i++) {
+                this.bodyColor[i] = this.inheritTrait(parents[0].bodyColor[i], parents[1].bodyColor[i], mutationRate);
+                this.eyeColor[i] = this.inheritTrait(parents[0].eyeColor[i], parents[1].eyeColor[i], mutationRate);
+                this.finColor[i] = this.inheritTrait(parents[0].finColor[i], parents[1].finColor[i], mutationRate);
+            }
+            
+            // Inherit beauty preferences with mutation
+            for (const key in this.beautyWeights) {
+                this.beautyWeights[key] = this.inheritTrait(
+                    parents[0].beautyWeights[key], 
+                    parents[1].beautyWeights[key], 
+                    mutationRate * 2  // Beauty preferences evolve faster
+                );
+            }
+            
+            // Inherit food-finding abilities
+            this.visionRange = this.inheritTrait(parents[0].visionRange, parents[1].visionRange, mutationRate);
+            this.visionAngle = this.inheritTrait(parents[0].visionAngle, parents[1].visionAngle, mutationRate);
+            this.smellSensitivity = this.inheritTrait(parents[0].smellSensitivity, parents[1].smellSensitivity, mutationRate);
+            this.foodSpeed = this.inheritTrait(parents[0].foodSpeed, parents[1].foodSpeed, mutationRate);
+            this.huntingStrategy = this.inheritTrait(parents[0].huntingStrategy, parents[1].huntingStrategy, mutationRate);
+        }
+
+        inheritTrait(parent1Trait, parent2Trait, mutationRate) {
+            let inherited = (parent1Trait + parent2Trait) / 2;
+            
+            // Apply mutation
+            if (Math.random() < mutationRate) {
+                inherited += (Math.random() - 0.5) * 0.2;
+            }
+            
+            // Keep values reasonable
+            return Math.max(0.1, Math.min(2.0, inherited));
+        }
+
+        evaluateBeauty(other) {
+            let score = 0;
+            score += this.beautyWeights.symmetry * other.symmetry;
+            score += this.beautyWeights.eyeSize * other.eyeSize;
+            score += this.beautyWeights.finSize * other.finSize;
+            
+            // Body shape preference (ideal ratio)
+            const bodyRatio = other.bodyWidth / other.bodyHeight;
+            const idealRatio = 1.5; 
+            score += this.beautyWeights.bodyShape * (1 - Math.abs(idealRatio - bodyRatio));
+            
+            // Color vibrancy (how saturated the colors are)
+            const colorVibrancy = this.calculateColorVibrancy(other.bodyColor);
+            score += this.beautyWeights.colorVibrancy * colorVibrancy;
+            
+            // Well-fed fish are slightly more attractive
+            if (other.foodPoints > 10) {
+                score *= 1 + (other.foodPoints - 10) * 0.01; // Max 30% boost at 40 food points
+            }
+            
+            return score;
+        }
+
+        calculateColorVibrancy(color) {
+            const max = Math.max(...color);
+            const min = Math.min(...color);
+            return (max - min);
+        }
+
+        update() {
+            if (this.cooldown > 0) this.cooldown--;
+            
+            // Find food if not yet able to mate
+            if (!this.canMate && !this.targetFood) {
+                let bestFood = null;
+                let bestScore = -Infinity;
+                
+                for (const food of foodPellets) {
+                    const dx = food.x - this.x;
+                    const dy = food.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Check if can detect food
+                    let canDetect = false;
+                    let detectionScore = 0;
+                    
+                    // Visual detection (directional)
+                    const angleToFood = Math.atan2(dy, dx);
+                    const angleDiff = Math.abs(angleToFood - this.angle);
+                    const normalizedAngleDiff = Math.min(angleDiff, 2 * Math.PI - angleDiff);
+                    
+                    if (dist < this.visionRange && normalizedAngleDiff < this.visionAngle / 2) {
+                        canDetect = true;
+                        detectionScore = (1 - dist / this.visionRange) * (1 - this.huntingStrategy);
+                    }
+                    
+                    // Smell detection (based on scent strength)
+                    const scentStrength = food.getScentStrengthAt(this.x, this.y);
+                    if (scentStrength > this.smellSensitivity) {
+                        canDetect = true;
+                        const smellScore = scentStrength * this.huntingStrategy;
+                        detectionScore = Math.max(detectionScore, smellScore);
+                    }
+                    
+                    // Choose the best detected food
+                    if (canDetect && detectionScore > bestScore) {
+                        bestScore = detectionScore;
+                        bestFood = food;
+                    }
+                }
+                
+                this.targetFood = bestFood;
+            }
+            
+            // Move towards food if hunting, otherwise normal swimming
+            if (this.targetFood && !this.canMate) {
+                const dx = this.targetFood.x - this.x;
+                const dy = this.targetFood.y - this.y;
+                this.angle = Math.atan2(dy, dx);
+                
+                // Check if reached food
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 10) {
+                    this.foodPoints += this.targetFood.value;
+                    const index = foodPellets.indexOf(this.targetFood);
+                    if (index > -1) {
+                        foodPellets.splice(index, 1);
+                    }
+                    this.targetFood = null;
+                    
+                    // Check if can mate now
+                    if (this.foodPoints >= 10) {
+                        this.canMate = true;
+                    }
+                }
+                
+                // Move faster when hunting food
+                this.x += Math.cos(this.angle) * this.speed * this.foodSpeed;
+                this.y += Math.sin(this.angle) * this.speed * this.foodSpeed;
+            } else {
+                // Normal swimming behavior
+                this.wanderAngle = this.wanderAngle || 0;
+                this.wanderAngle += (Math.random() - 0.5) * 0.3;
+                this.angle += Math.sin(this.wanderAngle) * 0.03;
+                
+                // Normal speed
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+            }
+            
+            // Vary base speed occasionally
+            if (Math.random() < 0.01) {
+                this.speed = 0.8 + Math.random() * 1.2;
+            }
+            
+            // Hard boundaries - bounce off walls
+            const margin = 20;
+            if (this.x < margin) {
+                this.x = margin;
+                this.angle = Math.PI - this.angle;
+            } else if (this.x > width - margin) {
+                this.x = width - margin;
+                this.angle = Math.PI - this.angle;
+            }
+            if (this.y < margin) {
+                this.y = margin;
+                this.angle = -this.angle;
+            } else if (this.y > height - margin) {
+                this.y = height - margin;
+                this.angle = -this.angle;
+            }
+        }
+
+        draw(ctx) {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.angle);
+            
+            // Draw vision cone if hunting
+            if (!this.canMate && this.targetFood) {
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.1)';
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.arc(0, 0, this.visionRange, -this.visionAngle/2, this.visionAngle/2);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Draw scent detection indicator (pulsing nose)
+                if (this.targetFood.getScentStrengthAt(this.x, this.y) > this.smellSensitivity) {
+                    ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+                    const pulseSize = 5 + Math.sin(Date.now() * 0.005) * 2;
+                    ctx.beginPath();
+                    ctx.arc(this.bodyWidth * 12, 0, pulseSize, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            
+            // Draw body
+            ctx.fillStyle = `rgb(${Math.floor(this.bodyColor[0]*255)},${Math.floor(this.bodyColor[1]*255)},${Math.floor(this.bodyColor[2]*255)})`;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, this.bodyWidth * 15, this.bodyHeight * 10, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw tail fin
+            ctx.fillStyle = `rgb(${Math.floor(this.finColor[0]*255)},${Math.floor(this.finColor[1]*255)},${Math.floor(this.finColor[2]*255)})`;
+            ctx.beginPath();
+            ctx.moveTo(-this.bodyWidth * 15, 0);
+            ctx.lineTo(-this.bodyWidth * 15 - this.finSize * 20, -this.finSize * 10);
+            ctx.lineTo(-this.bodyWidth * 15 - this.finSize * 20, this.finSize * 10);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Draw eyes (symmetry affects eye placement)
+            const eyeOffset = this.bodyHeight * 3 * this.symmetry;
+            ctx.fillStyle = `rgb(${Math.floor(this.eyeColor[0]*255)},${Math.floor(this.eyeColor[1]*255)},${Math.floor(this.eyeColor[2]*255)})`;
+            ctx.beginPath();
+            ctx.arc(this.bodyWidth * 5, -eyeOffset, this.eyeSize * 5, 0, Math.PI * 2);
+            ctx.arc(this.bodyWidth * 5, eyeOffset, this.eyeSize * 5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw pupils
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(this.bodyWidth * 5, -eyeOffset, this.eyeSize * 2, 0, Math.PI * 2);
+            ctx.arc(this.bodyWidth * 5, eyeOffset, this.eyeSize * 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+    }
+
+    let fishes = [];
+    let eggs = [];
+    let foodPellets = [];
+    let generation = 0;
+    let totalEggsThisGeneration = 0;
+    let totalFoodThisGeneration = 0;
+    const FOOD_PER_GENERATION = 90;
+
+    class FoodPellet {
+        constructor() {
+            this.x = Math.random() * (width - 40) + 20;
+            this.y = Math.random() * (height - 40) + 20;
+            this.value = 5; // Each pellet is worth 5 points
+            this.radius = 3;
+            this.scentStrength = 1.0; // How strong the scent is at the source
+            this.scentDecayRate = 0.02; // How quickly scent fades with distance
+        }
+
+        draw(ctx) {
+            ctx.fillStyle = '#00ff00';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        getScentStrengthAt(x, y) {
+            const dx = x - this.x;
+            const dy = y - this.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            // Scent strength decreases exponentially with distance
+            return this.scentStrength * Math.exp(-distance * this.scentDecayRate);
+        }
+    }
+
+    function createInitialGeneration() {
+        fishes = [];
+        eggs = [];
+        foodPellets = [];
+        totalEggsThisGeneration = 0;
+        totalFoodThisGeneration = 0;
+        
+        // Create first pair
+        const male = new Fish();
+        male.isFemale = false;
+        male.bodyColor = [0.2, 0.6, 1]; // Blue
+        male.eyeColor = [1, 1, 0]; // Yellow
+        male.finColor = [0.1, 0.3, 0.8]; // Dark blue
+        male.attractionThreshold = 0; // First generation will mate regardless
+        male.foodPoints = 10; // First generation starts fed
+        male.canMate = true; // Ready to mate
+        
+        const female = new Fish();
+        female.isFemale = true;
+        female.bodyColor = [1, 0.6, 0.2]; // Orange
+        female.eyeColor = [0.8, 0.8, 0.2]; // Light yellow
+        female.finColor = [0.8, 0.4, 0.1]; // Red-orange
+        female.attractionThreshold = 0; // First generation will mate regardless
+        female.foodPoints = 10; // First generation starts fed
+        female.canMate = true; // Ready to mate
+        
+        // Spread them out in the tank
+        male.x = width * 0.3;
+        male.y = height * 0.5;
+        female.x = width * 0.7;
+        female.y = height * 0.5;
+        
+        fishes.push(male, female);
+        
+        // Don't spawn food for first generation since they start fed
+    }
+
+    function spawnFood() {
+        // Spawn food pellets worth 90 points total
+        while (totalFoodThisGeneration < FOOD_PER_GENERATION) {
+            foodPellets.push(new FoodPellet());
+            totalFoodThisGeneration += 5;
+        }
+    }
+
+    function findMate(fish) {
+        if (fish.cooldown > 0) return null;
+        
+        // Must have eaten at least 10 food to mate
+        if (!fish.canMate) return null;
+        
+        // Increase searching time and lower standards gradually
+        fish.searchingTime++;
+        if (fish.searchingTime > 200) { // Lowered from 300
+            fish.attractionThreshold *= 0.99; // Lower standards faster
+        }
+        
+        if (fish.isFemale) {
+            // Females only pursue males they find very attractive and who can mate
+            let bestMale = null;
+            let highestScore = -Infinity;
+            
+            for (const other of fishes) {
+                if (!other.isFemale && other.cooldown === 0 && !other.courtingPartner && other.canMate) {
+                    const score = fish.evaluateBeauty(other);
+                    if (score > highestScore && score >= fish.attractionThreshold) {
+                        highestScore = score;
+                        bestMale = other;
+                    }
+                }
+            }
+            
+            // Only pursue if male is sufficiently attractive
+            if (bestMale) {
+                // Check if other females are also interested
+                let competitors = 0;
+                for (const otherFemale of fishes) {
+                    if (otherFemale !== fish && otherFemale.isFemale && !otherFemale.courtingPartner && otherFemale.canMate) {
+                        const otherScore = otherFemale.evaluateBeauty(bestMale);
+                        if (otherScore >= otherFemale.attractionThreshold) {
+                            competitors++;
+                        }
+                    }
+                }
+                
+                // If too much competition, might not pursue
+                if (competitors > 1 && Math.random() < 0.3) {
+                    return null;
+                }
+            }
+            
+            return bestMale;
+        } else {
+            // Males pursue any female they find attractive enough who can mate
+            let bestFemale = null;
+            let highestScore = -Infinity;
+            
+            for (const other of fishes) {
+                if (other.isFemale && other.cooldown === 0 && !other.courtingPartner && other.canMate) {
+                    const score = fish.evaluateBeauty(other);
+                    if (score > highestScore && score >= fish.attractionThreshold * 0.5) {
+                        highestScore = score;
+                        bestFemale = other;
+                    }
+                }
+            }
+            
+            return bestFemale;
+        }
+        
+        return null;
+    }
+
+    function performCourtship(fish) {
+        const partner = fish.courtingPartner;
+        fish.courtingTime++;
+        
+        // Calculate center point between the two fish
+        const centerX = (fish.x + partner.x) / 2;
+        const centerY = (fish.y + partner.y) / 2;
+        
+        // Smaller, more subtle mating dance
+        const radius = 15; // Reduced from 30
+        const speed = 0.05; // Slower dance
+        fish.dancePhase += speed;
+        
+        // Subtle figure-8 pattern
+        const offset = fish.isFemale ? 0 : Math.PI;
+        const pattern = Math.sin(fish.dancePhase * 2);
+        fish.x = centerX + Math.cos(fish.dancePhase + offset) * radius * (1 + 0.3 * pattern);
+        fish.y = centerY + Math.sin(fish.dancePhase + offset) * radius;
+        
+        // Face each other
+        fish.angle = Math.atan2(partner.y - fish.y, partner.x - fish.x);
+        
+        // After 10 seconds (600 frames at 60fps), check if mating succeeds
+        if (fish.courtingTime > 600) {
+            if (fish.isFemale && totalEggsThisGeneration < 6) { // Check total eggs, not individual
+                // For first generation, always mate successfully
+                let matingSuccess = false;
+                if (generation === 0) {
+                    matingSuccess = true;
+                } else {
+                    // Female might reject the male even after courtship
+                    const finalAttraction = fish.evaluateBeauty(partner);
+                    matingSuccess = finalAttraction > (fish.attractionThreshold * 0.8); // Lowered threshold for mating
+                }
+                
+                if (matingSuccess) {
+                    // Female accepts and lays egg
+                    eggs.push({
+                        x: fish.x,
+                        y: fish.y,
+                        hatchTime: 0,
+                        maxHatchTime: 180,
+                        parents: [fish, partner]
+                    });
+                    
+                    fish.eggsLaid++;
+                    totalEggsThisGeneration++;
+                    
+                    // Shorter cooldown to allow for multiple matings
+                    fish.cooldown = 60;
+                    partner.cooldown = 30; // Male has shorter cooldown
+                    
+                    // Reset attraction threshold for next mating
+                    fish.attractionThreshold = 1.5;
+                    fish.searchingTime = 0;
+                } else {
+                    // Female rejects after courtship
+                    fish.cooldown = 60; // Can try again sooner
+                    partner.cooldown = 15; // Male recovers quickly from rejection
+                }
+            }
+            
+            // End courtship regardless of outcome
+            fish.searchingTime = 0;
+            partner.searchingTime = 0;
+            fish.courtingPartner = null;
+            partner.courtingPartner = null;
+        }
+    }
+
+    function update() {
+        // Update all fish
+        for (const fish of fishes) {
+            if (fish.courtingPartner) {
+                // If courting, perform mating dance
+                performCourtship(fish);
+            } else {
+                // Normal swimming and eating
+                fish.update();
+            }
+            
+            // Look for mates only if able
+            if (totalEggsThisGeneration < 6 && !fish.courtingPartner && fish.canMate) {
+                const mate = findMate(fish);
+                
+                if (mate && !mate.courtingPartner) {
+                    // Start courtship
+                    fish.courtingPartner = mate;
+                    mate.courtingPartner = fish;
+                    fish.courtingTime = 0;
+                    mate.courtingTime = 0;
+                }
+            }
+        }
+        
+        // Update eggs
+        for (let i = eggs.length - 1; i >= 0; i--) {
+            const egg = eggs[i];
+            egg.hatchTime++;
+            
+            if (egg.hatchTime >= egg.maxHatchTime) {
+                // All parents die when 6 eggs are laid
+                if (totalEggsThisGeneration >= 6) {
+                    fishes = [];
+                    generation++;
+                    
+                    // Hatch all eggs at once
+                    for (let j = 0; j < eggs.length; j++) {
+                        const newFish = new Fish(eggs[j].parents);
+                        // Ensure we get 3 males and 3 females
+                        newFish.isFemale = j < 3;
+                        newFish.x = eggs[j].x + (Math.random() - 0.5) * 50;
+                        newFish.y = eggs[j].y + (Math.random() - 0.5) * 50;
+                        fishes.push(newFish);
+                    }
+                    
+                    eggs = [];
+                    totalEggsThisGeneration = 0;
+                    
+                    // Spawn food for new generation - exactly 90 points
+                    totalFoodThisGeneration = 0;
+                    foodPellets = [];
+                    spawnFood();
+                    
+                    break;
+                }
+            }
+        }
+    }
+
+    function draw() {
+        // Draw dark deep blue background
+        ctx.fillStyle = "#000522";
+        ctx.fillRect(0, 0, width, height);
+        
+        // Draw aquarium edges
+        ctx.strokeStyle = "#003366";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(10, 10, width - 20, height - 20);
+        
+        // Draw food pellets with scent clouds
+        for (const food of foodPellets) {
+            // Draw scent cloud
+            const gradient = ctx.createRadialGradient(food.x, food.y, 0, food.x, food.y, 100);
+            gradient.addColorStop(0, 'rgba(0, 255, 0, 0.1)');
+            gradient.addColorStop(1, 'rgba(0, 255, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(food.x, food.y, 100, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw food pellet
+            food.draw(ctx);
+        }
+        
+        // Draw fish
+        for (const fish of fishes) {
+            fish.draw(ctx);
+            
+            // Draw heart above courting fish
+            if (fish.courtingPartner) {
+                ctx.save();
+                ctx.translate(fish.x, fish.y - 20);
+                ctx.fillStyle = 'rgba(255, 105, 180, 0.8)';
+                ctx.beginPath();
+                ctx.moveTo(0, -5);
+                ctx.bezierCurveTo(-5, -10, -10, -5, -10, 0);
+                ctx.bezierCurveTo(-10, 5, -5, 10, 0, 15);
+                ctx.bezierCurveTo(5, 10, 10, 5, 10, 0);
+                ctx.bezierCurveTo(10, -5, 5, -10, 0, -5);
+                ctx.fill();
+                ctx.restore();
+            }
+            
+            // Draw food bar for fish
+            if (fish.foodPoints > 0) {
+                ctx.save();
+                ctx.translate(fish.x, fish.y + 15);
+                
+                // Background bar
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(-15, 0, 30, 3);
+                
+                // Food bar
+                const foodBarWidth = Math.min(30, (fish.foodPoints / 40) * 30);
+                ctx.fillStyle = fish.foodPoints >= 10 ? '#00ff00' : '#ffff00';
+                ctx.fillRect(-15, 0, foodBarWidth, 3);
+                
+                ctx.restore();
+            }
+        }
+        
+        // Draw eggs
+        for (const egg of eggs) {
+            const progress = egg.hatchTime / egg.maxHatchTime;
+            ctx.fillStyle = `rgba(255, 255, 150, ${0.7 + progress * 0.3})`;
+            ctx.beginPath();
+            ctx.arc(egg.x, egg.y, 5 + progress * 3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Egg glow
+            ctx.strokeStyle = `rgba(255, 255, 200, ${0.3 - progress * 0.3})`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+        
+        // Draw generation counter and egg count
+        ctx.fillStyle = "white";
+        ctx.font = "16px Arial";
+        ctx.fillText(`Generation: ${generation}`, 10, 30);
+        ctx.fillText(`Eggs laid: ${totalEggsThisGeneration}/6`, 10, 50);
+        ctx.fillText(`Food available: ${foodPellets.length * 5}`, 10, 70);
+        
+        // Draw individual female stats
+        let femaleIndex = 0;
+        for (const fish of fishes) {
+            if (fish.isFemale) {
+                ctx.fillText(`Female ${femaleIndex + 1}: ${fish.eggsLaid} eggs, ${fish.foodPoints} food`, 10, 150 + femaleIndex * 20);
+                femaleIndex++;
+            }
+        }
+        
+        // Debug info for mate searching and courting
+        let searchingCount = fishes.filter(f => f.searchingTime > 100 && !f.courtingPartner && f.canMate).length;
+        let courtingCount = fishes.filter(f => f.courtingPartner).length;
+        let hungryCount = fishes.filter(f => !f.canMate).length;
+        
+        if (searchingCount > 0) {
+            ctx.fillText(`Fish searching for mates: ${searchingCount}`, 10, 90);
+        }
+        if (courtingCount > 0) {
+            ctx.fillText(`Fish courting: ${courtingCount}`, 10, 110);
+        }
+        if (hungryCount > 0) {
+            ctx.fillText(`Fish hungry: ${hungryCount}`, 10, 130);
+        }
+    }
+
+    function animate() {
+        update();
+        draw();
+        requestAnimationFrame(animate);
+    }
+
+    document.getElementById("resetBtn").addEventListener("click", () => {
+        generation = 0;
+        createInitialGeneration();
+    });
+
+    window.addEventListener("resize", () => {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+    });
+
+    createInitialGeneration();
+    animate();
+</script>
+</body>
+</html>
