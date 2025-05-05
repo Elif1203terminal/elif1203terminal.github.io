@@ -27,6 +27,8 @@
             font-family: Arial, sans-serif;
             font-size: 14px;
             min-width: 250px;
+            max-height: 80vh;
+            overflow-y: auto;
         }
         #pauseControl {
             position: absolute;
@@ -56,7 +58,11 @@
     let height = canvas.height = window.innerHeight;
     
     // Simulation variables
-    const FOOD_PER_GENERATION = 72; // Reduced by 20% from 90
+    const FOOD_PER_GENERATION = 150; // Increased food
+    const MAX_GENERATION_TIME = 3000; // Maximum frames per generation (lifespan)
+    const MAX_FISH_EGGS = 10; // Maximum eggs needed to trigger new generation
+    const FISH_PER_GENERATION = 10; // 5 males, 5 females
+
     let fishes = [];
     let sharks = [];
     let fishEggs = [];
@@ -64,6 +70,7 @@
     let foodPellets = [];
     let fishGeneration = 0;
     let sharkGeneration = 0;
+    let generationTimer = 0;
     let totalFishEggsThisGeneration = 0;
     let totalSharkEggsThisGeneration = 0;
     let totalFoodThisGeneration = 0;
@@ -77,10 +84,16 @@
             this.finSize = 0.2 + Math.random() * 0.6;
             this.symmetry = 0.5 + Math.random() * 0.7;
             
-            // Color traits 
+            // More diverse color traits with patterns
             this.bodyColor = [Math.random(), Math.random(), Math.random()];
             this.eyeColor = [Math.random(), Math.random(), Math.random()];
             this.finColor = [Math.random(), Math.random(), Math.random()];
+            this.hasStripes = Math.random() < 0.3;
+            this.stripeColor = [Math.random(), Math.random(), Math.random()];
+            this.stripeDensity = 0.2 + Math.random() * 0.8;
+            this.hasSpots = Math.random() < 0.3;
+            this.spotColor = [Math.random(), Math.random(), Math.random()];
+            this.spotDensity = 0.2 + Math.random() * 0.8;
             
             // Position & movement
             this.x = Math.random() * width;
@@ -88,12 +101,14 @@
             this.angle = Math.random() * Math.PI * 2;
             this.speed = 1 + Math.random() * 0.5;
             
-            // Beauty preferences
+            // Enhanced beauty preferences
             this.beautyWeights = {
                 symmetry: 0.8 + Math.random() * 0.4,
                 eyeSize: 0.8 + Math.random() * 0.4,
                 finSize: 0.8 + Math.random() * 0.4,
                 bodyShape: 0.8 + Math.random() * 0.4,
+                colorPreference: [Math.random(), Math.random(), Math.random()], // Preferred colors
+                patternPreference: Math.random(), // 0 = plain, 0.5 = stripes, 1 = spots
                 colorVibrancy: 0.8 + Math.random() * 0.4
             };
             
@@ -114,6 +129,7 @@
             this.hunger = 0;
             this.targetFood = null;
             this.canMate = false;
+            this.age = 0;
             
             // Food finding abilities (evolvable traits)
             this.visionRange = 30 + Math.random() * 70; // Visual detection range
@@ -148,15 +164,58 @@
                 this.bodyColor[i] = this.inheritTrait(parents[0].bodyColor[i], parents[1].bodyColor[i], mutationRate);
                 this.eyeColor[i] = this.inheritTrait(parents[0].eyeColor[i], parents[1].eyeColor[i], mutationRate);
                 this.finColor[i] = this.inheritTrait(parents[0].finColor[i], parents[1].finColor[i], mutationRate);
+                this.stripeColor[i] = this.inheritTrait(parents[0].stripeColor[i], parents[1].stripeColor[i], mutationRate);
+                this.spotColor[i] = this.inheritTrait(parents[0].spotColor[i], parents[1].spotColor[i], mutationRate);
+            }
+            
+            // Inherit pattern traits
+            if (Math.random() < 0.5) {
+                this.hasStripes = parents[0].hasStripes;
+                this.stripeDensity = this.inheritTrait(parents[0].stripeDensity, parents[1].stripeDensity, mutationRate);
+            } else {
+                this.hasStripes = parents[1].hasStripes;
+                this.stripeDensity = this.inheritTrait(parents[1].stripeDensity, parents[0].stripeDensity, mutationRate);
+            }
+            
+            if (Math.random() < 0.5) {
+                this.hasSpots = parents[0].hasSpots;
+                this.spotDensity = this.inheritTrait(parents[0].spotDensity, parents[1].spotDensity, mutationRate);
+            } else {
+                this.hasSpots = parents[1].hasSpots;
+                this.spotDensity = this.inheritTrait(parents[1].spotDensity, parents[0].spotDensity, mutationRate);
+            }
+            
+            // Chance for pattern mutation
+            if (Math.random() < mutationRate * 2) {
+                this.hasStripes = !this.hasStripes;
+            }
+            if (Math.random() < mutationRate * 2) {
+                this.hasSpots = !this.hasSpots;
             }
             
             // Inherit beauty preferences with mutation
             for (const key in this.beautyWeights) {
-                this.beautyWeights[key] = this.inheritTrait(
-                    parents[0].beautyWeights[key], 
-                    parents[1].beautyWeights[key], 
-                    mutationRate * 2  // Beauty preferences evolve faster
-                );
+                if (key === 'colorPreference') {
+                    for (let i = 0; i < 3; i++) {
+                        this.beautyWeights.colorPreference[i] = this.inheritTrait(
+                            parents[0].beautyWeights.colorPreference[i],
+                            parents[1].beautyWeights.colorPreference[i],
+                            mutationRate * 2
+                        );
+                    }
+                } else if (key === 'patternPreference') {
+                    this.beautyWeights.patternPreference = this.inheritTrait(
+                        parents[0].beautyWeights.patternPreference,
+                        parents[1].beautyWeights.patternPreference,
+                        mutationRate * 2
+                    );
+                } else {
+                    this.beautyWeights[key] = this.inheritTrait(
+                        parents[0].beautyWeights[key], 
+                        parents[1].beautyWeights[key], 
+                        mutationRate * 2  // Beauty preferences evolve faster
+                    );
+                }
             }
             
             // Inherit food-finding abilities
@@ -172,7 +231,17 @@
             this.predatorDetectionRange = this.inheritTrait(parents[0].predatorDetectionRange, parents[1].predatorDetectionRange, mutationRate);
         }
         inheritTrait(parent1Trait, parent2Trait, mutationRate) {
-            let inherited = (parent1Trait + parent2Trait) / 2;
+            let inherited;
+            
+            // 50% chance to inherit from either parent, or blend them
+            const inheritType = Math.random();
+            if (inheritType < 0.4) {
+                inherited = parent1Trait;
+            } else if (inheritType < 0.8) {
+                inherited = parent2Trait;
+            } else {
+                inherited = (parent1Trait + parent2Trait) / 2;
+            }
             
             // Apply mutation
             if (Math.random() < mutationRate) {
@@ -185,6 +254,8 @@
 
         evaluateBeauty(other) {
             let score = 0;
+            
+            // Basic physical traits
             score += this.beautyWeights.symmetry * other.symmetry;
             score += this.beautyWeights.eyeSize * other.eyeSize;
             score += this.beautyWeights.finSize * other.finSize;
@@ -193,6 +264,21 @@
             const bodyRatio = other.bodyWidth / other.bodyHeight;
             const idealRatio = 1.5; 
             score += this.beautyWeights.bodyShape * (1 - Math.abs(idealRatio - bodyRatio));
+            
+            // Color preference - how close other's colors are to preferred colors
+            const bodyColorMatch = this.calculateColorMatch(other.bodyColor, this.beautyWeights.colorPreference);
+            score += bodyColorMatch * 2; // Color is an important factor
+            
+            // Pattern preference
+            let patternScore = 0;
+            if (other.hasStripes && this.beautyWeights.patternPreference > 0.3 && this.beautyWeights.patternPreference < 0.7) {
+                patternScore = 1 - Math.abs(0.5 - this.beautyWeights.patternPreference);
+            } else if (other.hasSpots && this.beautyWeights.patternPreference > 0.7) {
+                patternScore = this.beautyWeights.patternPreference - 0.7;
+            } else if (!other.hasStripes && !other.hasSpots && this.beautyWeights.patternPreference < 0.3) {
+                patternScore = 0.3 - this.beautyWeights.patternPreference;
+            }
+            score += patternScore * 1.5;
             
             // Color vibrancy (how saturated the colors are)
             const colorVibrancy = this.calculateColorVibrancy(other.bodyColor);
@@ -213,11 +299,23 @@
             return (max - min);
         }
         
+        calculateColorMatch(color1, color2) {
+            // Calculate how close two colors are (0-1, where 1 is perfect match)
+            let match = 0;
+            for (let i = 0; i < 3; i++) {
+                match += 1 - Math.abs(color1[i] - color2[i]);
+            }
+            return match / 3;
+        }
+        
         detectPredator() {
             let closestShark = null;
             let closestDist = Infinity;
             
             for (const shark of sharks) {
+                // Only detect hunting sharks
+                if (!shark.isHunting()) continue;
+                
                 const dx = shark.x - this.x;
                 const dy = shark.y - this.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -232,6 +330,7 @@
         }
         update() {
             if (this.cooldown > 0) this.cooldown--;
+            this.age++;
             
             // First, check for predators
             const predator = this.detectPredator();
@@ -373,17 +472,38 @@
                 }
             }
             
-            // Draw fish scent cloud (invisible normally, debug only)
-            // ctx.fillStyle = `rgba(0, 100, 255, ${this.odorStrength * 0.05})`;
-            // ctx.beginPath();
-            // ctx.arc(0, 0, 80, 0, Math.PI * 2);
-            // ctx.fill();
-            
             // Draw body
             ctx.fillStyle = `rgb(${Math.floor(this.bodyColor[0]*255)},${Math.floor(this.bodyColor[1]*255)},${Math.floor(this.bodyColor[2]*255)})`;
             ctx.beginPath();
             ctx.ellipse(0, 0, this.bodyWidth * 15, this.bodyHeight * 10, 0, 0, Math.PI * 2);
             ctx.fill();
+            
+            // Draw patterns
+            if (this.hasStripes) {
+                ctx.fillStyle = `rgb(${Math.floor(this.stripeColor[0]*255)},${Math.floor(this.stripeColor[1]*255)},${Math.floor(this.stripeColor[2]*255)})`;
+                const stripeCount = Math.floor(3 + this.stripeDensity * 6);
+                const stripeWidth = (this.bodyWidth * 30) / stripeCount;
+                
+                for (let i = 0; i < stripeCount; i++) {
+                    const stripeX = -this.bodyWidth * 15 + i * stripeWidth;
+                    ctx.fillRect(stripeX, -this.bodyHeight * 10, stripeWidth * 0.6, this.bodyHeight * 20);
+                }
+            }
+            
+            if (this.hasSpots) {
+                ctx.fillStyle = `rgb(${Math.floor(this.spotColor[0]*255)},${Math.floor(this.spotColor[1]*255)},${Math.floor(this.spotColor[2]*255)})`;
+                const spotCount = Math.floor(3 + this.spotDensity * 8);
+                
+                for (let i = 0; i < spotCount; i++) {
+                    const spotX = (Math.random() - 0.5) * this.bodyWidth * 20;
+                    const spotY = (Math.random() - 0.5) * this.bodyHeight * 12;
+                    const spotSize = 1 + Math.random() * 3;
+                    
+                    ctx.beginPath();
+                    ctx.arc(spotX, spotY, spotSize, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
             
             // Draw tail fin
             ctx.fillStyle = `rgb(${Math.floor(this.finColor[0]*255)},${Math.floor(this.finColor[1]*255)},${Math.floor(this.finColor[2]*255)})`;
@@ -430,9 +550,11 @@
             this.bodyHeight = 0.8 + Math.random() * 0.4;
             this.finSize = 0.6 + Math.random() * 0.4;
             
-            // Color traits
+            // Color traits with patterns
             this.bodyColor = [0.3 + Math.random() * 0.3, 0.3 + Math.random() * 0.3, 0.3 + Math.random() * 0.3]; // Gray
             this.finColor = [0.2 + Math.random() * 0.2, 0.2 + Math.random() * 0.2, 0.4 + Math.random() * 0.4]; // Dark blue-gray
+            this.hasPatches = Math.random() < 0.5;
+            this.patchColor = [0.1 + Math.random() * 0.2, 0.1 + Math.random() * 0.2, 0.1 + Math.random() * 0.2]; // Dark patches
             
             // Position & movement
             this.x = Math.random() * width;
@@ -445,6 +567,8 @@
             this.visionAngle = Math.PI / 3 + Math.random() * Math.PI / 3;
             this.smellSensitivity = 0.01 + Math.random() * 0.05;
             this.huntSpeed = 1.3 + Math.random() * 0.7;
+            this.huntingCooldown = 0;  // Time until shark hunts again after eating
+            this.maxHuntingCooldown = 300 + Math.random() * 300; // Around 5-10 seconds of rest
             
             // Breeding state
             this.isFemale = Math.random() < 0.5;
@@ -454,6 +578,7 @@
             this.cooldown = 0;
             this.courtingPartner = null;
             this.courtingTime = 0;
+            this.age = 0;
             
             // Hunting state
             this.targetFish = null;
@@ -474,6 +599,19 @@
             for (let i = 0; i < 3; i++) {
                 this.bodyColor[i] = this.inheritTrait(parents[0].bodyColor[i], parents[1].bodyColor[i], mutationRate);
                 this.finColor[i] = this.inheritTrait(parents[0].finColor[i], parents[1].finColor[i], mutationRate);
+                this.patchColor[i] = this.inheritTrait(parents[0].patchColor[i], parents[1].patchColor[i], mutationRate);
+            }
+            
+            // Inherit pattern traits
+            if (Math.random() < 0.5) {
+                this.hasPatches = parents[0].hasPatches;
+            } else {
+                this.hasPatches = parents[1].hasPatches;
+            }
+            
+            // Chance for pattern mutation
+            if (Math.random() < mutationRate * 2) {
+                this.hasPatches = !this.hasPatches;
             }
             
             // Inherit hunting traits
@@ -481,10 +619,21 @@
             this.visionAngle = this.inheritTrait(parents[0].visionAngle, parents[1].visionAngle, mutationRate);
             this.smellSensitivity = this.inheritTrait(parents[0].smellSensitivity, parents[1].smellSensitivity, mutationRate);
             this.huntSpeed = this.inheritTrait(parents[0].huntSpeed, parents[1].huntSpeed, mutationRate);
+            this.maxHuntingCooldown = this.inheritTrait(parents[0].maxHuntingCooldown, parents[1].maxHuntingCooldown, mutationRate);
         }
         
         inheritTrait(parent1Trait, parent2Trait, mutationRate) {
-            let inherited = (parent1Trait + parent2Trait) / 2;
+            let inherited;
+            
+            // 50% chance to inherit from either parent, or blend them
+            const inheritType = Math.random();
+            if (inheritType < 0.4) {
+                inherited = parent1Trait;
+            } else if (inheritType < 0.8) {
+                inherited = parent2Trait;
+            } else {
+                inherited = (parent1Trait + parent2Trait) / 2;
+            }
             
             // Apply mutation
             if (Math.random() < mutationRate) {
@@ -495,7 +644,15 @@
             return Math.max(0.01, Math.min(3.0, inherited));
         }
         
+        isHunting() {
+            // Check if shark is currently in hunting mode
+            return this.fishEaten < 2 && this.huntingCooldown <= 0 && !this.courtingPartner;
+        }
+        
         findPrey() {
+            // Only hunt if not satiated and not in cooldown
+            if (!this.isHunting()) return null;
+            
             // Don't hunt breeding fish
             const huntableFish = fishes.filter(fish => !fish.courtingPartner);
             if (huntableFish.length === 0) return null;
@@ -540,13 +697,15 @@
         }
         update() {
             if (this.cooldown > 0) this.cooldown--;
+            if (this.huntingCooldown > 0) this.huntingCooldown--;
+            this.age++;
             
             if (this.courtingPartner) {
                 // Handle courtship
                 this.performCourtship();
             } else {
                 // Normal hunting behavior
-                if (this.fishEaten < 2 && !this.targetFish) {
+                if (this.isHunting() && !this.targetFish) {
                     this.targetFish = this.findPrey();
                 }
                 
@@ -572,6 +731,11 @@
                         if (this.fishEaten >= 1) {
                             this.canMate = true;
                         }
+                        
+                        // Start resting period after eating 2 fish
+                        if (this.fishEaten >= 2) {
+                            this.huntingCooldown = this.maxHuntingCooldown;
+                        }
                     }
                     
                     // Move faster when hunting
@@ -589,7 +753,7 @@
                 }
                 
                 // Look for mate if can mate
-                if (this.canMate && totalSharkEggsThisGeneration < 2 && this.cooldown === 0) {
+                if (this.canMate && totalSharkEggsThisGeneration < 3 && this.cooldown === 0) {
                     const mate = this.findMate();
                     
                     if (mate && !mate.courtingPartner) {
@@ -619,7 +783,6 @@
                 this.angle = -this.angle;
             }
         }
-        
         findMate() {
             for (const shark of sharks) {
                 if (shark !== this && 
@@ -631,6 +794,7 @@
             }
             return null;
         }
+        
         performCourtship() {
             const partner = this.courtingPartner;
             this.courtingTime++;
@@ -652,7 +816,7 @@
             
             // After 10 seconds (600 frames at 60fps), mate
             if (this.courtingTime > 600) {
-                if (this.isFemale && totalSharkEggsThisGeneration < 2) {
+                if (this.isFemale && totalSharkEggsThisGeneration < 3) {
                     // Female lays egg
                     sharkEggs.push({
                         x: this.x,
@@ -673,14 +837,13 @@
                 partner.courtingPartner = null;
             }
         }
-        
         draw(ctx) {
             ctx.save();
             ctx.translate(this.x, this.y);
             ctx.rotate(this.angle);
             
             // Draw vision cone if hunting
-            if (this.targetFish) {
+            if (this.isHunting() && this.targetFish) {
                 ctx.fillStyle = 'rgba(255, 0, 0, 0.1)';
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
@@ -701,6 +864,22 @@
             ctx.beginPath();
             ctx.ellipse(0, 0, this.bodyWidth * 25, this.bodyHeight * 15, 0, 0, Math.PI * 2);
             ctx.fill();
+            
+            // Draw patches if present
+            if (this.hasPatches) {
+                ctx.fillStyle = `rgb(${Math.floor(this.patchColor[0]*255)},${Math.floor(this.patchColor[1]*255)},${Math.floor(this.patchColor[2]*255)})`;
+                
+                // Draw random shaped patches
+                for (let i = 0; i < 6; i++) {
+                    const patchX = (Math.random() - 0.5) * this.bodyWidth * 40;
+                    const patchY = (Math.random() - 0.5) * this.bodyHeight * 22;
+                    const patchSize = 3 + Math.random() * 6;
+                    
+                    ctx.beginPath();
+                    ctx.ellipse(patchX, patchY, patchSize, patchSize * 0.6, Math.random() * Math.PI, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
             
             // Draw dorsal fin
             ctx.fillStyle = `rgb(${Math.floor(this.finColor[0]*255)},${Math.floor(this.finColor[1]*255)},${Math.floor(this.finColor[2]*255)})`;
@@ -726,6 +905,14 @@
             ctx.arc(this.bodyWidth * 15, -this.bodyHeight * 5, 5, 0, Math.PI * 2);
             ctx.arc(this.bodyWidth * 15, this.bodyHeight * 5, 5, 0, Math.PI * 2);
             ctx.fill();
+            
+            // Draw hunting status indicator
+            if (!this.isHunting() && this.fishEaten >= 2) {
+                ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
+                ctx.beginPath();
+                ctx.arc(this.bodyWidth * 15 + 10, 0, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
             
             ctx.restore();
         }
@@ -761,6 +948,7 @@
         fishEggs = [];
         sharkEggs = [];
         foodPellets = [];
+        generationTimer = 0;
         totalFishEggsThisGeneration = 0;
         totalSharkEggsThisGeneration = 0;
         totalFoodThisGeneration = 0;
@@ -769,13 +957,13 @@
         
         // Create 10 initial fish (5 males, 5 females)
         const fishColors = [
-            // Males
+            // Males - more vibrant colors
             { body: [0.2, 0.6, 1.0], eye: [1.0, 1.0, 0.0], fin: [0.1, 0.3, 0.8] },  // Blue
             { body: [0.8, 0.2, 0.2], eye: [1.0, 1.0, 0.0], fin: [0.9, 0.1, 0.1] },  // Red
             { body: [0.2, 0.8, 0.2], eye: [1.0, 1.0, 0.0], fin: [0.1, 0.6, 0.1] },  // Green
             { body: [0.8, 0.8, 0.2], eye: [0.0, 0.0, 0.0], fin: [0.6, 0.6, 0.1] },  // Yellow
             { body: [0.6, 0.3, 0.8], eye: [1.0, 1.0, 0.0], fin: [0.4, 0.2, 0.6] },  // Purple
-            // Females
+            // Females - more subtle colors
             { body: [1.0, 0.6, 0.2], eye: [0.8, 0.8, 0.2], fin: [0.8, 0.4, 0.1] },  // Orange
             { body: [0.2, 0.7, 0.7], eye: [1.0, 1.0, 0.0], fin: [0.1, 0.5, 0.5] },  // Teal
             { body: [0.8, 0.3, 0.5], eye: [1.0, 1.0, 1.0], fin: [0.6, 0.2, 0.4] },  // Pink
@@ -783,7 +971,7 @@
             { body: [0.9, 0.7, 0.3], eye: [0.2, 0.2, 0.8], fin: [0.7, 0.6, 0.2] }   // Gold
         ];
         
-        // Create the fish in a grid pattern
+        // Create the fish in a distributed pattern
         for (let i = 0; i < 10; i++) {
             const fish = new Fish();
             
@@ -795,15 +983,25 @@
             fish.eyeColor = fishColors[i].eye;
             fish.finColor = fishColors[i].fin;
             
-            // Position fish in a distributed pattern (2x5 grid)
-            const row = Math.floor(i / 5);
-            const col = i % 5;
-            fish.x = width * (0.2 + col * 0.15);
-            fish.y = height * (0.3 + row * 0.2);
+            // Position fish in a distributed pattern
+            const radius = width * 0.3;
+            const angleStep = (Math.PI * 2) / 10;
+            const angle = i * angleStep;
+            fish.x = width/2 + Math.cos(angle) * radius;
+            fish.y = height/2 + Math.sin(angle) * radius;
             
-            // Set initial state
-            fish.attractionThreshold = 0; // First generation will mate with lower standards
-            fish.foodPoints = 10;  // Start with some food
+            // Set some with stripes, some with spots
+            if (i % 3 === 0) {
+                fish.hasStripes = true;
+                fish.stripeColor = [Math.random(), Math.random(), Math.random()];
+            } else if (i % 3 === 1) {
+                fish.hasSpots = true;
+                fish.spotColor = [Math.random(), Math.random(), Math.random()];
+            }
+            
+            // Set initial state - first generation starts with food
+            fish.attractionThreshold = 0.8; // First generation has lower standards
+            fish.foodPoints = 15;  // Start with good amount of food
             fish.canMate = true;   // Ready to mate
             
             fishes.push(fish);
@@ -812,10 +1010,12 @@
         // Create initial sharks
         const maleShark = new Shark();
         maleShark.isFemale = false;
+        maleShark.fishEaten = 0;
         maleShark.canMate = false; // Need to eat fish first
         
         const femaleShark = new Shark();
         femaleShark.isFemale = true;
+        femaleShark.fishEaten = 0;
         femaleShark.canMate = false; // Need to eat fish first
         
         // Spread them out
@@ -830,12 +1030,13 @@
         spawnFood();
     }
     function spawnFood() {
-        // Spawn food pellets worth 72 points total (20% less than original 90)
+        // Spawn food pellets
         while (totalFoodThisGeneration < FOOD_PER_GENERATION) {
             foodPellets.push(new FoodPellet());
             totalFoodThisGeneration += 5;
         }
     }
+
     function findFishMate(fish) {
         if (fish.cooldown > 0) return null;
         
@@ -844,8 +1045,8 @@
         
         // Increase searching time and lower standards gradually
         fish.searchingTime++;
-        if (fish.searchingTime > 200) { // Lowered from 300
-            fish.attractionThreshold *= 0.99; // Lower standards faster
+        if (fish.searchingTime > 200) { // Lower standards after searching for a while
+            fish.attractionThreshold *= 0.995; // Lower standards gradually
         }
         
         if (fish.isFemale) {
@@ -903,7 +1104,6 @@
         
         return null;
     }
-    
     function performFishCourtship(fish) {
         const partner = fish.courtingPartner;
         fish.courtingTime++;
@@ -928,7 +1128,7 @@
         
         // After 10 seconds (600 frames at 60fps), check if mating succeeds
         if (fish.courtingTime > 600) {
-            if (fish.isFemale && totalFishEggsThisGeneration < 6) { // Check total eggs, not individual
+            if (fish.isFemale && totalFishEggsThisGeneration < MAX_FISH_EGGS) {
                 // For first generation, always mate successfully
                 let matingSuccess = false;
                 if (fishGeneration === 0) {
@@ -976,6 +1176,19 @@
     function update() {
         if (isPaused) return;
         
+        // Update generation timer
+        generationTimer++;
+        
+        // Check if generation time limit reached
+        const generationExpired = generationTimer >= MAX_GENERATION_TIME; 
+        const enoughEggs = totalFishEggsThisGeneration >= MAX_FISH_EGGS;
+        
+        // Start new generation if time expired or enough eggs
+        if (generationExpired || enoughEggs) {
+            startNewGeneration();
+            return;
+        }
+        
         // Update all fish
         for (let i = fishes.length - 1; i >= 0; i--) {
             const fish = fishes[i];
@@ -988,8 +1201,8 @@
                 fish.update();
             }
             
-            // Look for mates only if able
-            if (totalFishEggsThisGeneration < 6 && !fish.courtingPartner && fish.canMate) {
+            // Look for mates only if able and not too many eggs laid
+            if (totalFishEggsThisGeneration < MAX_FISH_EGGS && !fish.courtingPartner && fish.canMate) {
                 const mate = findFishMate(fish);
                 
                 if (mate && !mate.courtingPartner) {
@@ -1006,37 +1219,28 @@
         for (const shark of sharks) {
             shark.update();
         }
+        
         // Update fish eggs
         for (let i = fishEggs.length - 1; i >= 0; i--) {
             const egg = fishEggs[i];
             egg.hatchTime++;
             
             if (egg.hatchTime >= egg.maxHatchTime) {
-                // All parents die when 10 eggs are laid
-                if (totalFishEggsThisGeneration >= 10) {
-                    fishes = [];
-                    fishGeneration++;
-                    
-                    // Hatch all eggs at once
-                    for (let j = 0; j < fishEggs.length; j++) {
-                        const newFish = new Fish(fishEggs[j].parents);
-                        // Ensure we get 5 males and 5 females
-                        newFish.isFemale = j < 5;
-                        newFish.x = fishEggs[j].x + (Math.random() - 0.5) * 50;
-                        newFish.y = fishEggs[j].y + (Math.random() - 0.5) * 50;
-                        fishes.push(newFish);
-                    }
-                    
-                    fishEggs = [];
-                    totalFishEggsThisGeneration = 0;
-                    
-                    // Spawn food for new generation
-                    totalFoodThisGeneration = 0;
-                    foodPellets = [];
-                    spawnFood();
-                    
-                    break;
+                // Hatch single egg when ready
+                fishEggs.splice(i, 1);
+                
+                // If all eggs have been laid and we're starting a new generation,
+                // let startNewGeneration() handle it
+                if (totalFishEggsThisGeneration >= MAX_FISH_EGGS) {
+                    continue;
                 }
+                
+                // Otherwise hatch this individual egg
+                const newFish = new Fish(egg.parents);
+                newFish.isFemale = Math.random() < 0.5; // 50/50 gender chance
+                newFish.x = egg.x + (Math.random() - 0.5) * 50;
+                newFish.y = egg.y + (Math.random() - 0.5) * 50;
+                fishes.push(newFish);
             }
         }
         
@@ -1046,28 +1250,170 @@
             egg.hatchTime++;
             
             if (egg.hatchTime >= egg.maxHatchTime) {
-                // Sharks die when 3 eggs are laid
+                // Hatch single egg when ready
+                sharkEggs.splice(i, 1);
+                
+                // If all eggs have been laid and we're starting a new generation,
+                // let startNewGeneration() handle it
                 if (totalSharkEggsThisGeneration >= 3) {
-                    sharks = [];
-                    sharkGeneration++;
-                    
-                    // Hatch all eggs at once
-                    for (let j = 0; j < sharkEggs.length; j++) {
-                        const newShark = new Shark(sharkEggs[j].parents);
-                        // One male, one female
-                        newShark.isFemale = j < 1;
-                        newShark.x = sharkEggs[j].x + (Math.random() - 0.5) * 50;
-                        newShark.y = sharkEggs[j].y + (Math.random() - 0.5) * 50;
-                        sharks.push(newShark);
-                    }
-                    
-                    sharkEggs = [];
-                    totalSharkEggsThisGeneration = 0;
-                    
-                    break;
+                    continue;
+                }
+                
+                // Otherwise hatch this individual egg
+                const newShark = new Shark(egg.parents);
+                newShark.isFemale = Math.random() < 0.5; // 50/50 gender chance
+                newShark.x = egg.x + (Math.random() - 0.5) * 50;
+                newShark.y = egg.y + (Math.random() - 0.5) * 50;
+                sharks.push(newShark);
+            }
+        }
+    }
+    function startNewGeneration() {
+        // Increment generation counters
+        fishGeneration++;
+        
+        // Clear old adults
+        fishes = [];
+        
+        // Ensure we have at least FISH_PER_GENERATION eggs/fish
+        const availableEggs = fishEggs.length;
+        
+        // Hatch all eggs at once
+        let newFishes = [];
+        
+        for (let i = 0; i < fishEggs.length; i++) {
+            const newFish = new Fish(fishEggs[i].parents);
+            newFishes.push(newFish);
+        }
+        
+        // If not enough eggs were laid, create new fish based on surviving eggs
+        if (newFishes.length < FISH_PER_GENERATION && newFishes.length > 0) {
+            // Clone some existing fish to make up the numbers
+            while (newFishes.length < FISH_PER_GENERATION) {
+                // Pick random fish from new generation to clone
+                const templateFish = newFishes[Math.floor(Math.random() * newFishes.length)];
+                const cloneFish = new Fish([templateFish, templateFish]); // Self-crossing
+                
+                // Add extra mutation to clones
+                cloneFish.bodyWidth += (Math.random() - 0.5) * 0.4;
+                cloneFish.bodyHeight += (Math.random() - 0.5) * 0.4;
+                cloneFish.finSize += (Math.random() - 0.5) * 0.4;
+                
+                // Randomize colors more
+                for (let i = 0; i < 3; i++) {
+                    cloneFish.bodyColor[i] = Math.max(0, Math.min(1, cloneFish.bodyColor[i] + (Math.random() - 0.5) * 0.4));
+                    cloneFish.finColor[i] = Math.max(0, Math.min(1, cloneFish.finColor[i] + (Math.random() - 0.5) * 0.4));
+                    cloneFish.eyeColor[i] = Math.max(0, Math.min(1, cloneFish.eyeColor[i] + (Math.random() - 0.5) * 0.4));
+                }
+                
+                newFishes.push(cloneFish);
+            }
+        } else if (newFishes.length === 0) {
+            // If all fish died with no eggs, create a new starting generation
+            createInitialGeneration();
+            return;
+        }
+        
+        // Ensure gender balance (close to 50/50)
+        const targetFemales = Math.floor(newFishes.length / 2);
+        let females = 0;
+        
+        // Count females
+        for (const fish of newFishes) {
+            if (fish.isFemale) females++;
+        }
+        
+        // Adjust genders if needed
+        if (females !== targetFemales) {
+            // Change some fish genders to balance
+            const needMore = females < targetFemales;
+            const diff = Math.abs(females - targetFemales);
+            
+            let changed = 0;
+            for (const fish of newFishes) {
+                if (changed >= diff) break;
+                if (fish.isFemale !== needMore) {
+                    fish.isFemale = needMore;
+                    changed++;
                 }
             }
         }
+        
+        // Position fish around the aquarium
+        for (let i = 0; i < newFishes.length; i++) {
+            // Spread evenly in a circle
+            const angle = (i / newFishes.length) * Math.PI * 2;
+            const radius = Math.min(width, height) * 0.3;
+            
+            newFishes[i].x = width/2 + Math.cos(angle) * radius;
+            newFishes[i].y = height/2 + Math.sin(angle) * radius;
+            
+            // Reset fish state for new generation
+            newFishes[i].foodPoints = 0;
+            newFishes[i].canMate = false;
+            newFishes[i].age = 0;
+            newFishes[i].eggsLaid = 0;
+        }
+        
+        // Add new fish to simulation
+        fishes = newFishes;
+        
+        // Clear old eggs
+        fishEggs = [];
+        totalFishEggsThisGeneration = 0;
+        
+        // Handle shark generation if needed
+        if (totalSharkEggsThisGeneration >= 3) {
+            startNewSharkGeneration();
+        }
+        
+        // Reset generation timer
+        generationTimer = 0;
+        
+        // Spawn new food for new generation
+        totalFoodThisGeneration = 0;
+        foodPellets = [];
+        spawnFood();
+    }
+    
+    function startNewSharkGeneration() {
+        sharkGeneration++;
+        sharks = [];
+        
+        // Hatch all eggs at once
+        for (let i = 0; i < sharkEggs.length; i++) {
+            const newShark = new Shark(sharkEggs[i].parents);
+            // Ensure gender balance
+            newShark.isFemale = i < (sharkEggs.length / 2);
+            newShark.x = sharkEggs[i].x + (Math.random() - 0.5) * 50;
+            newShark.y = sharkEggs[i].y + (Math.random() - 0.5) * 50;
+            
+            // Reset shark state
+            newShark.fishEaten = 0;
+            newShark.canMate = false;
+            newShark.age = 0;
+            
+            sharks.push(newShark);
+        }
+        
+        // If no sharks were born, create new sharks
+        if (sharks.length === 0) {
+            const maleShark = new Shark();
+            maleShark.isFemale = false;
+            maleShark.x = width * 0.3;
+            maleShark.y = height * 0.7;
+            
+            const femaleShark = new Shark();
+            femaleShark.isFemale = true;
+            femaleShark.x = width * 0.7;
+            femaleShark.y = height * 0.7;
+            
+            sharks.push(maleShark, femaleShark);
+        }
+        
+        // Clear old eggs
+        sharkEggs = [];
+        totalSharkEggsThisGeneration = 0;
     }
     function draw() {
         // Draw dark deep blue background
@@ -1093,6 +1439,35 @@
             // Draw food pellet
             food.draw(ctx);
         }
+        
+        // Draw fish eggs
+        for (const egg of fishEggs) {
+            const progress = egg.hatchTime / egg.maxHatchTime;
+            ctx.fillStyle = `rgba(255, 255, 150, ${0.7 + progress * 0.3})`;
+            ctx.beginPath();
+            ctx.arc(egg.x, egg.y, 5 + progress * 3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Egg glow
+            ctx.strokeStyle = `rgba(255, 255, 200, ${0.3 - progress * 0.3})`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+        
+        // Draw shark eggs
+        for (const egg of sharkEggs) {
+            const progress = egg.hatchTime / egg.maxHatchTime;
+            ctx.fillStyle = `rgba(150, 150, 255, ${0.7 + progress * 0.3})`;
+            ctx.beginPath();
+            ctx.arc(egg.x, egg.y, 10 + progress * 5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Egg glow
+            ctx.strokeStyle = `rgba(200, 200, 255, ${0.3 - progress * 0.3})`;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+        
         // Draw fish
         for (const fish of fishes) {
             fish.draw(ctx);
@@ -1167,33 +1542,18 @@
             }
         }
         
-        // Draw fish eggs
-        for (const egg of fishEggs) {
-            const progress = egg.hatchTime / egg.maxHatchTime;
-            ctx.fillStyle = `rgba(255, 255, 150, ${0.7 + progress * 0.3})`;
-            ctx.beginPath();
-            ctx.arc(egg.x, egg.y, 5 + progress * 3, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Egg glow
-            ctx.strokeStyle = `rgba(255, 255, 200, ${0.3 - progress * 0.3})`;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-        }
+        // Draw generation timer
+        const timeLeft = MAX_GENERATION_TIME - generationTimer;
+        const timePercentage = timeLeft / MAX_GENERATION_TIME;
         
-        // Draw shark eggs
-        for (const egg of sharkEggs) {
-            const progress = egg.hatchTime / egg.maxHatchTime;
-            ctx.fillStyle = `rgba(150, 150, 255, ${0.7 + progress * 0.3})`;
-            ctx.beginPath();
-            ctx.arc(egg.x, egg.y, 10 + progress * 5, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Egg glow
-            ctx.strokeStyle = `rgba(200, 200, 255, ${0.3 - progress * 0.3})`;
-            ctx.lineWidth = 3;
-            ctx.stroke();
-        }
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(width/2 - 100, 15, 200, 10);
+        
+        // Timer bar
+        ctx.fillStyle = `rgb(${Math.floor(255 * (1-timePercentage))}, ${Math.floor(255 * timePercentage)}, 0)`;
+        ctx.fillRect(width/2 - 100, 15, 200 * timePercentage, 10);
+        ctx.restore();
         
         // Update info panel
         updateInfoPanel();
@@ -1203,8 +1563,12 @@
         let html = `<div style="font-size: 16px; margin-bottom: 5px;">Fish Generation: ${fishGeneration}</div>`;
         html += `<div style="font-size: 16px; margin-bottom: 10px;">Shark Generation: ${sharkGeneration}</div>`;
         
-        html += `<div>Fish Eggs: ${totalFishEggsThisGeneration}/6</div>`;
-        html += `<div>Shark Eggs: ${totalSharkEggsThisGeneration}/2</div>`;
+        // Generation timer
+        const timePercentage = Math.floor((MAX_GENERATION_TIME - generationTimer) / MAX_GENERATION_TIME * 100);
+        html += `<div>Generation Time: ${timePercentage}%</div>`;
+        
+        html += `<div>Fish Eggs: ${totalFishEggsThisGeneration}/${MAX_FISH_EGGS}</div>`;
+        html += `<div>Shark Eggs: ${totalSharkEggsThisGeneration}/3</div>`;
         html += `<div>Food Available: ${foodPellets.length * 5}</div>`;
         
         // Fish stats
@@ -1232,6 +1596,10 @@
             if (fish.isFemale) {
                 html += `<div>Female ${femaleFishIndex + 1}: ${fish.eggsLaid} eggs, ${fish.foodPoints} food</div>`;
                 femaleFishIndex++;
+                if (femaleFishIndex > 4) {
+                    html += `<div>... and ${fishes.filter(f => f.isFemale).length - 5} more</div>`;
+                    break;
+                }
             }
         }
         
@@ -1243,6 +1611,10 @@
             if (!fish.isFemale) {
                 html += `<div>Male ${maleFishIndex + 1}: ${fish.foodPoints} food</div>`;
                 maleFishIndex++;
+                if (maleFishIndex > 4) {
+                    html += `<div>... and ${fishes.filter(f => !f.isFemale).length - 5} more</div>`;
+                    break;
+                }
             }
         }
         
@@ -1252,6 +1624,7 @@
         // Shark counts
         const huntingSharks = sharks.filter(s => s.targetFish).length;
         const courtingSharks = sharks.filter(s => s.courtingPartner).length;
+        const restingSharks = sharks.filter(s => s.huntingCooldown > 0).length;
         
         html += `<div>Total Sharks: ${sharks.length}</div>`;
         if (huntingSharks > 0) {
@@ -1259,6 +1632,9 @@
         }
         if (courtingSharks > 0) {
             html += `<div>Courting: ${courtingSharks}</div>`;
+        }
+        if (restingSharks > 0) {
+            html += `<div>Resting: ${restingSharks}</div>`;
         }
         
         // Female shark stats
@@ -1285,7 +1661,6 @@
         
         infoDiv.innerHTML = html;
     }
-
     function animate() {
         update();
         draw();
