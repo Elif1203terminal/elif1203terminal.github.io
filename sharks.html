@@ -68,7 +68,7 @@
     let totalSharkEggsThisGeneration = 0;
     let totalFoodThisGeneration = 0;
     let isPaused = false;
-  class Fish {
+    class Fish {
         constructor(parents = null) {
             // Physical traits - wider ranges for more visible evolution
             this.bodyWidth = 0.6 + Math.random() * 0.8;
@@ -171,7 +171,7 @@
             this.fleeSpeed = this.inheritTrait(parents[0].fleeSpeed, parents[1].fleeSpeed, mutationRate);
             this.predatorDetectionRange = this.inheritTrait(parents[0].predatorDetectionRange, parents[1].predatorDetectionRange, mutationRate);
         }
-    inheritTrait(parent1Trait, parent2Trait, mutationRate) {
+        inheritTrait(parent1Trait, parent2Trait, mutationRate) {
             let inherited = (parent1Trait + parent2Trait) / 2;
             
             // Apply mutation
@@ -230,7 +230,6 @@
             
             return closestShark;
         }
-
         update() {
             if (this.cooldown > 0) this.cooldown--;
             
@@ -350,7 +349,7 @@
                 this.angle = -this.angle;
             }
         }
-    draw(ctx) {
+        draw(ctx) {
             ctx.save();
             ctx.translate(this.x, this.y);
             ctx.rotate(this.angle);
@@ -424,7 +423,7 @@
             return this.odorStrength * Math.exp(-distance * decayRate);
         }
     }
-  class Shark {
+    class Shark {
         constructor(parents = null) {
             // Physical traits
             this.bodyWidth = 1.2 + Math.random() * 0.6;
@@ -539,7 +538,7 @@
             
             return bestPrey;
         }
-    update() {
+        update() {
             if (this.cooldown > 0) this.cooldown--;
             
             if (this.courtingPartner) {
@@ -632,7 +631,6 @@
             }
             return null;
         }
-        
         performCourtship() {
             const partner = this.courtingPartner;
             this.courtingTime++;
@@ -732,7 +730,7 @@
             ctx.restore();
         }
     }
-  class FoodPellet {
+    class FoodPellet {
         constructor() {
             this.x = Math.random() * (width - 40) + 20;
             this.y = Math.random() * (height - 40) + 20;
@@ -757,7 +755,6 @@
             return this.scentStrength * Math.exp(-distance * this.scentDecayRate);
         }
     }
-
     function createInitialGeneration() {
         fishes = [];
         sharks = [];
@@ -770,32 +767,47 @@
         fishGeneration = 0;
         sharkGeneration = 0;
         
-        // Create initial fish
-        const maleFish = new Fish();
-        maleFish.isFemale = false;
-        maleFish.bodyColor = [0.2, 0.6, 1]; // Blue
-        maleFish.eyeColor = [1, 1, 0]; // Yellow
-        maleFish.finColor = [0.1, 0.3, 0.8]; // Dark blue
-        maleFish.attractionThreshold = 0; // First generation will mate regardless
-        maleFish.foodPoints = 10; // First generation starts fed
-        maleFish.canMate = true; // Ready to mate
+        // Create 10 initial fish (5 males, 5 females)
+        const fishColors = [
+            // Males
+            { body: [0.2, 0.6, 1.0], eye: [1.0, 1.0, 0.0], fin: [0.1, 0.3, 0.8] },  // Blue
+            { body: [0.8, 0.2, 0.2], eye: [1.0, 1.0, 0.0], fin: [0.9, 0.1, 0.1] },  // Red
+            { body: [0.2, 0.8, 0.2], eye: [1.0, 1.0, 0.0], fin: [0.1, 0.6, 0.1] },  // Green
+            { body: [0.8, 0.8, 0.2], eye: [0.0, 0.0, 0.0], fin: [0.6, 0.6, 0.1] },  // Yellow
+            { body: [0.6, 0.3, 0.8], eye: [1.0, 1.0, 0.0], fin: [0.4, 0.2, 0.6] },  // Purple
+            // Females
+            { body: [1.0, 0.6, 0.2], eye: [0.8, 0.8, 0.2], fin: [0.8, 0.4, 0.1] },  // Orange
+            { body: [0.2, 0.7, 0.7], eye: [1.0, 1.0, 0.0], fin: [0.1, 0.5, 0.5] },  // Teal
+            { body: [0.8, 0.3, 0.5], eye: [1.0, 1.0, 1.0], fin: [0.6, 0.2, 0.4] },  // Pink
+            { body: [0.5, 0.5, 0.5], eye: [1.0, 1.0, 0.0], fin: [0.3, 0.3, 0.3] },  // Gray
+            { body: [0.9, 0.7, 0.3], eye: [0.2, 0.2, 0.8], fin: [0.7, 0.6, 0.2] }   // Gold
+        ];
         
-        const femaleFish = new Fish();
-        femaleFish.isFemale = true;
-        femaleFish.bodyColor = [1, 0.6, 0.2]; // Orange
-        femaleFish.eyeColor = [0.8, 0.8, 0.2]; // Light yellow
-        femaleFish.finColor = [0.8, 0.4, 0.1]; // Red-orange
-        femaleFish.attractionThreshold = 0; // First generation will mate regardless
-        femaleFish.foodPoints = 10; // First generation starts fed
-        femaleFish.canMate = true; // Ready to mate
-        
-        // Spread them out in the tank
-        maleFish.x = width * 0.3;
-        maleFish.y = height * 0.3;
-        femaleFish.x = width * 0.7;
-        femaleFish.y = height * 0.3;
-        
-        fishes.push(maleFish, femaleFish);
+        // Create the fish in a grid pattern
+        for (let i = 0; i < 10; i++) {
+            const fish = new Fish();
+            
+            // Set gender
+            fish.isFemale = i >= 5;
+            
+            // Set colors
+            fish.bodyColor = fishColors[i].body;
+            fish.eyeColor = fishColors[i].eye;
+            fish.finColor = fishColors[i].fin;
+            
+            // Position fish in a distributed pattern (2x5 grid)
+            const row = Math.floor(i / 5);
+            const col = i % 5;
+            fish.x = width * (0.2 + col * 0.15);
+            fish.y = height * (0.3 + row * 0.2);
+            
+            // Set initial state
+            fish.attractionThreshold = 0; // First generation will mate with lower standards
+            fish.foodPoints = 10;  // Start with some food
+            fish.canMate = true;   // Ready to mate
+            
+            fishes.push(fish);
+        }
         
         // Create initial sharks
         const maleShark = new Shark();
@@ -817,14 +829,13 @@
         // Spawn food
         spawnFood();
     }
-  function spawnFood() {
+    function spawnFood() {
         // Spawn food pellets worth 72 points total (20% less than original 90)
         while (totalFoodThisGeneration < FOOD_PER_GENERATION) {
             foodPellets.push(new FoodPellet());
             totalFoodThisGeneration += 5;
         }
     }
-
     function findFishMate(fish) {
         if (fish.cooldown > 0) return null;
         
@@ -892,7 +903,8 @@
         
         return null;
     }
-  function performFishCourtship(fish) {
+    
+    function performFishCourtship(fish) {
         const partner = fish.courtingPartner;
         fish.courtingTime++;
         
@@ -961,7 +973,6 @@
             partner.courtingPartner = null;
         }
     }
-
     function update() {
         if (isPaused) return;
         
@@ -995,7 +1006,7 @@
         for (const shark of sharks) {
             shark.update();
         }
-      // Update fish eggs
+        // Update fish eggs
         for (let i = fishEggs.length - 1; i >= 0; i--) {
             const egg = fishEggs[i];
             egg.hatchTime++;
@@ -1058,7 +1069,6 @@
             }
         }
     }
-
     function draw() {
         // Draw dark deep blue background
         ctx.fillStyle = "#000522";
@@ -1083,7 +1093,7 @@
             // Draw food pellet
             food.draw(ctx);
         }
-      // Draw fish
+        // Draw fish
         for (const fish of fishes) {
             fish.draw(ctx);
             
@@ -1188,7 +1198,7 @@
         // Update info panel
         updateInfoPanel();
     }
-  function updateInfoPanel() {
+    function updateInfoPanel() {
         const infoDiv = document.getElementById('info');
         let html = `<div style="font-size: 16px; margin-bottom: 5px;">Fish Generation: ${fishGeneration}</div>`;
         html += `<div style="font-size: 16px; margin-bottom: 10px;">Shark Generation: ${sharkGeneration}</div>`;
