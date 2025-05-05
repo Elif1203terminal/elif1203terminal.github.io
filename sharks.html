@@ -1001,16 +1001,16 @@
             egg.hatchTime++;
             
             if (egg.hatchTime >= egg.maxHatchTime) {
-                // All parents die when 6 eggs are laid
-                if (totalFishEggsThisGeneration >= 6) {
+                // All parents die when 10 eggs are laid
+                if (totalFishEggsThisGeneration >= 10) {
                     fishes = [];
                     fishGeneration++;
                     
                     // Hatch all eggs at once
                     for (let j = 0; j < fishEggs.length; j++) {
                         const newFish = new Fish(fishEggs[j].parents);
-                        // Ensure we get 3 males and 3 females
-                        newFish.isFemale = j < 3;
+                        // Ensure we get 5 males and 5 females
+                        newFish.isFemale = j < 5;
                         newFish.x = fishEggs[j].x + (Math.random() - 0.5) * 50;
                         newFish.y = fishEggs[j].y + (Math.random() - 0.5) * 50;
                         fishes.push(newFish);
@@ -1035,8 +1035,8 @@
             egg.hatchTime++;
             
             if (egg.hatchTime >= egg.maxHatchTime) {
-                // Sharks die when 2 eggs are laid
-                if (totalSharkEggsThisGeneration >= 2) {
+                // Sharks die when 3 eggs are laid
+                if (totalSharkEggsThisGeneration >= 3) {
                     sharks = [];
                     sharkGeneration++;
                     
