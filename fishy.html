@@ -2,33 +2,181 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Evolutionary Fish Simulation</title>
+    <title>Enhanced Evolutionary Fish Simulation</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000033; }
-        canvas { display: block; }
-        #controls {
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: #000033; 
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        #info-panel {
             position: absolute;
             top: 10px;
-            left: 10px;
+            right: 10px;
             z-index: 10;
-            background: rgba(255,255,255,0.8);
+            background: rgba(0,0,0,0.6);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+            min-width: 200px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 10;
+        }
+        .control-button {
+            padding: 8px 16px;
+            margin: 5px;
+            background: rgba(0,100,200,0.8);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        .control-button:hover {
+            background: rgba(0,150,255,0.9);
+        }
+        #control-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            background: rgba(0,20,40,0.9);
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            min-width: 300px;
+            display: none;
+            box-shadow: 0 0 20px rgba(0,0,0,0.7);
+        }
+        .slider-container {
+            margin: 15px 0;
+        }
+        .slider-container label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .slider-container input {
+            width: 100%;
+        }
+        .slider-value {
+            display: inline-block;
+            width: 40px;
+            text-align: right;
+            margin-left: 10px;
+        }
+        .beauty-visualization {
+            position: absolute;
             padding: 10px;
             border-radius: 5px;
+            background: rgba(0,0,0,0.7);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            color: white;
+            max-width: 200px;
+            text-align: center;
         }
-        button { padding: 5px 10px; margin: 2px; }
+        #beauty-indicator {
+            width: 100%;
+            height: 8px;
+            background: linear-gradient(to right, blue, purple, red, orange, yellow);
+            margin-top: 5px;
+            border-radius: 4px;
+        }
+        #beauty-pointer {
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 10px solid white;
+            position: relative;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-bottom: -2px;
+        }
     </style>
 </head>
 <body>
-<canvas id="canvas"></canvas>
-<div id="controls">
-    <button id="resetBtn">Reset Simulation</button>
-</div>
-<script>
-    const canvas = document.getElementById('canvas');
+    <canvas id="canvas"></canvas>
+    
+    <div id="info-panel">
+        <h3>Fish Evolution</h3>
+        <div id="stats"></div>
+    </div>
+    
+    <div id="controls">
+        <button id="pauseBtn" class="control-button">Pause</button>
+        <button id="resetBtn" class="control-button">Reset</button>
+    </div>
+    
+    <div id="control-panel">
+        <h2>Simulation Controls</h2>
+        
+        <div class="slider-container">
+            <label for="mutationRate">Mutation Rate: <span id="mutationRateValue" class="slider-value">0.05</span></label>
+            <input type="range" id="mutationRate" min="0.01" max="0.2" step="0.01" value="0.05">
+        </div>
+        
+        <div class="slider-container">
+            <label for="beautyEvolutionRate">Beauty Evolution Rate: <span id="beautyEvolutionRateValue" class="slider-value">0.10</span></label>
+            <input type="range" id="beautyEvolutionRate" min="0.05" max="0.3" step="0.01" value="0.10">
+        </div>
+        
+        <div class="slider-container">
+            <label for="fishCount">Max Fish Count: <span id="fishCountValue" class="slider-value">12</span></label>
+            <input type="range" id="fishCount" min="6" max="30" step="2" value="12">
+        </div>
+        
+        <div class="slider-container">
+            <label for="foodPerGeneration">Food Per Generation: <span id="foodPerGenerationValue" class="slider-value">90</span></label>
+            <input type="range" id="foodPerGeneration" min="60" max="200" step="10" value="90">
+        </div>
+        
+        <div class="slider-container">
+            <label for="learningRate">Learning Rate: <span id="learningRateValue" class="slider-value">0.05</span></label>
+            <input type="range" id="learningRate" min="0.01" max="0.2" step="0.01" value="0.05">
+        </div>
+        
+        <button id="applyBtn" class="control-button">Apply & Resume</button>
+    </div>
+    
+    <div id="beauty-visualization" class="beauty-visualization">
+        <div>Beauty Preference</div>
+        <div id="beauty-pointer"></div>
+        <div id="beauty-indicator"></div>
+    </div>
+    
+    <script>
+        const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     let width = canvas.width = window.innerWidth;
     let height = canvas.height = window.innerHeight;
-
+    
+    // Simulation parameters - these can be modified via control panel
+    let CONFIG = {
+        mutationRate: 0.05,
+        beautyEvolutionRate: 0.10,
+        maxFishCount: 12,
+        foodPerGeneration: 90,
+        learningRate: 0.05
+    };
+    
+    // Simulation state
+    let paused = false;
+    let showFishDetails = false;
+    let selectedFish = null;
+    
     class Fish {
         constructor(parents = null) {
             // Physical traits
@@ -49,13 +197,17 @@
             this.angle = Math.random() * Math.PI * 2;
             this.speed = 1 + Math.random() * 0.5;
             
-            // Beauty preferences
+            // Beauty preferences - expanded to be more diverse and detailed
             this.beautyWeights = {
-                symmetry: 0.8 + Math.random() * 0.4,
-                eyeSize: 0.8 + Math.random() * 0.4,
-                finSize: 0.8 + Math.random() * 0.4,
-                bodyShape: 0.8 + Math.random() * 0.4,
-                colorVibrancy: 0.8 + Math.random() * 0.4
+                symmetry: 0.5 + Math.random() * 1.0,
+                eyeSize: 0.5 + Math.random() * 1.0,
+                finSize: 0.5 + Math.random() * 1.0,
+                bodyShape: 0.5 + Math.random() * 1.0,
+                colorVibrancy: 0.5 + Math.random() * 1.0,
+                bodyColor: [Math.random(), Math.random(), Math.random()], // Preferred body color
+                finColor: [Math.random(), Math.random(), Math.random()],  // Preferred fin color
+                eyeColor: [Math.random(), Math.random(), Math.random()],  // Preferred eye color
+                size: 0.5 + Math.random() * 1.0                           // Preferred overall size
             };
             
             // Breeding state
@@ -69,6 +221,7 @@
             this.courtingPartner = null;
             this.courtingTime = 0;
             this.dancePhase = 0;
+            this.breedingSuccess = 0.5 + Math.random() * 0.5; // Genetic breeding ability
             
             // Food and energy system
             this.foodPoints = 0;
@@ -85,12 +238,36 @@
             // Hunting strategy (0-1, where 0 = vision-based, 1 = smell-based)
             this.huntingStrategy = Math.random();
             
+            // Learning and memory
+            this.memory = {
+                successfulFoodSpots: [], // Remembers where food was found
+                successfulMates: [], // Remembers which fish had successful matings
+                observations: [] // General observations about environment
+            };
+            this.learningAbility = 0.5 + Math.random() * 0.5; // How quickly they learn
+            
+            // Social behavior
+            this.socialTendency = Math.random(); // 0 = loner, 1 = very social
+            this.leadFollowTendency = Math.random(); // 0 = follower, 1 = leader
+            
+            // Age and lifespan
+            this.age = 0;
+            this.ageSpeedFactor = 1.0; // Aging speed multiplier
+            
+            // Beauty display traits (how they show off to potential mates)
+            this.displayBehavior = Math.floor(Math.random() * 3); // 0 = dance, 1 = color flash, 2 = fin display
+            this.displayIntensity = 0.5 + Math.random() * 0.5;
+            
+            // Generate unique ID for this fish
+            this.id = Math.random().toString(36).substr(2, 9);
+            
             if (parents) this.inheritTraits(parents);
         }
 
         inheritTraits(parents) {
-            // Mutation rate approximately 5% per trait
-            const mutationRate = 0.05;
+            // Mutation rate from config
+            const mutationRate = CONFIG.mutationRate;
+            const beautyEvolutionRate = CONFIG.beautyEvolutionRate;
             
             // Inherit physical traits with mutation
             this.bodyWidth = this.inheritTrait(parents[0].bodyWidth, parents[1].bodyWidth, mutationRate);
@@ -106,13 +283,25 @@
                 this.finColor[i] = this.inheritTrait(parents[0].finColor[i], parents[1].finColor[i], mutationRate);
             }
             
-            // Inherit beauty preferences with mutation
+            // Inherit beauty preferences with mutation - higher rate for faster evolution
             for (const key in this.beautyWeights) {
-                this.beautyWeights[key] = this.inheritTrait(
-                    parents[0].beautyWeights[key], 
-                    parents[1].beautyWeights[key], 
-                    mutationRate * 2  // Beauty preferences evolve faster
-                );
+                if (Array.isArray(this.beautyWeights[key])) {
+                    // For color preferences
+                    for (let i = 0; i < 3; i++) {
+                        this.beautyWeights[key][i] = this.inheritTrait(
+                            parents[0].beautyWeights[key][i], 
+                            parents[1].beautyWeights[key][i], 
+                            beautyEvolutionRate
+                        );
+                    }
+                } else {
+                    // For numeric preferences
+                    this.beautyWeights[key] = this.inheritTrait(
+                        parents[0].beautyWeights[key], 
+                        parents[1].beautyWeights[key], 
+                        beautyEvolutionRate
+                    );
+                }
             }
             
             // Inherit food-finding abilities
@@ -121,22 +310,46 @@
             this.smellSensitivity = this.inheritTrait(parents[0].smellSensitivity, parents[1].smellSensitivity, mutationRate);
             this.foodSpeed = this.inheritTrait(parents[0].foodSpeed, parents[1].foodSpeed, mutationRate);
             this.huntingStrategy = this.inheritTrait(parents[0].huntingStrategy, parents[1].huntingStrategy, mutationRate);
+            
+            // Inherit learning and behavior traits
+            this.learningAbility = this.inheritTrait(parents[0].learningAbility, parents[1].learningAbility, mutationRate);
+            this.socialTendency = this.inheritTrait(parents[0].socialTendency, parents[1].socialTendency, mutationRate);
+            this.leadFollowTendency = this.inheritTrait(parents[0].leadFollowTendency, parents[1].leadFollowTendency, mutationRate);
+            this.breedingSuccess = this.inheritTrait(parents[0].breedingSuccess, parents[1].breedingSuccess, mutationRate * 0.5); // More stable
+            
+            // Inherit display behavior with possible mutation
+            if (Math.random() < mutationRate) {
+                this.displayBehavior = Math.floor(Math.random() * 3);
+            } else {
+                this.displayBehavior = Math.random() < 0.5 ? parents[0].displayBehavior : parents[1].displayBehavior;
+            }
+            this.displayIntensity = this.inheritTrait(parents[0].displayIntensity, parents[1].displayIntensity, mutationRate);
         }
 
         inheritTrait(parent1Trait, parent2Trait, mutationRate) {
-            let inherited = (parent1Trait + parent2Trait) / 2;
+            // Base inheritance - blend of parents with possible dominance
+            let dominanceFactor = Math.random();
+            let inherited = parent1Trait * dominanceFactor + parent2Trait * (1 - dominanceFactor);
             
             // Apply mutation
             if (Math.random() < mutationRate) {
-                inherited += (Math.random() - 0.5) * 0.2;
+                // Mutation strength proportional to the trait's value
+                const mutationStrength = 0.2;
+                inherited += (Math.random() - 0.5) * mutationStrength * inherited;
             }
             
-            // Keep values reasonable
-            return Math.max(0.1, Math.min(2.0, inherited));
+            // Keep values reasonable - add min/max constraints but allow for occasional extraordinary traits
+            if (Math.random() < 0.05) { // 5% chance of extraordinary trait
+                return Math.max(0.1, Math.min(3.0, inherited));
+            } else {
+                return Math.max(0.1, Math.min(2.0, inherited));
+            }
         }
 
         evaluateBeauty(other) {
             let score = 0;
+            
+            // Basic physical traits evaluation
             score += this.beautyWeights.symmetry * other.symmetry;
             score += this.beautyWeights.eyeSize * other.eyeSize;
             score += this.beautyWeights.finSize * other.finSize;
@@ -146,16 +359,54 @@
             const idealRatio = 1.5; 
             score += this.beautyWeights.bodyShape * (1 - Math.abs(idealRatio - bodyRatio));
             
+            // Size preference
+            const totalSize = other.bodyWidth * other.bodyHeight;
+            score += this.beautyWeights.size * (1 - Math.abs(1.0 - totalSize));
+            
+            // Color preference - how close colors are to preferred colors
+            const bodyColorMatch = this.colorSimilarity(this.beautyWeights.bodyColor, other.bodyColor);
+            const finColorMatch = this.colorSimilarity(this.beautyWeights.finColor, other.finColor);
+            const eyeColorMatch = this.colorSimilarity(this.beautyWeights.eyeColor, other.eyeColor);
+            score += bodyColorMatch * 0.6;
+            score += finColorMatch * 0.2;
+            score += eyeColorMatch * 0.2;
+            
             // Color vibrancy (how saturated the colors are)
             const colorVibrancy = this.calculateColorVibrancy(other.bodyColor);
             score += this.beautyWeights.colorVibrancy * colorVibrancy;
             
-            // Well-fed fish are slightly more attractive
+            // Display behavior preference
+            // Fish are more attracted to those with similar display behaviors
+            const displayMatch = 1 - Math.abs(this.displayBehavior - other.displayBehavior) / 3;
+            score += displayMatch * 0.5;
+            
+            // Well-fed fish are more attractive (good providers/resourceful)
             if (other.foodPoints > 10) {
                 score *= 1 + (other.foodPoints - 10) * 0.01; // Max 30% boost at 40 food points
             }
             
+            // Breeding success makes a fish more attractive (proven genetics)
+            if (other.eggsLaid > 0 || other.hasMated) {
+                score *= 1 + other.breedingSuccess * 0.2; // Up to 20% boost
+            }
+            
+            // Learning ability is slightly attractive (smarter fish)
+            score *= 1 + other.learningAbility * 0.1;
+            
+            // Social compatibility - similar social tendencies are slightly preferred
+            const socialCompatibility = 1 - Math.abs(this.socialTendency - other.socialTendency);
+            score *= 1 + socialCompatibility * 0.1;
+            
             return score;
+        }
+
+        colorSimilarity(color1, color2) {
+            // Calculate how similar two colors are (0-1)
+            let similarity = 0;
+            for (let i = 0; i < 3; i++) {
+                similarity += 1 - Math.abs(color1[i] - color2[i]);
+            }
+            return similarity / 3; // Average across RGB channels
         }
 
         calculateColorVibrancy(color) {
@@ -164,14 +415,137 @@
             return (max - min);
         }
 
+        learn(observation, type) {
+            // Fish learn from observations based on their learning ability
+            if (Math.random() < this.learningAbility * CONFIG.learningRate) {
+                // Limit memory size to prevent performance issues
+                if (this.memory[type].length >= 5) {
+                    this.memory[type].shift(); // Remove oldest memory
+                }
+                
+                // Add new observation to memory
+                this.memory[type].push(observation);
+                
+                // Return true if learning was successful
+                return true;
+            }
+            return false;
+        }
+
+        getMemory(type) {
+            // Retrieve memory of specified type, or null if none exists
+            if (this.memory[type] && this.memory[type].length > 0) {
+                // Weight recent memories more strongly
+                const index = Math.floor(Math.random() * Math.random() * this.memory[type].length);
+                return this.memory[type][index];
+            }
+            return null;
+        }
+
         update() {
+            if (paused) return;
+            
             if (this.cooldown > 0) this.cooldown--;
+            this.age += 0.01 * this.ageSpeedFactor;
+            
+            // Social learning - observe other fish's behavior
+            this.observeOtherFish();
             
             // Find food if not yet able to mate
             if (!this.canMate && !this.targetFood) {
-                let bestFood = null;
-                let bestScore = -Infinity;
-                
+                this.findFood();
+            }
+            
+            // Move towards food if hunting, or towards mate if courting,
+            // otherwise normal swimming
+            if (this.targetFood && !this.canMate) {
+                this.moveTowardsFood();
+            } else if (this.courtingPartner) {
+                // Do nothing - courtship movement handled in performCourtship
+            } else {
+                this.swim();
+            }
+            
+            // Stay within boundaries
+            this.enforceBoundaries();
+        }
+        
+        observeOtherFish() {
+            // Observe successful fish nearby and learn from them
+            if (Math.random() < 0.05 * this.learningAbility) {
+                // Find nearby fish to observe
+                for (const other of fishes) {
+                    if (other === this) continue;
+                    
+                    const dx = other.x - this.x;
+                    const dy = other.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Only observe fish within vision range
+                    if (dist < this.visionRange) {
+                        // Learn from successful hunters
+                        if (other.foodPoints > this.foodPoints + 10) {
+                            // Adjust hunting strategy slightly towards observed fish
+                            const learningStrength = 0.1 * this.learningAbility;
+                            this.huntingStrategy += (other.huntingStrategy - this.huntingStrategy) * learningStrength;
+                            
+                            // Maybe adjust vision/smell parameters
+                            if (Math.random() < this.learningAbility) {
+                                this.visionRange += (other.visionRange - this.visionRange) * learningStrength;
+                                this.smellSensitivity += (other.smellSensitivity - this.smellSensitivity) * learningStrength;
+                            }
+                            
+                            this.learn({ 
+                                id: other.id,
+                                strategy: other.huntingStrategy,
+                                success: other.foodPoints
+                            }, 'observations');
+                        }
+                        
+                        // Learn from successful breeders
+                        if (other.eggsLaid > 0 && this.isFemale) {
+                            // Learn about beauty preferences from successful females
+                            const learningStrength = 0.05 * this.learningAbility;
+                            for (const key in this.beautyWeights) {
+                                if (typeof this.beautyWeights[key] === 'number') {
+                                    this.beautyWeights[key] += (other.beautyWeights[key] - this.beautyWeights[key]) * learningStrength;
+                                }
+                            }
+                            
+                            this.learn({
+                                id: other.id,
+                                eggsLaid: other.eggsLaid,
+                                beautyPreferences: { ...other.beautyWeights }
+                            }, 'successfulMates');
+                        }
+                    }
+                }
+            }
+        }
+        
+        findFood() {
+            let bestFood = null;
+            let bestScore = -Infinity;
+            
+            // Check if there's a remembered food spot to try
+            const foodMemory = this.getMemory('successfulFoodSpots');
+            if (foodMemory && Math.random() < this.learningAbility) {
+                // Check if any food is near the remembered spot
+                for (const food of foodPellets) {
+                    const distToMemory = Math.sqrt(
+                        Math.pow(food.x - foodMemory.x, 2) + 
+                        Math.pow(food.y - foodMemory.y, 2)
+                    );
+                    
+                    if (distToMemory < 100) { // If food is near remembered spot
+                        bestFood = food;
+                        break;
+                    }
+                }
+            }
+            
+            // If no remembered spot or no food found there, use normal detection
+            if (!bestFood) {
                 for (const food of foodPellets) {
                     const dx = food.x - this.x;
                     const dy = food.y - this.y;
@@ -205,51 +579,96 @@
                         bestFood = food;
                     }
                 }
-                
-                this.targetFood = bestFood;
             }
             
-            // Move towards food if hunting, otherwise normal swimming
-            if (this.targetFood && !this.canMate) {
-                const dx = this.targetFood.x - this.x;
-                const dy = this.targetFood.y - this.y;
-                this.angle = Math.atan2(dy, dx);
+            // Set target food
+            this.targetFood = bestFood;
+        }
+        
+        moveTowardsFood() {
+            const dx = this.targetFood.x - this.x;
+            const dy = this.targetFood.y - this.y;
+            this.angle = Math.atan2(dy, dx);
+            
+            // Check if reached food
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 10) {
+                this.foodPoints += this.targetFood.value;
                 
-                // Check if reached food
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < 10) {
-                    this.foodPoints += this.targetFood.value;
-                    const index = foodPellets.indexOf(this.targetFood);
-                    if (index > -1) {
-                        foodPellets.splice(index, 1);
-                    }
-                    this.targetFood = null;
+                // Remember this spot as good for food
+                this.learn({
+                    x: this.targetFood.x,
+                    y: this.targetFood.y,
+                    value: this.targetFood.value
+                }, 'successfulFoodSpots');
+                
+                // Remove the food pellet
+                const index = foodPellets.indexOf(this.targetFood);
+                if (index > -1) {
+                    foodPellets.splice(index, 1);
+                }
+                this.targetFood = null;
+                
+                // Check if can mate now
+                if (this.foodPoints >= 10) {
+                    this.canMate = true;
+                }
+            }
+            
+            // Move faster when hunting food
+            this.x += Math.cos(this.angle) * this.speed * this.foodSpeed;
+            this.y += Math.sin(this.angle) * this.speed * this.foodSpeed;
+        }
+        
+        swim() {
+            // Normal swimming behavior
+            this.wanderAngle = this.wanderAngle || 0;
+            this.wanderAngle += (Math.random() - 0.5) * 0.3;
+            this.angle += Math.sin(this.wanderAngle) * 0.03;
+            
+            // Social fish tend to swim towards others
+            if (this.socialTendency > 0.7 && Math.random() < 0.05) {
+                // Find center of nearby fish
+                let centerX = 0;
+                let centerY = 0;
+                let count = 0;
+                
+                for (const other of fishes) {
+                    if (other === this) continue;
                     
-                    // Check if can mate now
-                    if (this.foodPoints >= 10) {
-                        this.canMate = true;
+                    const dx = other.x - this.x;
+                    const dy = other.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < 150) {
+                        centerX += other.x;
+                        centerY += other.y;
+                        count++;
                     }
                 }
                 
-                // Move faster when hunting food
-                this.x += Math.cos(this.angle) * this.speed * this.foodSpeed;
-                this.y += Math.sin(this.angle) * this.speed * this.foodSpeed;
-            } else {
-                // Normal swimming behavior
-                this.wanderAngle = this.wanderAngle || 0;
-                this.wanderAngle += (Math.random() - 0.5) * 0.3;
-                this.angle += Math.sin(this.wanderAngle) * 0.03;
-                
-                // Normal speed
-                this.x += Math.cos(this.angle) * this.speed;
-                this.y += Math.sin(this.angle) * this.speed;
+                if (count > 0) {
+                    centerX /= count;
+                    centerY /= count;
+                    
+                    // Adjust angle slightly towards center
+                    const toCenterAngle = Math.atan2(centerY - this.y, centerX - this.x);
+                    const angleDiff = toCenterAngle - this.angle;
+                    this.angle += Math.sin(angleDiff) * 0.05 * this.socialTendency;
+                }
             }
+            
+            // Normal speed
+            this.x += Math.cos(this.angle) * this.speed;
+            this.y += Math.sin(this.angle) * this.speed;
             
             // Vary base speed occasionally
             if (Math.random() < 0.01) {
                 this.speed = 0.8 + Math.random() * 1.2;
             }
-            
+        }
+        
+        enforceBoundaries() {
             // Hard boundaries - bounce off walls
             const margin = 20;
             if (this.x < margin) {
@@ -292,6 +711,25 @@
                 }
             }
             
+            // Special effect for displaying to potential mates
+            if (this.courtingPartner) {
+                switch (this.displayBehavior) {
+                    case 0: // Dance display - wiggling
+                        // This is handled in the courtship movement
+                        break;
+                    case 1: // Color flash - temporarily brighten colors
+                        const intensity = 0.3 + 0.7 * Math.sin(Date.now() * 0.01 * this.displayIntensity);
+                        for (let i = 0; i < 3; i++) {
+                            this.bodyColor[i] = Math.min(1, this.bodyColor[i] * (1 + intensity * 0.3));
+                            this.finColor[i] = Math.min(1, this.finColor[i] * (1 + intensity * 0.3));
+                        }
+                        break;
+                    case 2: // Fin display - temporarily enlarge fins
+                        const finSizeMultiplier = 1 + 0.5 * Math.sin(Date.now() * 0.01 * this.displayIntensity);
+                        break;
+                }
+            }
+            
             // Draw body
             ctx.fillStyle = `rgb(${Math.floor(this.bodyColor[0]*255)},${Math.floor(this.bodyColor[1]*255)},${Math.floor(this.bodyColor[2]*255)})`;
             ctx.beginPath();
@@ -299,11 +737,15 @@
             ctx.fill();
             
             // Draw tail fin
+            const displayedFinSize = this.courtingPartner && this.displayBehavior === 2 ? 
+                  this.finSize * (1 + 0.5 * Math.sin(Date.now() * 0.01 * this.displayIntensity)) : 
+                  this.finSize;
+                  
             ctx.fillStyle = `rgb(${Math.floor(this.finColor[0]*255)},${Math.floor(this.finColor[1]*255)},${Math.floor(this.finColor[2]*255)})`;
             ctx.beginPath();
             ctx.moveTo(-this.bodyWidth * 15, 0);
-            ctx.lineTo(-this.bodyWidth * 15 - this.finSize * 20, -this.finSize * 10);
-            ctx.lineTo(-this.bodyWidth * 15 - this.finSize * 20, this.finSize * 10);
+            ctx.lineTo(-this.bodyWidth * 15 - displayedFinSize * 20, -displayedFinSize * 10);
+            ctx.lineTo(-this.bodyWidth * 15 - displayedFinSize * 20, displayedFinSize * 10);
             ctx.closePath();
             ctx.fill();
             
@@ -322,7 +764,87 @@
             ctx.arc(this.bodyWidth * 5, eyeOffset, this.eyeSize * 2, 0, Math.PI * 2);
             ctx.fill();
             
+            // Draw gender indicator (subtle)
+            ctx.fillStyle = this.isFemale ? 'rgba(255, 150, 150, 0.7)' : 'rgba(150, 150, 255, 0.7)';
+            ctx.beginPath();
+            ctx.arc(this.bodyWidth * 10, 0, 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw "selected" indicator if this is the selected fish
+            if (this === selectedFish) {
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.ellipse(0, 0, this.bodyWidth * 20, this.bodyHeight * 15, 0, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+            
             ctx.restore();
+            
+            // Draw additional status indicators above fish (in world coordinates)
+            this.drawStatusIndicators(ctx);
+        }
+        
+        drawStatusIndicators(ctx) {
+            const indicatorY = this.y - 25;
+            
+            // Draw heart above courting fish
+            if (this.courtingPartner) {
+                ctx.save();
+                ctx.translate(this.x, indicatorY);
+                ctx.fillStyle = 'rgba(255, 105, 180, 0.8)';
+                ctx.beginPath();
+                ctx.moveTo(0, -5);
+                ctx.bezierCurveTo(-5, -10, -10, -5, -10, 0);
+                ctx.bezierCurveTo(-10, 5, -5, 10, 0, 15);
+                ctx.bezierCurveTo(5, 10, 10, 5, 10, 0);
+                ctx.bezierCurveTo(10, -5, 5, -10, 0, -5);
+                ctx.fill();
+                ctx.restore();
+            }
+            
+            // Draw food bar for fish
+            if (this.foodPoints > 0) {
+                ctx.save();
+                ctx.translate(this.x, this.y + 15);
+                
+                // Background bar
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(-15, 0, 30, 3);
+                
+                // Food bar
+                const foodBarWidth = Math.min(30, (this.foodPoints / 40) * 30);
+                ctx.fillStyle = this.foodPoints >= 10 ? '#00ff00' : '#ffff00';
+                ctx.fillRect(-15, 0, foodBarWidth, 3);
+                
+                ctx.restore();
+            }
+            
+            // Draw learning indicator for fish that just learned something
+            if (this.memory.observations.length > 0 && Math.random() < 0.01) {
+                ctx.save();
+                ctx.translate(this.x, indicatorY - 15);
+                ctx.fillStyle = 'rgba(100, 200, 255, 0.8)';
+                ctx.beginPath();
+                ctx.arc(0, 0, 5, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw light rays
+                const rayLength = 5 + Math.sin(Date.now() * 0.01) * 2;
+                ctx.strokeStyle = 'rgba(100, 200, 255, 0.5)';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI * 2;
+                    ctx.beginPath();
+                    ctx.moveTo(Math.cos(angle) * 5, Math.sin(angle) * 5);
+                    ctx.lineTo(Math.cos(angle) * (5 + rayLength), Math.sin(angle) * (5 + rayLength));
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            }
         }
     }
 
@@ -332,7 +854,6 @@
     let generation = 0;
     let totalEggsThisGeneration = 0;
     let totalFoodThisGeneration = 0;
-    const FOOD_PER_GENERATION = 90;
 
     class FoodPellet {
         constructor() {
@@ -366,40 +887,64 @@
         foodPellets = [];
         totalEggsThisGeneration = 0;
         totalFoodThisGeneration = 0;
+        generation = 0;
         
-        // Create first pair
-        const male = new Fish();
-        male.isFemale = false;
-        male.bodyColor = [0.2, 0.6, 1]; // Blue
-        male.eyeColor = [1, 1, 0]; // Yellow
-        male.finColor = [0.1, 0.3, 0.8]; // Dark blue
-        male.attractionThreshold = 0; // First generation will mate regardless
-        male.foodPoints = 10; // First generation starts fed
-        male.canMate = true; // Ready to mate
+        // Create first generation - 6 fish (3 males, 3 females)
+        for (let i = 0; i < 6; i++) {
+            const fish = new Fish();
+            fish.isFemale = i < 3; // First 3 are females
+            
+            // Assign distinct colors to make it easier to identify them
+            const hue = (i / 6) * 360;
+            const [r, g, b] = hslToRgb(hue / 360, 0.7, 0.5);
+            fish.bodyColor = [r, g, b];
+            
+            // Spread them out in the tank
+            const angle = (i / 6) * Math.PI * 2;
+            const radius = Math.min(width, height) * 0.3;
+            fish.x = width / 2 + Math.cos(angle) * radius;
+            fish.y = height / 2 + Math.sin(angle) * radius;
+            
+            // First generation starts with food
+            fish.foodPoints = 10;
+            fish.canMate = true;
+            
+            fishes.push(fish);
+        }
         
-        const female = new Fish();
-        female.isFemale = true;
-        female.bodyColor = [1, 0.6, 0.2]; // Orange
-        female.eyeColor = [0.8, 0.8, 0.2]; // Light yellow
-        female.finColor = [0.8, 0.4, 0.1]; // Red-orange
-        female.attractionThreshold = 0; // First generation will mate regardless
-        female.foodPoints = 10; // First generation starts fed
-        female.canMate = true; // Ready to mate
+        // No food for first generation since they start fed
+    }
+    
+    function hslToRgb(h, s, l) {
+        let r, g, b;
         
-        // Spread them out in the tank
-        male.x = width * 0.3;
-        male.y = height * 0.5;
-        female.x = width * 0.7;
-        female.y = height * 0.5;
+        if (s === 0) {
+            r = g = b = l; // Achromatic
+        } else {
+            const hue2rgb = (p, q, t) => {
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1/6) return p + (q - p) * 6 * t;
+                if (t < 1/2) return q;
+                if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                return p;
+            };
+            
+            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            const p = 2 * l - q;
+            
+            r = hue2rgb(p, q, h + 1/3);
+            g = hue2rgb(p, q, h);
+            b = hue2rgb(p, q, h - 1/3);
+        }
         
-        fishes.push(male, female);
-        
-        // Don't spawn food for first generation since they start fed
+        return [r, g, b];
     }
 
     function spawnFood() {
-        // Spawn food pellets worth 90 points total
-        while (totalFoodThisGeneration < FOOD_PER_GENERATION) {
+        // Spawn food pellets worth foodPerGeneration points total
+        const targetFood = CONFIG.foodPerGeneration;
+        while (totalFoodThisGeneration < targetFood) {
             foodPellets.push(new FoodPellet());
             totalFoodThisGeneration += 5;
         }
@@ -481,31 +1026,51 @@
         const centerX = (fish.x + partner.x) / 2;
         const centerY = (fish.y + partner.y) / 2;
         
-        // Smaller, more subtle mating dance
-        const radius = 15; // Reduced from 30
-        const speed = 0.05; // Slower dance
-        fish.dancePhase += speed;
+        // Different courtship movements based on display behavior
+        let radius = 15;
+        let speed = 0.05;
         
-        // Subtle figure-8 pattern
-        const offset = fish.isFemale ? 0 : Math.PI;
-        const pattern = Math.sin(fish.dancePhase * 2);
-        fish.x = centerX + Math.cos(fish.dancePhase + offset) * radius * (1 + 0.3 * pattern);
-        fish.y = centerY + Math.sin(fish.dancePhase + offset) * radius;
+        switch (fish.displayBehavior) {
+            case 0: // Dance pattern - figure 8
+                fish.dancePhase += speed * fish.displayIntensity;
+                const pattern = Math.sin(fish.dancePhase * 2);
+                const offset = fish.isFemale ? 0 : Math.PI;
+                fish.x = centerX + Math.cos(fish.dancePhase + offset) * radius * (1 + 0.3 * pattern);
+                fish.y = centerY + Math.sin(fish.dancePhase + offset) * radius;
+                break;
+                
+            case 1: // Color flash - subtle movement in place
+                fish.dancePhase += speed * 0.7;
+                fish.x = centerX + (fish.isFemale ? -1 : 1) * radius * 0.7;
+                fish.y = centerY + Math.sin(fish.dancePhase) * radius * 0.3;
+                break;
+                
+            case 2: // Fin display - circling
+                fish.dancePhase += speed * fish.displayIntensity;
+                const circleOffset = fish.isFemale ? 0 : Math.PI;
+                fish.x = centerX + Math.cos(fish.dancePhase + circleOffset) * radius;
+                fish.y = centerY + Math.sin(fish.dancePhase + circleOffset) * radius;
+                break;
+        }
         
         // Face each other
         fish.angle = Math.atan2(partner.y - fish.y, partner.x - fish.x);
         
         // After 10 seconds (600 frames at 60fps), check if mating succeeds
         if (fish.courtingTime > 600) {
-            if (fish.isFemale && totalEggsThisGeneration < 6) { // Check total eggs, not individual
-                // For first generation, always mate successfully
+            const maxEggs = CONFIG.maxFishCount / 2; // Half the max fish count can be eggs
+            
+            if (fish.isFemale && totalEggsThisGeneration < maxEggs) {
+                // First generation always mates successfully
                 let matingSuccess = false;
                 if (generation === 0) {
                     matingSuccess = true;
                 } else {
-                    // Female might reject the male even after courtship
+                    // Mating success depends on beauty score and breeding success trait
                     const finalAttraction = fish.evaluateBeauty(partner);
-                    matingSuccess = finalAttraction > (fish.attractionThreshold * 0.8); // Lowered threshold for mating
+                    const breedingSuccessChance = (fish.breedingSuccess + partner.breedingSuccess) / 2;
+                    matingSuccess = finalAttraction > (fish.attractionThreshold * 0.8) && 
+                                   Math.random() < breedingSuccessChance;
                 }
                 
                 if (matingSuccess) {
@@ -518,12 +1083,28 @@
                         parents: [fish, partner]
                     });
                     
+                    // Update breeding stats
                     fish.eggsLaid++;
+                    fish.hasMated = true;
+                    partner.hasMated = true;
                     totalEggsThisGeneration++;
                     
+                    // Learn from successful mating
+                    fish.learn({
+                        partnerId: partner.id,
+                        attractiveness: fish.evaluateBeauty(partner),
+                        displayBehavior: partner.displayBehavior
+                    }, 'successfulMates');
+                    
+                    partner.learn({
+                        partnerId: fish.id,
+                        attractiveness: partner.evaluateBeauty(fish),
+                        displayBehavior: fish.displayBehavior
+                    }, 'successfulMates');
+                    
                     // Shorter cooldown to allow for multiple matings
-                    fish.cooldown = 60;
-                    partner.cooldown = 30; // Male has shorter cooldown
+                    fish.cooldown = 120;
+                    partner.cooldown = 60; // Male has shorter cooldown
                     
                     // Reset attraction threshold for next mating
                     fish.attractionThreshold = 1.5;
@@ -544,6 +1125,8 @@
     }
 
     function update() {
+        if (paused) return;
+        
         // Update all fish
         for (const fish of fishes) {
             if (fish.courtingPartner) {
@@ -555,7 +1138,8 @@
             }
             
             // Look for mates only if able
-            if (totalEggsThisGeneration < 6 && !fish.courtingPartner && fish.canMate) {
+            const maxEggs = CONFIG.maxFishCount / 2;
+            if (totalEggsThisGeneration < maxEggs && !fish.courtingPartner && fish.canMate) {
                 const mate = findMate(fish);
                 
                 if (mate && !mate.courtingPartner) {
@@ -574,16 +1158,19 @@
             egg.hatchTime++;
             
             if (egg.hatchTime >= egg.maxHatchTime) {
-                // All parents die when 6 eggs are laid
-                if (totalEggsThisGeneration >= 6) {
+                // Check if we've reached the maximum number of eggs
+                const maxEggs = CONFIG.maxFishCount / 2;
+                
+                if (totalEggsThisGeneration >= maxEggs || generation === 0) {
+                    // Move to the next generation
                     fishes = [];
                     generation++;
                     
                     // Hatch all eggs at once
                     for (let j = 0; j < eggs.length; j++) {
                         const newFish = new Fish(eggs[j].parents);
-                        // Ensure we get 3 males and 3 females
-                        newFish.isFemale = j < 3;
+                        // Ensure balanced gender distribution
+                        newFish.isFemale = j < eggs.length / 2;
                         newFish.x = eggs[j].x + (Math.random() - 0.5) * 50;
                         newFish.y = eggs[j].y + (Math.random() - 0.5) * 50;
                         fishes.push(newFish);
@@ -592,14 +1179,39 @@
                     eggs = [];
                     totalEggsThisGeneration = 0;
                     
-                    // Spawn food for new generation - exactly 90 points
+                    // Spawn food for new generation
                     totalFoodThisGeneration = 0;
                     foodPellets = [];
                     spawnFood();
                     
+                    // Update UI to show we've moved to a new generation
+                    updateStats();
+                    
                     break;
+                } else {
+                    // Just hatch this individual egg
+                    const newFish = new Fish(egg.parents);
+                    // Alternate genders for balance
+                    newFish.isFemale = fishes.filter(f => f.isFemale).length < fishes.length / 2;
+                    newFish.x = egg.x + (Math.random() - 0.5) * 50;
+                    newFish.y = egg.y + (Math.random() - 0.5) * 50;
+                    fishes.push(newFish);
+                    
+                    // Remove the hatched egg
+                    eggs.splice(i, 1);
                 }
             }
+        }
+        
+        // Spawn more food if needed (always keep at least 3 food pellets available)
+        if (foodPellets.length < 3 && totalFoodThisGeneration < CONFIG.foodPerGeneration) {
+            foodPellets.push(new FoodPellet());
+            totalFoodThisGeneration += 5;
+        }
+        
+        // Occasionally update stats display (not every frame to save performance)
+        if (Math.random() < 0.01) {
+            updateStats();
         }
     }
 
@@ -628,43 +1240,6 @@
             food.draw(ctx);
         }
         
-        // Draw fish
-        for (const fish of fishes) {
-            fish.draw(ctx);
-            
-            // Draw heart above courting fish
-            if (fish.courtingPartner) {
-                ctx.save();
-                ctx.translate(fish.x, fish.y - 20);
-                ctx.fillStyle = 'rgba(255, 105, 180, 0.8)';
-                ctx.beginPath();
-                ctx.moveTo(0, -5);
-                ctx.bezierCurveTo(-5, -10, -10, -5, -10, 0);
-                ctx.bezierCurveTo(-10, 5, -5, 10, 0, 15);
-                ctx.bezierCurveTo(5, 10, 10, 5, 10, 0);
-                ctx.bezierCurveTo(10, -5, 5, -10, 0, -5);
-                ctx.fill();
-                ctx.restore();
-            }
-            
-            // Draw food bar for fish
-            if (fish.foodPoints > 0) {
-                ctx.save();
-                ctx.translate(fish.x, fish.y + 15);
-                
-                // Background bar
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                ctx.fillRect(-15, 0, 30, 3);
-                
-                // Food bar
-                const foodBarWidth = Math.min(30, (fish.foodPoints / 40) * 30);
-                ctx.fillStyle = fish.foodPoints >= 10 ? '#00ff00' : '#ffff00';
-                ctx.fillRect(-15, 0, foodBarWidth, 3);
-                
-                ctx.restore();
-            }
-        }
-        
         // Draw eggs
         for (const egg of eggs) {
             const progress = egg.hatchTime / egg.maxHatchTime;
@@ -679,36 +1254,114 @@
             ctx.stroke();
         }
         
-        // Draw generation counter and egg count
-        ctx.fillStyle = "white";
-        ctx.font = "16px Arial";
-        ctx.fillText(`Generation: ${generation}`, 10, 30);
-        ctx.fillText(`Eggs laid: ${totalEggsThisGeneration}/6`, 10, 50);
-        ctx.fillText(`Food available: ${foodPellets.length * 5}`, 10, 70);
-        
-        // Draw individual female stats
-        let femaleIndex = 0;
+        // Draw fish
         for (const fish of fishes) {
-            if (fish.isFemale) {
-                ctx.fillText(`Female ${femaleIndex + 1}: ${fish.eggsLaid} eggs, ${fish.foodPoints} food`, 10, 150 + femaleIndex * 20);
-                femaleIndex++;
+            fish.draw(ctx);
+        }
+        
+        // Draw beauty visualization for selected fish
+        if (selectedFish) {
+            drawBeautyVisualization(selectedFish);
+        }
+        
+        // Draw "Paused" indicator if simulation is paused
+        if (paused) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, width, height);
+            
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 32px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('PAUSED', width / 2, height / 2);
+            ctx.textAlign = 'left';
+        }
+    }
+    
+    function drawBeautyVisualization(fish) {
+        // Only show visualization for a selected fish
+        const beautyViz = document.getElementById('beauty-visualization');
+        beautyViz.style.left = fish.x + 'px';
+        beautyViz.style.top = (fish.y - 100) + 'px';
+        beautyViz.style.opacity = '1';
+        
+        // Show preferences for other fish
+        if (showFishDetails) {
+            const otherFish = fishes.filter(f => f !== fish);
+            if (otherFish.length > 0) {
+                // Find the most and least attractive fish
+                let mostAttractive = otherFish[0];
+                let leastAttractive = otherFish[0];
+                let highestScore = fish.evaluateBeauty(mostAttractive);
+                let lowestScore = highestScore;
+                
+                for (const other of otherFish) {
+                    const score = fish.evaluateBeauty(other);
+                    if (score > highestScore) {
+                        highestScore = score;
+                        mostAttractive = other;
+                    }
+                    if (score < lowestScore) {
+                        lowestScore = score;
+                        leastAttractive = other;
+                    }
+                }
+                
+                // Position the beauty pointer according to current fish's threshold
+                const pointer = document.getElementById('beauty-pointer');
+                const thresholdPercentage = (fish.attractionThreshold - 1) / 3 * 100;
+                pointer.style.left = `${thresholdPercentage}%`;
             }
+        } else {
+            // Hide visualization if not showing details
+            beautyViz.style.opacity = '0';
+        }
+    }
+    
+    function updateStats() {
+        const statsDiv = document.getElementById('stats');
+        
+        // Basic stats
+        let statsHTML = `
+            <p>Generation: ${generation}</p>
+            <p>Population: ${fishes.length} fish</p>
+            <p>Eggs: ${totalEggsThisGeneration}/${CONFIG.maxFishCount/2}</p>
+            <p>Food available: ${foodPellets.length * 5}/${CONFIG.foodPerGeneration}</p>
+        `;
+        
+        // Evolutionary trends
+        if (fishes.length > 0) {
+            // Calculate average stats
+            let avgSymmetry = 0;
+            let avgEyeSize = 0;
+            let avgFinSize = 0;
+            let avgVisionRange = 0;
+            let avgSmellSensitivity = 0;
+            
+            for (const fish of fishes) {
+                avgSymmetry += fish.symmetry;
+                avgEyeSize += fish.eyeSize;
+                avgFinSize += fish.finSize;
+                avgVisionRange += fish.visionRange;
+                avgSmellSensitivity += fish.smellSensitivity;
+            }
+            
+            avgSymmetry /= fishes.length;
+            avgEyeSize /= fishes.length;
+            avgFinSize /= fishes.length;
+            avgVisionRange /= fishes.length;
+            avgSmellSensitivity /= fishes.length;
+            
+            statsHTML += `
+                <p><strong>Evolution Trends:</strong></p>
+                <p>Avg Symmetry: ${avgSymmetry.toFixed(2)}</p>
+                <p>Avg Eye Size: ${avgEyeSize.toFixed(2)}</p>
+                <p>Avg Fin Size: ${avgFinSize.toFixed(2)}</p>
+                <p>Avg Vision: ${avgVisionRange.toFixed(2)}</p>
+                <p>Avg Smell: ${avgSmellSensitivity.toFixed(3)}</p>
+            `;
         }
         
-        // Debug info for mate searching and courting
-        let searchingCount = fishes.filter(f => f.searchingTime > 100 && !f.courtingPartner && f.canMate).length;
-        let courtingCount = fishes.filter(f => f.courtingPartner).length;
-        let hungryCount = fishes.filter(f => !f.canMate).length;
-        
-        if (searchingCount > 0) {
-            ctx.fillText(`Fish searching for mates: ${searchingCount}`, 10, 90);
-        }
-        if (courtingCount > 0) {
-            ctx.fillText(`Fish courting: ${courtingCount}`, 10, 110);
-        }
-        if (hungryCount > 0) {
-            ctx.fillText(`Fish hungry: ${hungryCount}`, 10, 130);
-        }
+        statsDiv.innerHTML = statsHTML;
     }
 
     function animate() {
@@ -716,11 +1369,88 @@
         draw();
         requestAnimationFrame(animate);
     }
-
-    document.getElementById("resetBtn").addEventListener("click", () => {
-        generation = 0;
-        createInitialGeneration();
-    });
+    
+    function togglePause() {
+        paused = !paused;
+        document.getElementById('pauseBtn').textContent = paused ? 'Resume' : 'Pause';
+        document.getElementById('control-panel').style.display = paused ? 'block' : 'none';
+    }
+    
+    function initializeControls() {
+        // Pause/resume button
+        document.getElementById('pauseBtn').addEventListener('click', togglePause);
+        
+        // Reset button
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            generation = 0;
+            createInitialGeneration();
+            if (paused) togglePause();
+        });
+        
+        // Control panel sliders
+        const sliders = document.querySelectorAll('#control-panel input[type="range"]');
+        sliders.forEach(slider => {
+            slider.addEventListener('input', function() {
+                document.getElementById(`${this.id}Value`).textContent = this.value;
+            });
+        });
+        
+        // Apply button
+        document.getElementById('applyBtn').addEventListener('click', () => {
+            // Update configuration with slider values
+            CONFIG.mutationRate = parseFloat(document.getElementById('mutationRate').value);
+            CONFIG.beautyEvolutionRate = parseFloat(document.getElementById('beautyEvolutionRate').value);
+            CONFIG.maxFishCount = parseInt(document.getElementById('fishCount').value);
+            CONFIG.foodPerGeneration = parseInt(document.getElementById('foodPerGeneration').value);
+            CONFIG.learningRate = parseFloat(document.getElementById('learningRate').value);
+            
+            // Resume simulation
+            togglePause();
+        });
+        
+        // Canvas click handler for selecting fish
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const clickX = event.clientX - rect.left;
+            const clickY = event.clientY - rect.top;
+            
+            // Check if clicked on a fish
+            let clickedFish = null;
+            for (const fish of fishes) {
+                const dx = fish.x - clickX;
+                const dy = fish.y - clickY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                // Use fish size for more accurate click detection
+                const fishSize = Math.max(fish.bodyWidth, fish.bodyHeight) * 15;
+                if (dist < fishSize) {
+                    clickedFish = fish;
+                    break;
+                }
+            }
+            
+            // Select the clicked fish or deselect if clicked on the same fish again
+            if (clickedFish) {
+                if (selectedFish === clickedFish) {
+                    selectedFish = null;
+                    document.getElementById('beauty-visualization').style.opacity = '0';
+                } else {
+                    selectedFish = clickedFish;
+                    showFishDetails = true;
+                }
+            } else {
+                selectedFish = null;
+                document.getElementById('beauty-visualization').style.opacity = '0';
+            }
+        });
+        
+        // Key press for toggling fish detail view
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'd' || event.key === 'D') {
+                showFishDetails = !showFishDetails;
+            }
+        });
+    }
 
     window.addEventListener("resize", () => {
         width = canvas.width = window.innerWidth;
@@ -728,6 +1458,9 @@
     });
 
     createInitialGeneration();
+    initializeControls();
+    spawnFood();
+    updateStats();
     animate();
 </script>
 </body>
