@@ -23,6 +23,8 @@
             border-radius: 8px;
             color: white;
             min-width: 200px;
+            max-height: 80vh;
+            overflow-y: auto;
             box-shadow: 0 0 10px rgba(0,0,0,0.5);
         }
         #controls {
@@ -134,8 +136,8 @@
         </div>
         
         <div class="slider-container">
-            <label for="foodPerGeneration">Food Per Minute: <span id="foodPerGenerationValue" class="slider-value">90</span></label>
-            <input type="range" id="foodPerGeneration" min="60" max="200" step="10" value="90">
+            <label for="foodPerMinute">Food Per Minute: <span id="foodPerMinuteValue" class="slider-value">90</span></label>
+            <input type="range" id="foodPerMinute" min="60" max="200" step="10" value="90">
         </div>
         
         <div class="slider-container">
@@ -156,9 +158,8 @@
         <div id="beauty-pointer"></div>
         <div id="beauty-indicator"></div>
     </div>
-    
     <script>
-        const canvas = document.getElementById('canvas');
+    const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     let width = canvas.width = window.innerWidth;
     let height = canvas.height = window.innerHeight;
@@ -169,7 +170,8 @@
         beautyEvolutionRate: 0.10,
         foodPerMinute: 90,
         learningRate: 0.05,
-        geyserFrequency: 30 // in seconds
+        geyserFrequency: 30, // in seconds
+        maxFishPopulation: 200 // Prevent performance issues with too many fish
     };
     
     // Simulation state
@@ -177,7 +179,7 @@
     let showFishDetails = false;
     let selectedFish = null;
     let gameTime = 0; // Time in frames (60 per second)
-    let generation = 0;
+    let highestGeneration = 0; // Track highest generation number
     let fishDeathsTotal = 0;
     let foodSpawnedTotal = 0;
     let geyserPosition = { x: width / 2, y: height - 30 };
@@ -195,14 +197,17 @@
             this.finSize = 0.3 + Math.random() * 0.4;
             this.symmetry = 0.8 + Math.random() * 0.4;
             
+            // Calculate body size for boundary calculations
+            this.bodySize = Math.max(this.bodyWidth * 15, this.bodyHeight * 10);
+            
             // Color traits 
             this.bodyColor = [Math.random(), Math.random(), Math.random()];
             this.eyeColor = [Math.random(), Math.random(), Math.random()];
             this.finColor = [Math.random(), Math.random(), Math.random()];
             
             // Position & movement
-            this.x = Math.random() * (width - 40) + 20;
-            this.y = Math.random() * (height - 40) + 20;
+            this.x = Math.random() * (width - 2 * this.bodySize) + this.bodySize;
+            this.y = Math.random() * (height - 2 * this.bodySize) + this.bodySize;
             this.angle = Math.random() * Math.PI * 2;
             this.speed = 1 + Math.random() * 0.5;
             
@@ -278,9 +283,15 @@
             // Generate unique ID for this fish
             this.id = Math.random().toString(36).substr(2, 9);
             
-            this.generation = parents ? generation : 0;
+            // Set generation number - 0 for initial fish, otherwise inherit from parents
+            this.generation = 0;
             
-            if (parents) this.inheritTraits(parents);
+            if (parents) {
+                this.inheritTraits(parents);
+                // Set generation to one higher than average of parents
+                this.generation = Math.floor((parents[0].generation + parents[1].generation) / 2) + 1;
+                highestGeneration = Math.max(highestGeneration, this.generation);
+            }
         }
 
         inheritTraits(parents) {
@@ -294,6 +305,9 @@
             this.eyeSize = this.inheritTrait(parents[0].eyeSize, parents[1].eyeSize, mutationRate);
             this.finSize = this.inheritTrait(parents[0].finSize, parents[1].finSize, mutationRate);
             this.symmetry = this.inheritTrait(parents[0].symmetry, parents[1].symmetry, mutationRate);
+            
+            // Update body size
+            this.bodySize = Math.max(this.bodyWidth * 15, this.bodyHeight * 10);
             
             // Inherit color traits with mutation
             for (let i = 0; i < 3; i++) {
@@ -342,7 +356,22 @@
             this.dangerMemoryStrength = this.inheritTrait(parents[0].dangerMemoryStrength, parents[1].dangerMemoryStrength, mutationRate);
             
             // The timing perception can be learned and passed down
-            this.geyserInterval = this.inheritTrait(parents[0].geyserInterval, parents[1].geyserInterval, mutationRate);
+            if (parents[0].geyserInterval > 0 || parents[1].geyserInterval > 0) {
+                // Average the non-zero geyser intervals
+                const p1Interval = parents[0].geyserInterval || 0;
+                const p2Interval = parents[1].geyserInterval || 0;
+                
+                if (p1Interval && p2Interval) {
+                    this.geyserInterval = (p1Interval + p2Interval) / 2;
+                } else {
+                    this.geyserInterval = p1Interval || p2Interval;
+                }
+                
+                // Apply mutation
+                if (Math.random() < mutationRate) {
+                    this.geyserInterval += (Math.random() - 0.5) * 2; // Slight adjustment
+                }
+            }
             
             // Inherit some memories from parents
             if (Math.random() < this.dangerMemoryStrength) {
@@ -643,13 +672,13 @@
             
             // Geyser cone parameters
             const geyserHeight = 500; // How high the geyser reaches
-            const geyserWidth = 50;   // Base width of the geyser
+            const geyserBaseWidth = 30;   // Base width of the geyser 
+            const geyserTopWidth = 50;    // Top width of the geyser
             
             // Only check if within possible range
             if (dist > geyserHeight) return false;
             
-            // Check if within the cone
-            // Angle from geyser to fish
+            // Calculate angle from geyser to fish
             const angleToFish = Math.atan2(dy, dx);
             
             // Geyser shoots straight up (270 degrees or -90 degrees)
@@ -659,11 +688,19 @@
             let angleDiff = Math.abs(angleToFish - geyserAngle);
             angleDiff = Math.min(angleDiff, 2 * Math.PI - angleDiff);
             
-            // Cone widens slightly as it goes up
-            const coneAngle = Math.atan2(geyserWidth / 2, dist);
+            // Calculate distance from center of geyser cone
+            const upwardDist = -dy; // How far up the geyser cone the fish is
             
-            // Check if in cone
-            if (angleDiff < coneAngle) {
+            if (upwardDist <= 0) return false; // Fish is below the geyser
+            
+            // Calculate allowed width at fish's height
+            const widthAtHeight = geyserBaseWidth + (geyserTopWidth - geyserBaseWidth) * (upwardDist / geyserHeight);
+            
+            // Calculate horizontal distance to geyser center line
+            const horizontalDist = Math.abs(dx);
+            
+            // Check if in cone based on horizontal distance at that height
+            if (horizontalDist < widthAtHeight / 2) {
                 return true;
             }
             
@@ -818,6 +855,8 @@
         }
         
         moveTowardsFood() {
+            if (!this.targetFood) return;
+            
             const dx = this.targetFood.x - this.x;
             const dy = this.targetFood.y - this.y;
             this.angle = Math.atan2(dy, dx);
@@ -902,7 +941,8 @@
         
         enforceBoundaries() {
             // Hard boundaries - bounce off walls with margin to ensure fish stay fully visible
-            const margin = 20;
+            // Using bodySize to ensure the whole fish stays visible
+            const margin = this.bodySize + 5;
             
             if (this.x < margin) {
                 this.x = margin;
@@ -936,7 +976,7 @@
                 ctx.fill();
                 
                 // Draw scent detection indicator (pulsing nose)
-                if (this.targetFood.getScentStrengthAt(this.x, this.y) > this.smellSensitivity) {
+                if (this.targetFood && this.targetFood.getScentStrengthAt(this.x, this.y) > this.smellSensitivity) {
                     ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
                     const pulseSize = 5 + Math.sin(Date.now() * 0.005) * 2;
                     ctx.beginPath();
@@ -968,7 +1008,7 @@
                         }
                         break;
                     case 2: // Fin display - temporarily enlarge fins
-                        const finSizeMultiplier = 1 + 0.5 * Math.sin(Date.now() * 0.01 * this.displayIntensity);
+                        // This is handled in the fin drawing code below
                         break;
                 }
             }
@@ -1173,14 +1213,17 @@
         }
         
         update() {
-            if (paused) return;
+            if (paused) return false;
             
             this.hatchTime++;
             
             // Check if ready to hatch
             if (this.hatchTime >= this.maxHatchTime) {
-                this.hatch();
-                return true; // Signal to remove from array
+                // Only hatch if we're below the population limit
+                if (fishes.length < CONFIG.maxFishPopulation) {
+                    this.hatch();
+                }
+                return true; // Signal to remove from array regardless
             }
             
             return false;
@@ -1194,14 +1237,12 @@
             newFish.x = this.x + (Math.random() - 0.5) * 20;
             newFish.y = this.y + (Math.random() - 0.5) * 20;
             
-            // Set the generation - one higher than parents
-            newFish.generation = generation + 1;
+            // Make sure the new fish is within boundaries
+            newFish.x = Math.max(newFish.bodySize + 5, Math.min(width - newFish.bodySize - 5, newFish.x));
+            newFish.y = Math.max(newFish.bodySize + 5, Math.min(height - newFish.bodySize - 5, newFish.y));
             
             // Add to the fishes array
             fishes.push(newFish);
-            
-            // Update generation if this is a new high
-            generation = Math.max(generation, newFish.generation);
         }
         
         draw(ctx) {
@@ -1242,7 +1283,7 @@
         eggs = [];
         foodPellets = [];
         gameTime = 0;
-        generation = 0;
+        highestGeneration = 0;
         fishDeathsTotal = 0;
         foodSpawnedTotal = 0;
         lastGeyserTime = 0;
@@ -1380,6 +1421,8 @@
     }
 
     function performCourtship(fish) {
+        if (!fish.courtingPartner) return; // Safety check
+        
         const partner = fish.courtingPartner;
         fish.courtingTime++;
         
@@ -1420,11 +1463,11 @@
         // After 10 seconds (600 frames at 60fps), check if mating succeeds
         if (fish.courtingTime > 600) {
             if (fish.isFemale) {
-                // Mating success depends on beauty score and breeding success trait
+                // Mating success depends on beauty score and combined breeding success traits
                 const finalAttraction = fish.evaluateBeauty(partner);
-                const breedingSuccessChance = (fish.breedingSuccess + partner.breedingSuccess) / 2;
+                const combinedBreedingSuccess = (fish.breedingSuccess + partner.breedingSuccess) / 2;
                 const matingSuccess = finalAttraction > (fish.attractionThreshold * 0.8) && 
-                                    Math.random() < breedingSuccessChance;
+                                    Math.random() < combinedBreedingSuccess;
                 
                 if (matingSuccess) {
                     // Female accepts and lays egg
@@ -1455,6 +1498,10 @@
                     // Reproduction costs energy
                     fish.foodPoints = Math.max(0, fish.foodPoints - 8);
                     partner.foodPoints = Math.max(0, partner.foodPoints - 5);
+                    
+                    // If food drops below threshold, can't mate anymore
+                    if (fish.foodPoints < 10) fish.canMate = false;
+                    if (partner.foodPoints < 10) partner.canMate = false;
                     
                     // Reset attraction threshold for next mating
                     fish.attractionThreshold = 1.5;
@@ -1633,7 +1680,7 @@
         // Update eggs
         for (let i = eggs.length - 1; i >= 0; i--) {
             if (eggs[i].update()) {
-                // Egg has hatched, remove it
+                // Egg has hatched or expired, remove it
                 eggs.splice(i, 1);
             }
         }
@@ -1708,42 +1755,30 @@
     }
     
     function drawBeautyVisualization(fish) {
-        // Only show visualization for a selected fish
-        const beautyViz = document.getElementById('beauty-visualization');
-        beautyViz.style.left = fish.x + 'px';
-        beautyViz.style.top = (fish.y - 100) + 'px';
-        beautyViz.style.opacity = '1';
+        if (!fish) return;
         
-        // Show preferences for other fish
-        if (showFishDetails) {
-            const otherFish = fishes.filter(f => f !== fish);
-            if (otherFish.length > 0) {
-                // Find the most and least attractive fish
-                let mostAttractive = otherFish[0];
-                let leastAttractive = otherFish[0];
-                let highestScore = fish.evaluateBeauty(mostAttractive);
-                let lowestScore = highestScore;
+        // Update beauty visualization for selected fish
+        const beautyViz = document.getElementById('beauty-visualization');
+        
+        if (beautyViz) {
+            // Position the visualization near the fish
+            beautyViz.style.left = fish.x + 'px';
+            beautyViz.style.top = (fish.y - 100) + 'px';
+            
+            // Only show it if we're showing details
+            if (showFishDetails) {
+                beautyViz.style.opacity = '1';
                 
-                for (const other of otherFish) {
-                    const score = fish.evaluateBeauty(other);
-                    if (score > highestScore) {
-                        highestScore = score;
-                        mostAttractive = other;
-                    }
-                    if (score < lowestScore) {
-                        lowestScore = score;
-                        leastAttractive = other;
-                    }
+                const otherFish = fishes.filter(f => f !== fish);
+                if (otherFish.length > 0) {
+                    // Position the beauty pointer according to current fish's threshold
+                    const pointer = document.getElementById('beauty-pointer');
+                    const thresholdPercentage = (fish.attractionThreshold - 1) / 3 * 100;
+                    pointer.style.left = `${thresholdPercentage}%`;
                 }
-                
-                // Position the beauty pointer according to current fish's threshold
-                const pointer = document.getElementById('beauty-pointer');
-                const thresholdPercentage = (fish.attractionThreshold - 1) / 3 * 100;
-                pointer.style.left = `${thresholdPercentage}%`;
+            } else {
+                beautyViz.style.opacity = '0';
             }
-        } else {
-            // Hide visualization if not showing details
-            beautyViz.style.opacity = '0';
         }
     }
     
@@ -1752,7 +1787,7 @@
         
         // Basic stats
         let statsHTML = `
-            <p>Generation: ${generation}</p>
+            <p>Highest Generation: ${highestGeneration}</p>
             <p>Population: ${fishes.length} fish</p>
             <p>Eggs: ${eggs.length}</p>
             <p>Food available: ${foodPellets.length * 5}</p>
@@ -1863,7 +1898,7 @@
             // Update configuration with slider values
             CONFIG.mutationRate = parseFloat(document.getElementById('mutationRate').value);
             CONFIG.beautyEvolutionRate = parseFloat(document.getElementById('beautyEvolutionRate').value);
-            CONFIG.foodPerMinute = parseInt(document.getElementById('foodPerGeneration').value);
+            CONFIG.foodPerMinute = parseInt(document.getElementById('foodPerMinute').value);
             CONFIG.learningRate = parseFloat(document.getElementById('learningRate').value);
             CONFIG.geyserFrequency = parseInt(document.getElementById('geyserFrequency').value);
             
@@ -1885,7 +1920,7 @@
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 
                 // Use fish size for more accurate click detection
-                const fishSize = Math.max(fish.bodyWidth, fish.bodyHeight) * 15;
+                const fishSize = fish.bodySize;
                 if (dist < fishSize) {
                     clickedFish = fish;
                     break;
@@ -1911,18 +1946,32 @@
         document.addEventListener('keydown', (event) => {
             if (event.key === 'd' || event.key === 'D') {
                 showFishDetails = !showFishDetails;
+                
+                // Update visibility of beauty visualization
+                if (!showFishDetails && document.getElementById('beauty-visualization')) {
+                    document.getElementById('beauty-visualization').style.opacity = '0';
+                }
             }
         });
     }
 
-    window.addEventListener("resize", () => {
+    function handleResize() {
         width = canvas.width = window.innerWidth;
         height = canvas.height = window.innerHeight;
         
         // Update geyser position after resize
         geyserPosition.x = width / 2;
         geyserPosition.y = height - 30;
-    });
+        
+        // Make sure all fish stay within new boundaries
+        for (const fish of fishes) {
+            const margin = fish.bodySize + 5;
+            fish.x = Math.max(margin, Math.min(width - margin, fish.x));
+            fish.y = Math.max(margin, Math.min(height - margin, fish.y));
+        }
+    }
+
+    window.addEventListener("resize", handleResize);
 
     createInitialGeneration();
     initializeControls();
