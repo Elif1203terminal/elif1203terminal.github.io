@@ -134,18 +134,18 @@
         </div>
         
         <div class="slider-container">
-            <label for="fishCount">Max Fish Count: <span id="fishCountValue" class="slider-value">12</span></label>
-            <input type="range" id="fishCount" min="6" max="30" step="2" value="12">
-        </div>
-        
-        <div class="slider-container">
-            <label for="foodPerGeneration">Food Per Generation: <span id="foodPerGenerationValue" class="slider-value">90</span></label>
+            <label for="foodPerGeneration">Food Per Minute: <span id="foodPerGenerationValue" class="slider-value">90</span></label>
             <input type="range" id="foodPerGeneration" min="60" max="200" step="10" value="90">
         </div>
         
         <div class="slider-container">
             <label for="learningRate">Learning Rate: <span id="learningRateValue" class="slider-value">0.05</span></label>
             <input type="range" id="learningRate" min="0.01" max="0.2" step="0.01" value="0.05">
+        </div>
+        
+        <div class="slider-container">
+            <label for="geyserFrequency">Geyser Frequency (sec): <span id="geyserFrequencyValue" class="slider-value">30</span></label>
+            <input type="range" id="geyserFrequency" min="10" max="60" step="5" value="30">
         </div>
         
         <button id="applyBtn" class="control-button">Apply & Resume</button>
@@ -167,15 +167,24 @@
     let CONFIG = {
         mutationRate: 0.05,
         beautyEvolutionRate: 0.10,
-        maxFishCount: 12,
-        foodPerGeneration: 90,
-        learningRate: 0.05
+        foodPerMinute: 90,
+        learningRate: 0.05,
+        geyserFrequency: 30 // in seconds
     };
     
     // Simulation state
     let paused = false;
     let showFishDetails = false;
     let selectedFish = null;
+    let gameTime = 0; // Time in frames (60 per second)
+    let generation = 0;
+    let fishDeathsTotal = 0;
+    let foodSpawnedTotal = 0;
+    let geyserPosition = { x: width / 2, y: height - 30 };
+    let lastGeyserTime = 0;
+    let geyserActive = false;
+    let geyserDuration = 0;
+    let lastFoodSpawn = 0;
     
     class Fish {
         constructor(parents = null) {
@@ -192,8 +201,8 @@
             this.finColor = [Math.random(), Math.random(), Math.random()];
             
             // Position & movement
-            this.x = Math.random() * width;
-            this.y = Math.random() * height;
+            this.x = Math.random() * (width - 40) + 20;
+            this.y = Math.random() * (height - 40) + 20;
             this.angle = Math.random() * Math.PI * 2;
             this.speed = 1 + Math.random() * 0.5;
             
@@ -242,7 +251,8 @@
             this.memory = {
                 successfulFoodSpots: [], // Remembers where food was found
                 successfulMates: [], // Remembers which fish had successful matings
-                observations: [] // General observations about environment
+                observations: [], // General observations about environment
+                dangerSpots: [] // Remembers locations that caused harm
             };
             this.learningAbility = 0.5 + Math.random() * 0.5; // How quickly they learn
             
@@ -258,8 +268,17 @@
             this.displayBehavior = Math.floor(Math.random() * 3); // 0 = dance, 1 = color flash, 2 = fin display
             this.displayIntensity = 0.5 + Math.random() * 0.5;
             
+            // Geyser avoidance traits
+            this.dangerPerception = 0.2 + Math.random() * 0.3; // How well they detect danger
+            this.reactSpeed = 0.5 + Math.random() * 0.5; // How quickly they react to danger
+            this.dangerMemoryStrength = 0.3 + Math.random() * 0.7; // How well they remember danger
+            this.geyserInterval = 0; // Learning the timing of the geyser
+            this.lastGeyserObserved = null; // When they last saw a geyser
+            
             // Generate unique ID for this fish
             this.id = Math.random().toString(36).substr(2, 9);
+            
+            this.generation = parents ? generation : 0;
             
             if (parents) this.inheritTraits(parents);
         }
@@ -316,6 +335,24 @@
             this.socialTendency = this.inheritTrait(parents[0].socialTendency, parents[1].socialTendency, mutationRate);
             this.leadFollowTendency = this.inheritTrait(parents[0].leadFollowTendency, parents[1].leadFollowTendency, mutationRate);
             this.breedingSuccess = this.inheritTrait(parents[0].breedingSuccess, parents[1].breedingSuccess, mutationRate * 0.5); // More stable
+            
+            // Inherit geyser avoidance traits
+            this.dangerPerception = this.inheritTrait(parents[0].dangerPerception, parents[1].dangerPerception, mutationRate);
+            this.reactSpeed = this.inheritTrait(parents[0].reactSpeed, parents[1].reactSpeed, mutationRate);
+            this.dangerMemoryStrength = this.inheritTrait(parents[0].dangerMemoryStrength, parents[1].dangerMemoryStrength, mutationRate);
+            
+            // The timing perception can be learned and passed down
+            this.geyserInterval = this.inheritTrait(parents[0].geyserInterval, parents[1].geyserInterval, mutationRate);
+            
+            // Inherit some memories from parents
+            if (Math.random() < this.dangerMemoryStrength) {
+                // Inherit danger spot memories
+                const parentDangerMemories = [...parents[0].memory.dangerSpots, ...parents[1].memory.dangerSpots];
+                if (parentDangerMemories.length > 0) {
+                    const memoryIndex = Math.floor(Math.random() * parentDangerMemories.length);
+                    this.memory.dangerSpots.push(parentDangerMemories[memoryIndex]);
+                }
+            }
             
             // Inherit display behavior with possible mutation
             if (Math.random() < mutationRate) {
@@ -393,6 +430,10 @@
             // Learning ability is slightly attractive (smarter fish)
             score *= 1 + other.learningAbility * 0.1;
             
+            // Geyser avoidance abilities are attractive (survival skills)
+            const avoidanceSkill = (other.dangerPerception + other.reactSpeed) / 2;
+            score *= 1 + avoidanceSkill * 0.15;
+            
             // Social compatibility - similar social tendencies are slightly preferred
             const socialCompatibility = 1 - Math.abs(this.socialTendency - other.socialTendency);
             score *= 1 + socialCompatibility * 0.1;
@@ -441,33 +482,201 @@
             }
             return null;
         }
+        
+        detectGeyser() {
+            // Check if fish can see the geyser when it's active
+            if (geyserActive) {
+                const dx = geyserPosition.x - this.x;
+                const dy = geyserPosition.y - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                // Fish can see the geyser if it's within range
+                if (dist < this.visionRange * 1.5) {
+                    // Record when they observed the geyser
+                    const currentTime = gameTime;
+                    
+                    // If they've seen a geyser before, try to learn the interval
+                    if (this.lastGeyserObserved !== null) {
+                        const observedInterval = (currentTime - this.lastGeyserObserved) / 60; // Convert to seconds
+                        
+                        // Gradually improve geyser interval estimate through learning
+                        if (this.geyserInterval === 0) {
+                            this.geyserInterval = observedInterval;
+                        } else {
+                            // Weighted average, biased toward new observations if learning ability is high
+                            const weightNew = this.learningAbility * 0.5;
+                            this.geyserInterval = this.geyserInterval * (1 - weightNew) + observedInterval * weightNew;
+                        }
+                    }
+                    
+                    this.lastGeyserObserved = currentTime;
+                    
+                    // Learn that this area is dangerous
+                    this.learn({
+                        x: geyserPosition.x,
+                        y: geyserPosition.y,
+                        time: currentTime,
+                        interval: CONFIG.geyserFrequency
+                    }, 'dangerSpots');
+                    
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        avoidGeyser() {
+            // Fish with geyser knowledge try to predict and avoid it
+            
+            // Check if near geyser position
+            const dx = geyserPosition.x - this.x;
+            const dy = geyserPosition.y - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            // Danger zone is 150px around geyser
+            const dangerZoneRadius = 150;
+            
+            // Only react if within or approaching danger zone
+            if (dist < dangerZoneRadius * 1.5) {
+                // Calculate how close it is to geyser time
+                const timeSinceLastGeyser = (gameTime - lastGeyserTime) / 60; // in seconds
+                const geyserFrequency = CONFIG.geyserFrequency;
+                const timeUntilNextGeyser = geyserFrequency - timeSinceLastGeyser;
+                
+                // If the fish has learned the geyser interval and it's close to eruption time
+                const predictedDanger = this.geyserInterval > 0 && 
+                                      timeUntilNextGeyser < 3 && 
+                                      Math.random() < this.dangerPerception;
+                
+                // If fish has danger memories or predicts danger
+                const dangerMemory = this.getMemory('dangerSpots');
+                const hasDangerMemory = dangerMemory && 
+                                      Math.sqrt(Math.pow(dangerMemory.x - geyserPosition.x, 2) + 
+                                               Math.pow(dangerMemory.y - geyserPosition.y, 2)) < 100;
+                
+                if (predictedDanger || (hasDangerMemory && timeUntilNextGeyser < 5)) {
+                    // Calculate escape angle - away from geyser
+                    const escapeAngle = Math.atan2(-dy, -dx);
+                    
+                    // Turn towards escape angle quickly
+                    const angleDiff = escapeAngle - this.angle;
+                    const normalizedDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+                    this.angle += normalizedDiff * this.reactSpeed * 0.2;
+                    
+                    // Move faster to escape
+                    const speedBoost = 1 + this.reactSpeed;
+                    this.x += Math.cos(this.angle) * this.speed * speedBoost;
+                    this.y += Math.sin(this.angle) * this.speed * speedBoost;
+                    
+                    // Return true if avoidance behavior was triggered
+                    return true;
+                }
+            }
+            
+            return false;
+        }
 
         update() {
             if (paused) return;
             
             if (this.cooldown > 0) this.cooldown--;
-            this.age += 0.01 * this.ageSpeedFactor;
+            this.age += 0.01;
             
-            // Social learning - observe other fish's behavior
-            this.observeOtherFish();
+            // Detect and learn about geyser
+            this.detectGeyser();
             
-            // Find food if not yet able to mate
-            if (!this.canMate && !this.targetFood) {
+            // Try to avoid geyser if predicted it's going to erupt
+            const avoidingGeyser = this.avoidGeyser();
+            
+            // Social learning - observe other fish behavior
+            if (!avoidingGeyser) {
+                this.observeOtherFish();
+            }
+            
+            // Find food if not yet able to mate and not avoiding danger
+            if (!this.canMate && !this.targetFood && !avoidingGeyser) {
                 this.findFood();
             }
             
             // Move towards food if hunting, or towards mate if courting,
             // otherwise normal swimming
-            if (this.targetFood && !this.canMate) {
+            if (this.targetFood && !this.canMate && !avoidingGeyser) {
                 this.moveTowardsFood();
             } else if (this.courtingPartner) {
                 // Do nothing - courtship movement handled in performCourtship
-            } else {
+            } else if (!avoidingGeyser) {
                 this.swim();
             }
             
             // Stay within boundaries
             this.enforceBoundaries();
+            
+            // Check if hit by geyser
+            if (geyserActive) {
+                // Calculate if fish is within geyser cone
+                const isHitByGeyser = this.checkGeyserCollision();
+                
+                if (isHitByGeyser) {
+                    // Fish is killed by geyser
+                    this.killFish();
+                    return;
+                }
+            }
+            
+            // Reduce food points over time (metabolism)
+            if (gameTime % 300 === 0) { // Every 5 seconds
+                this.foodPoints = Math.max(0, this.foodPoints - 1);
+                
+                // If food runs out, can no longer mate
+                if (this.foodPoints < 10) {
+                    this.canMate = false;
+                }
+            }
+        }
+        
+        checkGeyserCollision() {
+            // Check if fish is within the geyser cone
+            const dx = this.x - geyserPosition.x;
+            const dy = this.y - geyserPosition.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            // Geyser cone parameters
+            const geyserHeight = 500; // How high the geyser reaches
+            const geyserWidth = 50;   // Base width of the geyser
+            
+            // Only check if within possible range
+            if (dist > geyserHeight) return false;
+            
+            // Check if within the cone
+            // Angle from geyser to fish
+            const angleToFish = Math.atan2(dy, dx);
+            
+            // Geyser shoots straight up (270 degrees or -90 degrees)
+            const geyserAngle = -Math.PI / 2;
+            
+            // Calculate angle difference
+            let angleDiff = Math.abs(angleToFish - geyserAngle);
+            angleDiff = Math.min(angleDiff, 2 * Math.PI - angleDiff);
+            
+            // Cone widens slightly as it goes up
+            const coneAngle = Math.atan2(geyserWidth / 2, dist);
+            
+            // Check if in cone
+            if (angleDiff < coneAngle) {
+                return true;
+            }
+            
+            return false;
+        }
+        
+        killFish() {
+            // Find and remove this fish from the fishes array
+            const index = fishes.indexOf(this);
+            if (index > -1) {
+                fishes.splice(index, 1);
+                fishDeathsTotal++;
+            }
         }
         
         observeOtherFish() {
@@ -517,6 +726,29 @@
                                 eggsLaid: other.eggsLaid,
                                 beautyPreferences: { ...other.beautyWeights }
                             }, 'successfulMates');
+                        }
+                        
+                        // Learn about danger avoidance from fish fleeing the geyser area
+                        const isOtherFleeing = dist < 100 && 
+                                             Math.sqrt(Math.pow(other.x - geyserPosition.x, 2) + 
+                                                      Math.pow(other.y - geyserPosition.y, 2)) < 200;
+                        
+                        if (isOtherFleeing && other.speed > 1.5) {
+                            const learningStrength = 0.2 * this.learningAbility;
+                            this.dangerPerception += (other.dangerPerception - this.dangerPerception) * learningStrength;
+                            this.reactSpeed += (other.reactSpeed - this.reactSpeed) * learningStrength;
+                            
+                            // Try to learn the geyser interval from successful avoiders
+                            if (other.geyserInterval > 0 && this.geyserInterval === 0) {
+                                this.geyserInterval = other.geyserInterval;
+                            }
+                            
+                            this.learn({
+                                x: geyserPosition.x,
+                                y: geyserPosition.y,
+                                time: gameTime,
+                                fleeingFish: other.id
+                            }, 'dangerSpots');
                         }
                     }
                 }
@@ -669,8 +901,9 @@
         }
         
         enforceBoundaries() {
-            // Hard boundaries - bounce off walls
+            // Hard boundaries - bounce off walls with margin to ensure fish stay fully visible
             const margin = 20;
+            
             if (this.x < margin) {
                 this.x = margin;
                 this.angle = Math.PI - this.angle;
@@ -678,6 +911,7 @@
                 this.x = width - margin;
                 this.angle = Math.PI - this.angle;
             }
+            
             if (this.y < margin) {
                 this.y = margin;
                 this.angle = -this.angle;
@@ -709,6 +943,15 @@
                     ctx.arc(this.bodyWidth * 12, 0, pulseSize, 0, Math.PI * 2);
                     ctx.fill();
                 }
+            }
+            
+            // Draw danger perception if avoiding geyser
+            if (this.geyserInterval > 0 && Math.abs(this.geyserInterval - CONFIG.geyserFrequency) < 5) {
+                // Fish has learned the geyser timing
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.1)';
+                ctx.beginPath();
+                ctx.arc(0, 0, this.dangerPerception * 50, 0, Math.PI * 2);
+                ctx.fill();
             }
             
             // Special effect for displaying to potential mates
@@ -769,6 +1012,27 @@
             ctx.beginPath();
             ctx.arc(this.bodyWidth * 10, 0, 2, 0, Math.PI * 2);
             ctx.fill();
+            
+            // Draw generation indicator (subtle ring)
+            if (this.generation > 0) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(0, 0, this.bodyWidth * 15 + 3, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Add dots to indicate generation number
+                const genDots = Math.min(this.generation, 5); // Max 5 dots
+                for (let i = 0; i < genDots; i++) {
+                    const angle = (i / genDots) * Math.PI * 2;
+                    const dotX = Math.cos(angle) * (this.bodyWidth * 15 + 3);
+                    const dotY = Math.sin(angle) * (this.bodyWidth * 15 + 3);
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.arc(dotX, dotY, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
             
             // Draw "selected" indicator if this is the selected fish
             if (this === selectedFish) {
@@ -845,15 +1109,33 @@
                 
                 ctx.restore();
             }
+            
+            // Draw danger awareness indicator for fish that have learned about geysers
+            if (this.memory.dangerSpots.length > 0 && Math.random() < 0.02) {
+                ctx.save();
+                ctx.translate(this.x + 15, indicatorY);
+                ctx.fillStyle = 'rgba(255, 100, 100, 0.8)';
+                ctx.beginPath();
+                ctx.arc(0, 0, 4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw exclamation mark
+                ctx.fillStyle = 'white';
+                ctx.fillRect(-1, -3, 2, 4);
+                ctx.beginPath();
+                ctx.arc(-0.5, 3, 1, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
         }
     }
 
     let fishes = [];
     let eggs = [];
     let foodPellets = [];
-    let generation = 0;
-    let totalEggsThisGeneration = 0;
-    let totalFoodThisGeneration = 0;
+    let fishDeathsTotal = 0;
+    let foodSpawnedTotal = 0;
 
     class FoodPellet {
         constructor() {
@@ -880,14 +1162,95 @@
             return this.scentStrength * Math.exp(-distance * this.scentDecayRate);
         }
     }
+    
+    class Egg {
+        constructor(x, y, parents) {
+            this.x = x;
+            this.y = y;
+            this.hatchTime = 0;
+            this.maxHatchTime = 600; // 10 seconds at 60fps
+            this.parents = parents;
+        }
+        
+        update() {
+            if (paused) return;
+            
+            this.hatchTime++;
+            
+            // Check if ready to hatch
+            if (this.hatchTime >= this.maxHatchTime) {
+                this.hatch();
+                return true; // Signal to remove from array
+            }
+            
+            return false;
+        }
+        
+        hatch() {
+            // Create a new fish
+            const newFish = new Fish(this.parents);
+            
+            // Position the new fish near the egg
+            newFish.x = this.x + (Math.random() - 0.5) * 20;
+            newFish.y = this.y + (Math.random() - 0.5) * 20;
+            
+            // Set the generation - one higher than parents
+            newFish.generation = generation + 1;
+            
+            // Add to the fishes array
+            fishes.push(newFish);
+            
+            // Update generation if this is a new high
+            generation = Math.max(generation, newFish.generation);
+        }
+        
+        draw(ctx) {
+            const progress = this.hatchTime / this.maxHatchTime;
+            ctx.fillStyle = `rgba(255, 255, 150, ${0.7 + progress * 0.3})`;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 5 + progress * 3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Egg glow
+            ctx.strokeStyle = `rgba(255, 255, 200, ${0.3 - progress * 0.3})`;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Hatching cracks near completion
+            if (progress > 0.8) {
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.lineWidth = 1;
+                
+                // Draw random cracks
+                const crackCount = Math.floor((progress - 0.8) * 10) + 1;
+                for (let i = 0; i < crackCount; i++) {
+                    const angle = (i / crackCount) * Math.PI * 2;
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(
+                        this.x + Math.cos(angle) * (7 + progress * 3),
+                        this.y + Math.sin(angle) * (7 + progress * 3)
+                    );
+                    ctx.stroke();
+                }
+            }
+        }
+    }
 
     function createInitialGeneration() {
         fishes = [];
         eggs = [];
         foodPellets = [];
-        totalEggsThisGeneration = 0;
-        totalFoodThisGeneration = 0;
+        gameTime = 0;
         generation = 0;
+        fishDeathsTotal = 0;
+        foodSpawnedTotal = 0;
+        lastGeyserTime = 0;
+        geyserActive = false;
+        
+        // Set geyser position
+        geyserPosition.x = width / 2;
+        geyserPosition.y = height - 30;
         
         // Create first generation - 6 fish (3 males, 3 females)
         for (let i = 0; i < 6; i++) {
@@ -906,13 +1269,14 @@
             fish.y = height / 2 + Math.sin(angle) * radius;
             
             // First generation starts with food
-            fish.foodPoints = 10;
+            fish.foodPoints = 15;
             fish.canMate = true;
             
             fishes.push(fish);
         }
         
-        // No food for first generation since they start fed
+        // Spawn initial food
+        spawnFood(20);
     }
     
     function hslToRgb(h, s, l) {
@@ -941,12 +1305,11 @@
         return [r, g, b];
     }
 
-    function spawnFood() {
-        // Spawn food pellets worth foodPerGeneration points total
-        const targetFood = CONFIG.foodPerGeneration;
-        while (totalFoodThisGeneration < targetFood) {
+    function spawnFood(count) {
+        // Spawn a specific number of food pellets
+        for (let i = 0; i < count; i++) {
             foodPellets.push(new FoodPellet());
-            totalFoodThisGeneration += 5;
+            foodSpawnedTotal += 5;
         }
     }
 
@@ -1014,8 +1377,6 @@
             
             return bestFemale;
         }
-        
-        return null;
     }
 
     function performCourtship(fish) {
@@ -1058,36 +1419,21 @@
         
         // After 10 seconds (600 frames at 60fps), check if mating succeeds
         if (fish.courtingTime > 600) {
-            const maxEggs = CONFIG.maxFishCount / 2; // Half the max fish count can be eggs
-            
-            if (fish.isFemale && totalEggsThisGeneration < maxEggs) {
-                // First generation always mates successfully
-                let matingSuccess = false;
-                if (generation === 0) {
-                    matingSuccess = true;
-                } else {
-                    // Mating success depends on beauty score and breeding success trait
-                    const finalAttraction = fish.evaluateBeauty(partner);
-                    const breedingSuccessChance = (fish.breedingSuccess + partner.breedingSuccess) / 2;
-                    matingSuccess = finalAttraction > (fish.attractionThreshold * 0.8) && 
-                                   Math.random() < breedingSuccessChance;
-                }
+            if (fish.isFemale) {
+                // Mating success depends on beauty score and breeding success trait
+                const finalAttraction = fish.evaluateBeauty(partner);
+                const breedingSuccessChance = (fish.breedingSuccess + partner.breedingSuccess) / 2;
+                const matingSuccess = finalAttraction > (fish.attractionThreshold * 0.8) && 
+                                    Math.random() < breedingSuccessChance;
                 
                 if (matingSuccess) {
                     // Female accepts and lays egg
-                    eggs.push({
-                        x: fish.x,
-                        y: fish.y,
-                        hatchTime: 0,
-                        maxHatchTime: 180,
-                        parents: [fish, partner]
-                    });
+                    eggs.push(new Egg(fish.x, fish.y, [fish, partner]));
                     
                     // Update breeding stats
                     fish.eggsLaid++;
                     fish.hasMated = true;
                     partner.hasMated = true;
-                    totalEggsThisGeneration++;
                     
                     // Learn from successful mating
                     fish.learn({
@@ -1102,9 +1448,13 @@
                         displayBehavior: fish.displayBehavior
                     }, 'successfulMates');
                     
-                    // Shorter cooldown to allow for multiple matings
+                    // Cooldown to allow for multiple matings
                     fish.cooldown = 120;
                     partner.cooldown = 60; // Male has shorter cooldown
+                    
+                    // Reproduction costs energy
+                    fish.foodPoints = Math.max(0, fish.foodPoints - 8);
+                    partner.foodPoints = Math.max(0, partner.foodPoints - 5);
                     
                     // Reset attraction threshold for next mating
                     fish.attractionThreshold = 1.5;
@@ -1124,11 +1474,140 @@
         }
     }
 
+    function updateGeyser() {
+        if (paused) return;
+        
+        const geyserFrequency = CONFIG.geyserFrequency;
+        const timeSinceLastGeyser = (gameTime - lastGeyserTime) / 60; // in seconds
+        
+        // Check if it's time for a geyser eruption
+        if (timeSinceLastGeyser >= geyserFrequency) {
+            // Start geyser eruption
+            geyserActive = true;
+            geyserDuration = 0;
+            lastGeyserTime = gameTime;
+        }
+        
+        // Update active geyser
+        if (geyserActive) {
+            geyserDuration++;
+            
+            // Geyser lasts for 1 second (60 frames)
+            if (geyserDuration >= 60) {
+                geyserActive = false;
+            }
+        }
+    }
+    
+    function drawGeyser(ctx) {
+        // Always draw the geyser floor vent
+        ctx.fillStyle = '#555555';
+        ctx.beginPath();
+        ctx.arc(geyserPosition.x, geyserPosition.y, 15, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#333333';
+        ctx.beginPath();
+        ctx.arc(geyserPosition.x, geyserPosition.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#111111';
+        ctx.beginPath();
+        ctx.arc(geyserPosition.x, geyserPosition.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw geyser warning - pulsing red before eruption
+        const timeSinceLastGeyser = (gameTime - lastGeyserTime) / 60; // in seconds
+        const geyserFrequency = CONFIG.geyserFrequency;
+        
+        if (timeSinceLastGeyser > geyserFrequency - 3 && !geyserActive) {
+            // Warning pulse gets faster as eruption approaches
+            const warningIntensity = (geyserFrequency - timeSinceLastGeyser) / 3;
+            const pulseSpeed = 10 - warningIntensity * 9;
+            const pulseIntensity = 0.3 + 0.7 * Math.sin(gameTime / pulseSpeed);
+            
+            ctx.fillStyle = `rgba(255, 0, 0, ${pulseIntensity})`;
+            ctx.beginPath();
+            ctx.arc(geyserPosition.x, geyserPosition.y, 20, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Draw active geyser eruption
+        if (geyserActive) {
+            // Draw base of geyser
+            const gradient = ctx.createLinearGradient(
+                geyserPosition.x, geyserPosition.y, 
+                geyserPosition.x, geyserPosition.y - 500
+            );
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0.1)');
+            
+            ctx.fillStyle = gradient;
+            
+            // Height of geyser based on duration
+            const height = Math.min(500, geyserDuration * 15);
+            const baseWidth = 30;
+            const topWidth = 50;
+            
+            // Draw geyser cone with a slight bulge
+            ctx.beginPath();
+            ctx.moveTo(geyserPosition.x - baseWidth/2, geyserPosition.y);
+            
+            // Left side with slight curve
+            ctx.quadraticCurveTo(
+                geyserPosition.x - topWidth, geyserPosition.y - height/2,
+                geyserPosition.x - topWidth/2, geyserPosition.y - height
+            );
+            
+            // Top with slight curve
+            ctx.quadraticCurveTo(
+                geyserPosition.x, geyserPosition.y - height - 10,
+                geyserPosition.x + topWidth/2, geyserPosition.y - height
+            );
+            
+            // Right side with slight curve
+            ctx.quadraticCurveTo(
+                geyserPosition.x + topWidth, geyserPosition.y - height/2,
+                geyserPosition.x + baseWidth/2, geyserPosition.y
+            );
+            
+            ctx.closePath();
+            ctx.fill();
+            
+            // Particle effect for steam
+            const particleCount = 20;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particleHeight = Math.random() * height;
+                const particleWidth = baseWidth + (topWidth - baseWidth) * (particleHeight / height);
+                const xOffset = (Math.random() - 0.5) * particleWidth;
+                
+                ctx.beginPath();
+                ctx.arc(
+                    geyserPosition.x + xOffset, 
+                    geyserPosition.y - particleHeight,
+                    2 + Math.random() * 3,
+                    0, Math.PI * 2
+                );
+                ctx.fill();
+            }
+        }
+    }
+
     function update() {
         if (paused) return;
         
+        // Increment game time (frames)
+        gameTime++;
+        
+        // Update geyser state
+        updateGeyser();
+        
         // Update all fish
-        for (const fish of fishes) {
+        for (let i = fishes.length - 1; i >= 0; i--) {
+            const fish = fishes[i];
+            
             if (fish.courtingPartner) {
                 // If courting, perform mating dance
                 performCourtship(fish);
@@ -1138,8 +1617,7 @@
             }
             
             // Look for mates only if able
-            const maxEggs = CONFIG.maxFishCount / 2;
-            if (totalEggsThisGeneration < maxEggs && !fish.courtingPartner && fish.canMate) {
+            if (!fish.courtingPartner && fish.canMate) {
                 const mate = findMate(fish);
                 
                 if (mate && !mate.courtingPartner) {
@@ -1154,63 +1632,21 @@
         
         // Update eggs
         for (let i = eggs.length - 1; i >= 0; i--) {
-            const egg = eggs[i];
-            egg.hatchTime++;
-            
-            if (egg.hatchTime >= egg.maxHatchTime) {
-                // Check if we've reached the maximum number of eggs
-                const maxEggs = CONFIG.maxFishCount / 2;
-                
-                if (totalEggsThisGeneration >= maxEggs || generation === 0) {
-                    // Move to the next generation
-                    fishes = [];
-                    generation++;
-                    
-                    // Hatch all eggs at once
-                    for (let j = 0; j < eggs.length; j++) {
-                        const newFish = new Fish(eggs[j].parents);
-                        // Ensure balanced gender distribution
-                        newFish.isFemale = j < eggs.length / 2;
-                        newFish.x = eggs[j].x + (Math.random() - 0.5) * 50;
-                        newFish.y = eggs[j].y + (Math.random() - 0.5) * 50;
-                        fishes.push(newFish);
-                    }
-                    
-                    eggs = [];
-                    totalEggsThisGeneration = 0;
-                    
-                    // Spawn food for new generation
-                    totalFoodThisGeneration = 0;
-                    foodPellets = [];
-                    spawnFood();
-                    
-                    // Update UI to show we've moved to a new generation
-                    updateStats();
-                    
-                    break;
-                } else {
-                    // Just hatch this individual egg
-                    const newFish = new Fish(egg.parents);
-                    // Alternate genders for balance
-                    newFish.isFemale = fishes.filter(f => f.isFemale).length < fishes.length / 2;
-                    newFish.x = egg.x + (Math.random() - 0.5) * 50;
-                    newFish.y = egg.y + (Math.random() - 0.5) * 50;
-                    fishes.push(newFish);
-                    
-                    // Remove the hatched egg
-                    eggs.splice(i, 1);
-                }
+            if (eggs[i].update()) {
+                // Egg has hatched, remove it
+                eggs.splice(i, 1);
             }
         }
         
-        // Spawn more food if needed (always keep at least 3 food pellets available)
-        if (foodPellets.length < 3 && totalFoodThisGeneration < CONFIG.foodPerGeneration) {
-            foodPellets.push(new FoodPellet());
-            totalFoodThisGeneration += 5;
+        // Spawn food periodically
+        if (gameTime % 900 === 0) { // Every 15 seconds
+            const foodPerInterval = CONFIG.foodPerMinute / 4; // Per 15 seconds
+            const countToSpawn = Math.min(10, Math.max(1, Math.floor(foodPerInterval / 5)));
+            spawnFood(countToSpawn);
         }
         
         // Occasionally update stats display (not every frame to save performance)
-        if (Math.random() < 0.01) {
+        if (gameTime % 30 === 0) {
             updateStats();
         }
     }
@@ -1224,6 +1660,9 @@
         ctx.strokeStyle = "#003366";
         ctx.lineWidth = 3;
         ctx.strokeRect(10, 10, width - 20, height - 20);
+        
+        // Draw geyser
+        drawGeyser(ctx);
         
         // Draw food pellets with scent clouds
         for (const food of foodPellets) {
@@ -1242,16 +1681,7 @@
         
         // Draw eggs
         for (const egg of eggs) {
-            const progress = egg.hatchTime / egg.maxHatchTime;
-            ctx.fillStyle = `rgba(255, 255, 150, ${0.7 + progress * 0.3})`;
-            ctx.beginPath();
-            ctx.arc(egg.x, egg.y, 5 + progress * 3, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Egg glow
-            ctx.strokeStyle = `rgba(255, 255, 200, ${0.3 - progress * 0.3})`;
-            ctx.lineWidth = 2;
-            ctx.stroke();
+            egg.draw(ctx);
         }
         
         // Draw fish
@@ -1324,8 +1754,10 @@
         let statsHTML = `
             <p>Generation: ${generation}</p>
             <p>Population: ${fishes.length} fish</p>
-            <p>Eggs: ${totalEggsThisGeneration}/${CONFIG.maxFishCount/2}</p>
-            <p>Food available: ${foodPellets.length * 5}/${CONFIG.foodPerGeneration}</p>
+            <p>Eggs: ${eggs.length}</p>
+            <p>Food available: ${foodPellets.length * 5}</p>
+            <p>Deaths by geyser: ${fishDeathsTotal}</p>
+            <p>Time to next geyser: ${Math.max(0, Math.floor(CONFIG.geyserFrequency - (gameTime - lastGeyserTime) / 60))}s</p>
         `;
         
         // Evolutionary trends
@@ -1336,6 +1768,8 @@
             let avgFinSize = 0;
             let avgVisionRange = 0;
             let avgSmellSensitivity = 0;
+            let avgDangerPerception = 0;
+            let avgReactSpeed = 0;
             
             for (const fish of fishes) {
                 avgSymmetry += fish.symmetry;
@@ -1343,6 +1777,8 @@
                 avgFinSize += fish.finSize;
                 avgVisionRange += fish.visionRange;
                 avgSmellSensitivity += fish.smellSensitivity;
+                avgDangerPerception += fish.dangerPerception;
+                avgReactSpeed += fish.reactSpeed;
             }
             
             avgSymmetry /= fishes.length;
@@ -1350,15 +1786,43 @@
             avgFinSize /= fishes.length;
             avgVisionRange /= fishes.length;
             avgSmellSensitivity /= fishes.length;
+            avgDangerPerception /= fishes.length;
+            avgReactSpeed /= fishes.length;
             
             statsHTML += `
                 <p><strong>Evolution Trends:</strong></p>
-                <p>Avg Symmetry: ${avgSymmetry.toFixed(2)}</p>
-                <p>Avg Eye Size: ${avgEyeSize.toFixed(2)}</p>
-                <p>Avg Fin Size: ${avgFinSize.toFixed(2)}</p>
+                <p>Avg Danger Perception: ${avgDangerPerception.toFixed(2)}</p>
+                <p>Avg React Speed: ${avgReactSpeed.toFixed(2)}</p>
                 <p>Avg Vision: ${avgVisionRange.toFixed(2)}</p>
                 <p>Avg Smell: ${avgSmellSensitivity.toFixed(3)}</p>
             `;
+            
+            // Count males vs females
+            const males = fishes.filter(f => !f.isFemale).length;
+            const females = fishes.filter(f => f.isFemale).length;
+            
+            statsHTML += `
+                <p>Gender ratio: ${females}♀ / ${males}♂</p>
+            `;
+            
+            // Selected fish details
+            if (selectedFish) {
+                statsHTML += `
+                    <p><strong>Selected Fish:</strong></p>
+                    <p>Gender: ${selectedFish.isFemale ? 'Female' : 'Male'}</p>
+                    <p>Generation: ${selectedFish.generation}</p>
+                    <p>Eggs laid: ${selectedFish.eggsLaid}</p>
+                    <p>Danger perception: ${selectedFish.dangerPerception.toFixed(2)}</p>
+                    <p>React speed: ${selectedFish.reactSpeed.toFixed(2)}</p>
+                    <p>Learning ability: ${selectedFish.learningAbility.toFixed(2)}</p>
+                `;
+                
+                if (selectedFish.geyserInterval > 0) {
+                    statsHTML += `
+                        <p>Learned geyser timing: ${selectedFish.geyserInterval.toFixed(1)}s</p>
+                    `;
+                }
+            }
         }
         
         statsDiv.innerHTML = statsHTML;
@@ -1382,7 +1846,6 @@
         
         // Reset button
         document.getElementById('resetBtn').addEventListener('click', () => {
-            generation = 0;
             createInitialGeneration();
             if (paused) togglePause();
         });
@@ -1400,9 +1863,9 @@
             // Update configuration with slider values
             CONFIG.mutationRate = parseFloat(document.getElementById('mutationRate').value);
             CONFIG.beautyEvolutionRate = parseFloat(document.getElementById('beautyEvolutionRate').value);
-            CONFIG.maxFishCount = parseInt(document.getElementById('fishCount').value);
-            CONFIG.foodPerGeneration = parseInt(document.getElementById('foodPerGeneration').value);
+            CONFIG.foodPerMinute = parseInt(document.getElementById('foodPerGeneration').value);
             CONFIG.learningRate = parseFloat(document.getElementById('learningRate').value);
+            CONFIG.geyserFrequency = parseInt(document.getElementById('geyserFrequency').value);
             
             // Resume simulation
             togglePause();
@@ -1455,11 +1918,14 @@
     window.addEventListener("resize", () => {
         width = canvas.width = window.innerWidth;
         height = canvas.height = window.innerHeight;
+        
+        // Update geyser position after resize
+        geyserPosition.x = width / 2;
+        geyserPosition.y = height - 30;
     });
 
     createInitialGeneration();
     initializeControls();
-    spawnFood();
     updateStats();
     animate();
 </script>
