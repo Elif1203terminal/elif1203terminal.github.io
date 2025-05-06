@@ -227,7 +227,7 @@
             predatorEmergenceRate: 0.05, // Rate at which predatory traits can emerge
             predatorPopulationCap: 40, // Maximum number of predators (20% of population)
             environmentalCycleDuration: 18000, // 5 minutes at 60fps
-            planktonDensity: 0.7, // Base amount of microscopic food in the waterif (dist < this.radius + this.tentacleLength && gameTime - this.lastFoodCapture > 300) {
+            planktonDensity: 0.7, // Base amount of microscopic food in the water
             symbioticRate: 0.03, // Chance of symbiotic relationships emerging
             schoolingThreshold: 0.6, // Similarity threshold for schooling behavior
             territorialCooldown: 1800, // 30 seconds between territory establishment
@@ -799,7 +799,7 @@
             if (gameTime % 600 === 0) { // Every 10 seconds
                 this.parasiteLevel += 0.05 + Math.random() * 0.05;
                 this.parasiteLevel = Math.min(1.0, this.parasiteLevel);
-                if (dist < this.radius + this.tentacleLength && gameTime - this.lastFoodCapture > 300) {
+                
                 // Parasites slow fish down and consume energy
                 if (this.parasiteLevel > 0.5) {
                     this.speed *= 0.95;
@@ -960,7 +960,7 @@
                     }
                     
                     this.lastGeyserObserved = currentTime;
-                    if (dist < this.radius + this.tentacleLength && gameTime - this.lastFoodCapture > 300) {
+                    
                     // Learn that this area is dangerous
                     this.learn({
                         x: geyserPosition.x,
@@ -1182,7 +1182,7 @@
                         // Harder to detect camouflaged prey
                         preyScore *= (1 - other.camouflage * 0.7);
                         
-                        // Target isolated individuals over schoolsif (dist < this.radius + this.tentacleLength && gameTime - this.lastFoodCapture > 300) {
+                        // Target isolated individuals over schools
                         const hasNearbyFriends = other.findSchoolmates().length > 2;
                         if (hasNearbyFriends) {
                             preyScore *= 0.6;
@@ -1191,7 +1191,7 @@
                         // Select best prey
                         if (preyScore > bestPreyScore && preyScore > 0.3) {
                             bestPreyScore = preyScore;
-                            bestPrey = other;if (dist < this.radius + this.tentacleLength && gameTime - this.lastFoodCapture > 300) {if (dist < this.radius + this.tentacleLength && gameTime - this.lastFoodCapture > 300) {
+                            bestPrey = other;
                         }
                     }
                 }
@@ -2120,7 +2120,7 @@
             }
             
             // Draw territory boundary if fish is territorial and marking
-            if (this.territory && this.markTerritory) {if (dist < this.radius + this.tentacleLength && gameTime - this.lastFoodCapture > 300) {
+            if (this.territory && this.markTerritory) {
                 ctx.restore(); // Restore world coordinates for territory
                 
                 const territoryColor = `rgba(${Math.floor(this.bodyColor[0]*255)},${Math.floor(this.bodyColor[1]*255)},${Math.floor(this.bodyColor[2]*255)},0.3)`;
@@ -2433,7 +2433,7 @@
                                     foodPellet.x = this.x + Math.cos(angle) * distance;
                                     foodPellet.y = this.y + Math.sin(angle) * distance;
                                     foodPellets.push(foodPellet);
-                                    foodSpawnedTotal += 20;
+                                    foodSpawnedTotal += 5;
                                 }
                             }
                         }
@@ -2441,10 +2441,10 @@
                 }
                 
                 // Check for potential symbiotic partners
-                if (!this.symbioticFish && dist < this.radius * 2) {
-                    // Fish with striped pattern (special trait) are immune
+                const alreadySymbiotic = this.symbioticFish.includes(fish);
+                if (!alreadySymbiotic && dist < this.radius * 2) {
                     if (fish.pattern === PATTERNS.STRIPED && fish.symbioticTendency > 0.7) {
-                        this.symbioticFish = fish;
+                        this.symbioticFish.push(fish);
                         fish.homeAnemone = this;
                     }
                 }
