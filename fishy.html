@@ -960,7 +960,7 @@
                     }
                     
                     this.lastGeyserObserved = currentTime;
-                    
+                    if (dist < this.radius + this.tentacleLength && gameTime - this.lastFoodCapture > 300) {
                     // Learn that this area is dangerous
                     this.learn({
                         x: geyserPosition.x,
@@ -1191,7 +1191,7 @@
                         // Select best prey
                         if (preyScore > bestPreyScore && preyScore > 0.3) {
                             bestPreyScore = preyScore;
-                            bestPrey = other;
+                            bestPrey = other;if (dist < this.radius + this.tentacleLength && gameTime - this.lastFoodCapture > 300) {if (dist < this.radius + this.tentacleLength && gameTime - this.lastFoodCapture > 300) {
                         }
                     }
                 }
@@ -2408,9 +2408,9 @@
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 
                 // Check if fish is within tentacle range
-                if (dist < this.radius + this.tentacleLength && gameTime - this.lastFoodCapture > 300) {
+                if (dist < this.radius + this.tentacleLength && gameTime - this.lastFoodCapture > 150) {
                     // Smaller fish can be caught
-                    if (fish.bodyWidth * fish.bodyHeight < 1.0) {
+                    if (fish.bodyWidth * fish.bodyHeight < 1.8) {
                         const catchChance = 0.6 - (fish.bodyWidth * fish.bodyHeight);
                         
                         if (Math.random() < catchChance) {
