@@ -2408,7 +2408,7 @@
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 
                 // Check if fish is within tentacle range
-                if (dist < this.radius + this.tentacleLength && gameTime - this.lastFoodCapture > 200) {
+                if (dist < this.radius + this.tentacleLength && gameTime - this.lastFoodCapture > 300) {
                     // Smaller fish can be caught
                     if (fish.bodyWidth * fish.bodyHeight < 1.0) {
                         const catchChance = 0.6 - (fish.bodyWidth * fish.bodyHeight);
