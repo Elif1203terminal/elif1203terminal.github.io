@@ -665,7 +665,7 @@
             
             // Learning ability affects energy consumption
             if (this.learningAbility > 0.8) {
-                this.ageSpeedFactor *= 1.1; // Smarter fish age slightly faster
+                this.ageSpeedFactor *= 1.1; // Smarter fish agefoodPellets slightly faster
             }
         }
 
@@ -2433,7 +2433,7 @@
                                     foodPellet.x = this.x + Math.cos(angle) * distance;
                                     foodPellet.y = this.y + Math.sin(angle) * distance;
                                     foodPellets.push(foodPellet);
-                                    foodSpawnedTotal += 5;
+                                    foodSpawnedTotal += 20;
                                 }
                             }
                         }
