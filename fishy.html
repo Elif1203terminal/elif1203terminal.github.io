@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Enhanced Evolutionary Fish Simulation</title>
+    <title>Enhanced Evolutionary Fish Simulation with Predators</title>
     <style>
         body { 
             margin: 0; 
@@ -107,6 +107,38 @@
             transform: translateX(-50%);
             margin-bottom: -2px;
         }
+        .ecosystem-indicators {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 8px;
+            color: white;
+        }
+        .indicator-bar {
+            height: 6px;
+            width: 100%;
+            margin: 5px 0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .herbivore-bar {
+            background: linear-gradient(to right, #00ff00, #88ff88);
+        }
+        .omnivore-bar {
+            background: linear-gradient(to right, #ffaa00, #ffcc88);
+        }
+        .carnivore-bar {
+            background: linear-gradient(to right, #ff0000, #ff8888);
+        }
+        .indicator-fill {
+            height: 100%;
+            width: 0%;
+            background: rgba(255,255,255,0.8);
+            transition: width 0.5s;
+        }
     </style>
 </head>
 <body>
@@ -120,6 +152,21 @@
     <div id="controls">
         <button id="pauseBtn" class="control-button">Pause</button>
         <button id="resetBtn" class="control-button">Reset</button>
+    </div>
+    
+    <div id="ecosystem-indicators" class="ecosystem-indicators">
+        <div>Herbivores: <span id="herbivore-count">0</span></div>
+        <div class="indicator-bar herbivore-bar">
+            <div id="herbivore-fill" class="indicator-fill"></div>
+        </div>
+        <div>Omnivores: <span id="omnivore-count">0</span></div>
+        <div class="indicator-bar omnivore-bar">
+            <div id="omnivore-fill" class="indicator-fill"></div>
+        </div>
+        <div>Carnivores: <span id="carnivore-count">0</span></div>
+        <div class="indicator-bar carnivore-bar">
+            <div id="carnivore-fill" class="indicator-fill"></div>
+        </div>
     </div>
     
     <div id="control-panel">
@@ -150,6 +197,11 @@
             <input type="range" id="geyserFrequency" min="10" max="60" step="5" value="30">
         </div>
         
+        <div class="slider-container">
+            <label for="predatorEmergenceRate">Predator Emergence Rate: <span id="predatorEmergenceRateValue" class="slider-value">0.05</span></label>
+            <input type="range" id="predatorEmergenceRate" min="0.01" max="0.2" step="0.01" value="0.05">
+        </div>
+        
         <button id="applyBtn" class="control-button">Apply & Resume</button>
     </div>
     
@@ -159,147 +211,239 @@
         <div id="beauty-indicator"></div>
     </div>
     <script>
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    let width = canvas.width = window.innerWidth;
-    let height = canvas.height = window.innerHeight;
-    
-    // Simulation parameters - these can be modified via control panel
-    let CONFIG = {
-        mutationRate: 0.05,
-        beautyEvolutionRate: 0.10,
-        foodPerMinute: 90,
-        learningRate: 0.05,
-        geyserFrequency: 30, // in seconds
-        maxFishPopulation: 200 // Prevent performance issues with too many fish
-    };
-    
-    // Simulation state
-    let paused = false;
-    let showFishDetails = false;
-    let selectedFish = null;
-    let gameTime = 0; // Time in frames (60 per second)
-    let highestGeneration = 0; // Track highest generation number
-    let fishDeathsTotal = 0;
-    let foodSpawnedTotal = 0;
-    let geyserPosition = { x: width / 2, y: height - 30 };
-    let lastGeyserTime = 0;
-    let geyserActive = false;
-    let geyserDuration = 0;
-    let lastFoodSpawn = 0;
-    let fishes = [];
-    let eggs = [];
-    let foodPellets = [];
-    class Fish {
-        constructor(parents = null) {
-            // Physical traits
-            this.bodyWidth = 0.8 + Math.random() * 0.4;
-            this.bodyHeight = 0.8 + Math.random() * 0.4;
-            this.eyeSize = 0.1 + Math.random() * 0.2;
-            this.finSize = 0.3 + Math.random() * 0.4;
-            this.symmetry = 0.8 + Math.random() * 0.4;
-            
-            // Calculate body size for boundary calculations
-            this.bodySize = Math.max(this.bodyWidth * 15, this.bodyHeight * 10);
-            
-            // Color traits 
-            this.bodyColor = [Math.random(), Math.random(), Math.random()];
-            this.eyeColor = [Math.random(), Math.random(), Math.random()];
-            this.finColor = [Math.random(), Math.random(), Math.random()];
-            
-            // Position & movement
-            this.x = Math.random() * (width - 2 * this.bodySize) + this.bodySize;
-            this.y = Math.random() * (height - 2 * this.bodySize) + this.bodySize;
-            this.angle = Math.random() * Math.PI * 2;
-            this.speed = 1 + Math.random() * 0.5;
-            
-            // Beauty preferences - expanded to be more diverse and detailed
-            this.beautyWeights = {
-                symmetry: 0.5 + Math.random() * 1.0,
-                eyeSize: 0.5 + Math.random() * 1.0,
-                finSize: 0.5 + Math.random() * 1.0,
-                bodyShape: 0.5 + Math.random() * 1.0,
-                colorVibrancy: 0.5 + Math.random() * 1.0,
-                bodyColor: [Math.random(), Math.random(), Math.random()], // Preferred body color
-                finColor: [Math.random(), Math.random(), Math.random()],  // Preferred fin color
-                eyeColor: [Math.random(), Math.random(), Math.random()],  // Preferred eye color
-                size: 0.5 + Math.random() * 1.0                           // Preferred overall size
-            };
-            
-            // Breeding state
-            this.isFemale = Math.random() < 0.5;
-            this.hasMated = false;
-            this.eggsLaid = 0;
-            this.cooldown = 0;
-            this.searchingTime = 0;
-            this.preferredMate = null;
-            this.attractionThreshold = 1.5; // Lower initial threshold
-            this.courtingPartner = null;
-            this.courtingTime = 0;
-            this.dancePhase = 0;
-            this.breedingSuccess = 0.5 + Math.random() * 0.5; // Genetic breeding ability
-            
-            // Food and energy system
-            this.foodPoints = 0;
-            this.hunger = 0;
-            this.targetFood = null;
-            this.canMate = false;
-            
-            // Food finding abilities (evolvable traits)
-            this.visionRange = 30 + Math.random() * 70; // Visual detection range
-            this.visionAngle = Math.PI / 4 + Math.random() * Math.PI / 2; // Field of view
-            this.smellSensitivity = 0.01 + Math.random() * 0.09; // How well they detect faint scents
-            this.foodSpeed = 0.8 + Math.random() * 0.4; // Speed boost when hunting
-            
-            // Hunting strategy (0-1, where 0 = vision-based, 1 = smell-based)
-            this.huntingStrategy = Math.random();
-            
-            // Learning and memory
-            this.memory = {
-                successfulFoodSpots: [], // Remembers where food was found
-                successfulMates: [], // Remembers which fish had successful matings
-                observations: [], // General observations about environment
-                dangerSpots: [] // Remembers locations that caused harm
-            };
-            this.learningAbility = 0.5 + Math.random() * 0.5; // How quickly they learn
-            
-            // Social behavior
-            this.socialTendency = Math.random(); // 0 = loner, 1 = very social
-            this.leadFollowTendency = Math.random(); // 0 = follower, 1 = leader
-            
-            // Age and lifespan
-            this.age = 0;
-            this.ageSpeedFactor = 1.0; // Aging speed multiplier
-            
-            // Beauty display traits (how they show off to potential mates)
-            this.displayBehavior = Math.floor(Math.random() * 3); // 0 = dance, 1 = color flash, 2 = fin display
-            this.displayIntensity = 0.5 + Math.random() * 0.5;
-            
-            // Geyser avoidance traits
-            this.dangerPerception = 0.2 + Math.random() * 0.3; // How well they detect danger
-            this.reactSpeed = 0.5 + Math.random() * 0.5; // How quickly they react to danger
-            this.dangerMemoryStrength = 0.3 + Math.random() * 0.7; // How well they remember danger
-            this.geyserInterval = 0; // Learning the timing of the geyser
-            this.lastGeyserObserved = null; // When they last saw a geyser
-            
-            // Generate unique ID for this fish
-            this.id = Math.random().toString(36).substr(2, 9);
-            
-            // Set generation number - 0 for initial fish, otherwise inherit from parents
-            this.generation = 0;
-            
-            if (parents) {
-                this.inheritTraits(parents);
-                // Set generation to one higher than average of parents
-                this.generation = Math.floor((parents[0].generation + parents[1].generation) / 2) + 1;
-                highestGeneration = Math.max(highestGeneration, this.generation);
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+        
+        // Simulation parameters - these can be modified via control panel
+        let CONFIG = {
+            mutationRate: 0.05,
+            beautyEvolutionRate: 0.10,
+            foodPerMinute: 90,
+            learningRate: 0.05,
+            geyserFrequency: 30, // in seconds
+            maxFishPopulation: 200, // Prevent performance issues with too many fish
+            predatorEmergenceRate: 0.05, // Rate at which predatory traits can emerge
+            predatorPopulationCap: 40, // Maximum number of predators (20% of population)
+            environmentalCycleDuration: 18000, // 5 minutes at 60fps
+            planktonDensity: 0.7, // Base amount of microscopic food in the water
+            symbioticRate: 0.03, // Chance of symbiotic relationships emerging
+            schoolingThreshold: 0.6, // Similarity threshold for schooling behavior
+            territorialCooldown: 1800, // 30 seconds between territory establishment
+            carnivoreMetabolicRate: 1.5 // Carnivores use more energy than herbivores
+        };
+        
+        // Simulation state
+        let paused = false;
+        let showFishDetails = false;
+        let selectedFish = null;
+        let gameTime = 0; // Time in frames (60 per second)
+        let highestGeneration = 0; // Track highest generation number
+        let fishDeathsTotal = 0;
+        let predationDeaths = 0;
+        let foodSpawnedTotal = 0;
+        let geyserPosition = { x: width / 2, y: height - 30 };
+        let lastGeyserTime = 0;
+        let geyserActive = false;
+        let geyserDuration = 0;
+        let lastFoodSpawn = 0;
+        let fishes = [];
+        let eggs = [];
+        let foodPellets = [];
+        let anemones = [];
+        let environmentalCycle = 0;
+        
+        // Predator-prey statistics for ecosystem balance tracking
+        let ecosystemStats = {
+            herbivoreCount: 0,
+            omnivoreCount: 0, 
+            carnivoreCount: 0,
+            lastHerbivoreCount: 0,
+            lastOmnivoreCount: 0,
+            lastCarnivoreCount: 0,
+            herbivoreHistory: [],
+            omnivoreHistory: [],
+            carnivoreHistory: [],
+            deathsByPredation: 0,
+            deathsByStarvation: 0,
+            deathsByGeyser: 0
+        };
+        
+        // Fish patterns (for species differentiation)
+        const PATTERNS = {
+            SOLID: 0,
+            STRIPED: 1,
+            SPOTTED: 2,
+            GRADIENT: 3
+        };
+        
+        // Diet types
+        const DIET_TYPES = {
+            HERBIVORE: 0,
+            OMNIVORE: 0.5,
+            CARNIVORE: 1.0
+        };
+        
+        // Display behaviors
+        const DISPLAY_BEHAVIORS = {
+            DANCE: 0,
+            COLOR_FLASH: 1,
+            FIN_DISPLAY: 2,
+            SPIRAL: 3
+        };
+        
+        class Fish {
+            constructor(parents = null) {
+                // Physical traits
+                this.bodyWidth = 0.8 + Math.random() * 0.4;
+                this.bodyHeight = 0.8 + Math.random() * 0.4;
+                this.eyeSize = 0.1 + Math.random() * 0.2;
+                this.finSize = 0.3 + Math.random() * 0.4;
+                this.symmetry = 0.8 + Math.random() * 0.4;
+                
+                // Calculate body size for boundary calculations
+                this.bodySize = Math.max(this.bodyWidth * 15, this.bodyHeight * 10);
+                
+                // Color traits 
+                this.bodyColor = [Math.random(), Math.random(), Math.random()];
+                this.eyeColor = [Math.random(), Math.random(), Math.random()];
+                this.finColor = [Math.random(), Math.random(), Math.random()];
+                
+                // Pattern traits - new for species differentiation
+                this.pattern = Math.random() < 0.3 ? 
+                    Math.floor(Math.random() * 4) : PATTERNS.SOLID;
+                this.patternColor = [Math.random(), Math.random(), Math.random()];
+                this.patternDensity = 0.3 + Math.random() * 0.7;
+                
+                // Position & movement
+                this.x = Math.random() * (width - 2 * this.bodySize) + this.bodySize;
+                this.y = Math.random() * (height - 2 * this.bodySize) + this.bodySize;
+                this.angle = Math.random() * Math.PI * 2;
+                this.speed = 1 + Math.random() * 0.5;
+                
+                // Diet traits (new) - allows for predator emergence
+                this.dietType = Math.random() < 0.1 ? DIET_TYPES.OMNIVORE : DIET_TYPES.HERBIVORE; // Start with mostly herbivores
+                this.predatoryAbility = 0.1 + Math.random() * 0.1; // Initially low
+                this.jawStrength = 0.2 + Math.random() * 0.2; // For catching prey
+                this.aggressiveness = 0.1 + Math.random() * 0.2; // Willingness to attack
+                
+                // Target tracking
+                this.targetFood = null;
+                this.targetPrey = null;
+                this.fleeingFrom = null;
+                
+                // Beauty preferences - expanded to be more diverse and detailed
+                this.beautyWeights = {
+                    symmetry: 0.5 + Math.random() * 1.0,
+                    eyeSize: 0.5 + Math.random() * 1.0,
+                    finSize: 0.5 + Math.random() * 1.0,
+                    bodyShape: 0.5 + Math.random() * 1.0,
+                    colorVibrancy: 0.5 + Math.random() * 1.0,
+                    bodyColor: [Math.random(), Math.random(), Math.random()], // Preferred body color
+                    finColor: [Math.random(), Math.random(), Math.random()],  // Preferred fin color
+                    eyeColor: [Math.random(), Math.random(), Math.random()],  // Preferred eye color
+                    size: 0.5 + Math.random() * 1.0,                          // Preferred overall size
+                    pattern: Math.floor(Math.random() * 4)                    // Preferred pattern
+                };
+                
+                // Breeding state
+                this.isFemale = Math.random() < 0.5;
+                this.hasMated = false;
+                this.eggsLaid = 0;
+                this.cooldown = 0;
+                this.searchingTime = 0;
+                this.preferredMate = null;
+                this.attractionThreshold = 1.5; // Lower initial threshold
+                this.courtingPartner = null;
+                this.courtingTime = 0;
+                this.dancePhase = 0;
+                this.breedingSuccess = 0.5 + Math.random() * 0.5; // Genetic breeding ability
+                
+                // Food and energy system
+                this.foodPoints = 0;
+                this.hunger = 0;
+                this.canMate = false;
+                
+                // Food finding abilities (evolvable traits)
+                this.visionRange = 50 + Math.random() * 70; // Visual detection range
+                this.effectiveVisionRange = this.visionRange; // Modified by water clarity
+                this.visionAngle = Math.PI / 4 + Math.random() * Math.PI / 2; // Field of view
+                this.smellSensitivity = 0.01 + Math.random() * 0.09; // How well they detect faint scents
+                this.foodSpeed = 0.8 + Math.random() * 0.4; // Speed boost when hunting
+                
+                // Hunting/Foraging strategy (0-1, where 0 = vision-based, 1 = smell-based)
+                this.huntingStrategy = Math.random();
+                
+                // Anti-predator traits
+                this.predatorDetection = 0.3 + Math.random() * 0.3; // Ability to spot predators
+                this.escapeSpeed = 1.2 + Math.random() * 0.3; // Burst speed when fleeing
+                this.camouflage = 0.1 + Math.random() * 0.2; // Reduces visibility to predators
+                this.schoolingTendency = Math.random(); // 0 = loner, 1 = strong schooling
+                
+                // Learning and memory
+                this.memory = {
+                    successfulFoodSpots: [], // Remembers where food was found
+                    successfulMates: [], // Remembers which fish had successful matings
+                    observations: [], // General observations about environment
+                    dangerSpots: [], // Remembers locations that caused harm
+                    predators: [] // Remembers specific predator appearances
+                };
+                this.learningAbility = 0.5 + Math.random() * 0.5; // How quickly they learn
+                
+                // Social behavior
+                this.socialTendency = Math.random(); // 0 = loner, 1 = very social
+                this.leadFollowTendency = Math.random(); // 0 = follower, 1 = leader
+                
+                // Territorial behavior
+                this.territoriality = Math.random(); // 0 = not territorial, 1 = highly territorial
+                this.territory = null; // Will be defined if fish establishes territory
+                this.territoryLastEstablished = 0; // Game time when territory was last established
+                this.markTerritory = false; // For visual display
+                
+                // Symbiotic relationships
+                this.cleaningBehavior = Math.random(); // 0 = not a cleaner, 1 = dedicated cleaner
+                this.parasiteLevel = 0; // Accumulates over time, reduced by cleaners
+                this.cleaning = null; // ID of fish being cleaned
+                this.symbioticTendency = Math.random(); // How likely to form symbiotic relationships
+                this.homeAnemone = null; // Reference to partner anemone
+                
+                // Age and lifespan
+                this.age = 0;
+                this.ageSpeedFactor = 1.0; // Aging speed multiplier
+                
+                // Beauty display traits (how they show off to potential mates)
+                this.displayBehavior = Math.floor(Math.random() * 4); // 0-3 different display types
+                this.displayIntensity = 0.5 + Math.random() * 0.5;
+                
+                // Geyser avoidance traits
+                this.dangerPerception = 0.2 + Math.random() * 0.3; // How well they detect danger
+                this.reactSpeed = 0.5 + Math.random() * 0.5; // How quickly they react to danger
+                this.dangerMemoryStrength = 0.3 + Math.random() * 0.7; // How well they remember danger
+                this.geyserInterval = 0; // Learning the timing of the geyser
+                this.lastGeyserObserved = null; // When they last saw a geyser
+                
+                // Generate unique ID for this fish
+                this.id = Math.random().toString(36).substr(2, 9);
+                
+                // Set generation number - 0 for initial fish, otherwise inherit from parents
+                this.generation = 0;
+                
+                if (parents) {
+                    this.inheritTraits(parents);
+                    // Set generation to one higher than average of parents
+                    this.generation = Math.floor((parents[0].generation + parents[1].generation) / 2) + 1;
+                    highestGeneration = Math.max(highestGeneration, this.generation);
+                    
+                    // Apply trait correlations for natural balance
+                    this.applyTraitCorrelations();
+                }
             }
-        }
-
-        inheritTraits(parents) {
+            inheritTraits(parents) {
             // Mutation rate from config
             const mutationRate = CONFIG.mutationRate;
             const beautyEvolutionRate = CONFIG.beautyEvolutionRate;
+            const predatorEmergenceRate = CONFIG.predatorEmergenceRate;
             
             // Inherit physical traits with mutation
             this.bodyWidth = this.inheritTrait(parents[0].bodyWidth, parents[1].bodyWidth, mutationRate);
@@ -316,7 +460,44 @@
                 this.bodyColor[i] = this.inheritTrait(parents[0].bodyColor[i], parents[1].bodyColor[i], mutationRate);
                 this.eyeColor[i] = this.inheritTrait(parents[0].eyeColor[i], parents[1].eyeColor[i], mutationRate);
                 this.finColor[i] = this.inheritTrait(parents[0].finColor[i], parents[1].finColor[i], mutationRate);
+                this.patternColor[i] = this.inheritTrait(parents[0].patternColor[i], parents[1].patternColor[i], mutationRate);
             }
+            
+            // Inherit pattern with occasional mutation
+            if (Math.random() < mutationRate * 0.5) {
+                this.pattern = Math.floor(Math.random() * 4);
+            } else {
+                this.pattern = Math.random() < 0.5 ? parents[0].pattern : parents[1].pattern;
+            }
+            
+            this.patternDensity = this.inheritTrait(parents[0].patternDensity, parents[1].patternDensity, mutationRate);
+            
+            // Inherit diet type with potential for predator emergence
+            const parentDietAvg = (parents[0].dietType + parents[1].dietType) / 2;
+            
+            // Chance to become more carnivorous based on parents' diet
+            if (Math.random() < predatorEmergenceRate && parentDietAvg > 0.3) {
+                // More likely to evolve towards carnivore if parents are omnivores
+                this.dietType = Math.min(1.0, parentDietAvg + (0.1 + Math.random() * 0.2));
+                
+                // When evolving towards carnivore, boost predatory traits
+                if (this.dietType > 0.7) {
+                    this.predatoryAbility = Math.max(parents[0].predatoryAbility, parents[1].predatoryAbility) * (1 + Math.random() * 0.3);
+                    this.jawStrength = Math.max(parents[0].jawStrength, parents[1].jawStrength) * (1 + Math.random() * 0.3);
+                    this.aggressiveness = Math.max(parents[0].aggressiveness, parents[1].aggressiveness) * (1 + Math.random() * 0.3);
+                }
+            } else {
+                // Normal inheritance with slight mutation
+                this.dietType = this.inheritTrait(parents[0].dietType, parents[1].dietType, mutationRate * 0.5);
+            }
+            
+            // Inherit predatory traits
+            this.predatoryAbility = this.inheritTrait(parents[0].predatoryAbility, parents[1].predatoryAbility, 
+                                                    this.dietType > 0.5 ? mutationRate * 1.5 : mutationRate * 0.5);
+            this.jawStrength = this.inheritTrait(parents[0].jawStrength, parents[1].jawStrength, 
+                                               this.dietType > 0.5 ? mutationRate * 1.5 : mutationRate * 0.5);
+            this.aggressiveness = this.inheritTrait(parents[0].aggressiveness, parents[1].aggressiveness, 
+                                                 this.dietType > 0.5 ? mutationRate * 1.5 : mutationRate * 0.5);
             
             // Inherit beauty preferences with mutation - higher rate for faster evolution
             for (const key in this.beautyWeights) {
@@ -346,11 +527,24 @@
             this.foodSpeed = this.inheritTrait(parents[0].foodSpeed, parents[1].foodSpeed, mutationRate);
             this.huntingStrategy = this.inheritTrait(parents[0].huntingStrategy, parents[1].huntingStrategy, mutationRate);
             
+            // Inherit anti-predator traits (stronger mutation for faster adaptation)
+            this.predatorDetection = this.inheritTrait(parents[0].predatorDetection, parents[1].predatorDetection, mutationRate * 1.5);
+            this.escapeSpeed = this.inheritTrait(parents[0].escapeSpeed, parents[1].escapeSpeed, mutationRate * 1.5);
+            this.camouflage = this.inheritTrait(parents[0].camouflage, parents[1].camouflage, mutationRate);
+            this.schoolingTendency = this.inheritTrait(parents[0].schoolingTendency, parents[1].schoolingTendency, mutationRate);
+            
             // Inherit learning and behavior traits
             this.learningAbility = this.inheritTrait(parents[0].learningAbility, parents[1].learningAbility, mutationRate);
             this.socialTendency = this.inheritTrait(parents[0].socialTendency, parents[1].socialTendency, mutationRate);
             this.leadFollowTendency = this.inheritTrait(parents[0].leadFollowTendency, parents[1].leadFollowTendency, mutationRate);
             this.breedingSuccess = this.inheritTrait(parents[0].breedingSuccess, parents[1].breedingSuccess, mutationRate * 0.5); // More stable
+            
+            // Inherit territorial behavior
+            this.territoriality = this.inheritTrait(parents[0].territoriality, parents[1].territoriality, mutationRate);
+            
+            // Inherit symbiotic traits
+            this.cleaningBehavior = this.inheritTrait(parents[0].cleaningBehavior, parents[1].cleaningBehavior, mutationRate);
+            this.symbioticTendency = this.inheritTrait(parents[0].symbioticTendency, parents[1].symbioticTendency, mutationRate);
             
             // Inherit geyser avoidance traits
             this.dangerPerception = this.inheritTrait(parents[0].dangerPerception, parents[1].dangerPerception, mutationRate);
@@ -383,11 +577,18 @@
                     const memoryIndex = Math.floor(Math.random() * Math.random() * parentDangerMemories.length);
                     this.memory.dangerSpots.push(parentDangerMemories[memoryIndex]);
                 }
+                
+                // Inherit predator recognition
+                const parentPredatorMemories = [...parents[0].memory.predators, ...parents[1].memory.predators];
+                if (parentPredatorMemories.length > 0) {
+                    const memoryIndex = Math.floor(Math.random() * parentPredatorMemories.length);
+                    this.memory.predators.push(parentPredatorMemories[memoryIndex]);
+                }
             }
             
             // Inherit display behavior with possible mutation
             if (Math.random() < mutationRate) {
-                this.displayBehavior = Math.floor(Math.random() * 3);
+                this.displayBehavior = Math.floor(Math.random() * 4);
             } else {
                 this.displayBehavior = Math.random() < 0.5 ? parents[0].displayBehavior : parents[1].displayBehavior;
             }
@@ -413,6 +614,61 @@
                 return Math.max(0.1, Math.min(2.0, inherited));
             }
         }
+        
+        applyTraitCorrelations() {
+            // Natural trade-offs to prevent super-predators and maintain balance
+            
+            // Inverse relationship between size and speed
+            if (this.bodyWidth * this.bodyHeight > 1.2) {
+                this.speed *= 0.8;
+            }
+            
+            // Trade-off between jaw strength and swimming efficiency
+            if (this.jawStrength > 0.6) {
+                this.foodSpeed *= 0.7;
+            }
+            
+            // Camouflage reduces visibility to prey but also to potential mates
+            if (this.camouflage > 0.7) {
+                this.displayIntensity *= 0.6;
+            }
+            
+            // Vision specialization trade-off
+            if (this.visionRange > 80) {
+                this.visionAngle *= 0.8; // Narrower field of view for long-distance vision
+            }
+            
+            // Predatory traits affect social behaviors
+            if (this.dietType > 0.7) {
+                // Carnivores are less social
+                this.socialTendency *= 0.7;
+                // But more territorial
+                this.territoriality *= 1.3;
+                this.territoriality = Math.min(1.0, this.territoriality);
+            }
+            
+            // Schooling tendency affects escape capability
+            if (this.schoolingTendency > 0.7) {
+                this.predatorDetection *= 1.2; // Better at detecting predators in schools
+            }
+            
+            // Cleaning behavior trade-offs
+            if (this.cleaningBehavior > 0.7) {
+                this.predatoryAbility *= 0.5; // Cleaners are less predatory
+                this.aggressiveness *= 0.3; // Cleaners are less aggressive
+            }
+            
+            // Anti-predator and predatory trait trade-offs
+            if (this.escapeSpeed > 1.5) {
+                this.aggressiveness *= 0.8; // Fast fish tend to flee rather than fight
+            }
+            
+            // Learning ability affects energy consumption
+            if (this.learningAbility > 0.8) {
+                this.ageSpeedFactor *= 1.1; // Smarter fish age slightly faster
+            }
+        }
+
         evaluateBeauty(other) {
             let score = 0;
             
@@ -438,13 +694,18 @@
             score += finColorMatch * 0.2;
             score += eyeColorMatch * 0.2;
             
+            // Pattern preference (new)
+            if (this.beautyWeights.pattern === other.pattern) {
+                score += 0.5;
+            }
+            
             // Color vibrancy (how saturated the colors are)
             const colorVibrancy = this.calculateColorVibrancy(other.bodyColor);
             score += this.beautyWeights.colorVibrancy * colorVibrancy;
             
             // Display behavior preference
             // Fish are more attracted to those with similar display behaviors
-            const displayMatch = 1 - Math.abs(this.displayBehavior - other.displayBehavior) / 3;
+            const displayMatch = 1 - Math.abs(this.displayBehavior - other.displayBehavior) / 4;
             score += displayMatch * 0.5;
             
             // Well-fed fish are more attractive (good providers/resourceful)
@@ -467,6 +728,16 @@
             // Social compatibility - similar social tendencies are slightly preferred
             const socialCompatibility = 1 - Math.abs(this.socialTendency - other.socialTendency);
             score *= 1 + socialCompatibility * 0.1;
+            
+            // Diet compatibility - herbivores prefer herbivores, carnivores prefer carnivores
+            const dietCompatibility = 1 - Math.abs(this.dietType - other.dietType);
+            score *= 1 + dietCompatibility * 0.15;
+            
+            // Predator-prey relationship reduces attraction
+            if ((this.dietType > 0.7 && other.dietType < 0.3) || 
+                (other.dietType > 0.7 && this.dietType < 0.3)) {
+                score *= 0.5; // Significant reduction in attraction
+            }
             
             return score;
         }
@@ -512,6 +783,156 @@
             }
             return null;
         }
+        update() {
+            if (paused) return;
+            
+            if (this.cooldown > 0) this.cooldown--;
+            this.age += 0.01 * this.ageSpeedFactor;
+            
+            // Detect and learn about geyser
+            this.detectGeyser();
+            
+            // Try to avoid geyser if predicted it's going to erupt
+            const avoidingGeyser = this.avoidGeyser();
+            
+            // Manage parasites (new)
+            if (gameTime % 600 === 0) { // Every 10 seconds
+                this.parasiteLevel += 0.05 + Math.random() * 0.05;
+                this.parasiteLevel = Math.min(1.0, this.parasiteLevel);
+                
+                // Parasites slow fish down and consume energy
+                if (this.parasiteLevel > 0.5) {
+                    this.speed *= 0.95;
+                    this.foodPoints = Math.max(0, this.foodPoints - this.parasiteLevel * 0.5);
+                }
+            }
+            
+            // Predator detection and evasion (new)
+            this.detectPredators();
+            
+            // Social learning - observe other fish behavior
+            if (!avoidingGeyser && !this.fleeingFrom) {
+                this.observeOtherFish();
+            }
+            
+            // Cleaner fish behavior (new)
+            if (this.cleaningBehavior > 0.7 && !this.targetFood && !this.targetPrey && !this.fleeingFrom && !avoidingGeyser) {
+                this.seekHostFish();
+            }
+            
+            // Territory establishment and defense (new)
+            if (this.territoriality > 0.7 && this.foodPoints > 15 && !this.territory && 
+                gameTime - this.territoryLastEstablished > CONFIG.territorialCooldown) {
+                // Establish territory around current location
+                this.territory = {
+                    x: this.x,
+                    y: this.y,
+                    radius: 80 + this.territoriality * 60,
+                    establishedTime: gameTime
+                };
+                this.territoryLastEstablished = gameTime;
+            }
+            
+            if (this.territory && !this.fleeingFrom && !avoidingGeyser) {
+                this.defendTerritory();
+            }
+            
+            // Predatory behavior (new)
+            if (this.dietType > 0.7 && this.aggressiveness > 0.4 && !this.targetFood && 
+                !this.fleeingFrom && !avoidingGeyser && !this.courtingPartner) {
+                const potentialPrey = this.findPotentialPrey();
+                if (potentialPrey) {
+                    this.targetPrey = potentialPrey;
+                }
+            }
+            
+            // Handle schooling behavior (new)
+            if (this.schoolingTendency > CONFIG.schoolingThreshold && !this.targetFood && 
+                !this.targetPrey && !this.fleeingFrom && !avoidingGeyser && !this.courtingPartner) {
+                this.formSchool();
+            }
+            
+            // Find herbivore food if not yet able to mate, not fleeing, and not hunting prey
+            if (!this.canMate && !this.targetFood && !this.targetPrey && !this.fleeingFrom && 
+                !avoidingGeyser && this.dietType < 0.7) {
+                this.findFood();
+            }
+            
+            // Handle movement based on current state
+            if (this.fleeingFrom) {
+                // Currently fleeing from predator or danger
+                this.fleeFromPredator(this.fleeingFrom);
+            } else if (this.targetPrey) {
+                // Hunting prey
+                this.chasePrey();
+            } else if (this.targetFood && !this.canMate && !avoidingGeyser) {
+                // Pursuing food
+                this.moveTowardsFood();
+            } else if (this.courtingPartner) {
+                // Courting - movement handled in performCourtship
+            } else if (this.homeAnemone && Math.random() < 0.6) {
+                // Stay near anemone when not engaged in other behaviors
+                this.stayNearAnemone();
+            } else if (!avoidingGeyser) {
+                // Normal swimming
+                this.swim();
+            }
+            
+            // Stay within boundaries
+            this.enforceBoundaries();
+            
+            // Check if hit by geyser
+            if (geyserActive) {
+                // Calculate if fish is within geyser cone
+                const isHitByGeyser = this.checkGeyserCollision();
+                
+                if (isHitByGeyser) {
+                    // Fish is killed by geyser
+                    this.killFish();
+                    ecosystemStats.deathsByGeyser++;
+                    return;
+                }
+            }
+            
+            // Reduce food points over time (metabolism)
+            if (gameTime % 300 === 0) { // Every 5 seconds
+                // Base metabolic cost
+                let metabolicCost = 1;
+                
+                // Carnivores have higher metabolic costs
+                if (this.dietType > 0.7) {
+                    metabolicCost = CONFIG.carnivoreMetabolicRate; // Higher cost for carnivores
+                } else if (this.dietType > 0.3) {
+                    metabolicCost = 1.2; // Slightly higher cost for omnivores
+                }
+                
+                // Size-based metabolism - larger fish use more energy
+                metabolicCost *= (0.5 + this.bodyWidth * this.bodyHeight * 0.5);
+                
+                // Apply cost
+                this.foodPoints = Math.max(0, this.foodPoints - metabolicCost);
+                
+                // If food runs out, can no longer mate
+                if (this.foodPoints < 10) {
+                    this.canMate = false;
+                }
+                
+            
+            }
+            
+            // Absorption of microscopic food (plankton) for herbivores when not actively eating
+            if (this.dietType < 0.3 && !this.targetFood && gameTime % 600 === 0) { // Every 10 seconds
+                // Passive food absorption for herbivores
+                const planktonAmount = CONFIG.planktonDensity * (1 + Math.sin(environmentalCycle / CONFIG.environmentalCycleDuration * Math.PI * 2) * 0.3);
+                this.foodPoints += planktonAmount;
+                
+                // Check if can mate now
+                if (this.foodPoints >= 10) {
+                    this.canMate = true;
+                }
+            }
+        }
+
         detectGeyser() {
             // Check if fish can see the geyser when it's active
             if (geyserActive) {
@@ -520,7 +941,7 @@
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 
                 // Fish can see the geyser if it's within range
-                if (dist < this.visionRange * 1.5) {
+                if (dist < this.effectiveVisionRange * 1.5) {
                     // Record when they observed the geyser
                     const currentTime = gameTime;
                     
@@ -554,7 +975,6 @@
             
             return false;
         }
-        
         avoidGeyser() {
             // Fish with geyser knowledge try to predict and avoid it
             
@@ -605,115 +1025,547 @@
             
             return false;
         }
-        update() {
-            if (paused) return;
+
+        detectPredators() {
+            // Skip for carnivores who don't typically flee
+            if (this.dietType > 0.7) return false;
             
-            if (this.cooldown > 0) this.cooldown--;
-            this.age += 0.01;
-            
-            // Detect and learn about geyser
-            this.detectGeyser();
-            
-            // Try to avoid geyser if predicted it's going to erupt
-            const avoidingGeyser = this.avoidGeyser();
-            
-            // Social learning - observe other fish behavior
-            if (!avoidingGeyser) {
-                this.observeOtherFish();
-            }
-            
-            // Find food if not yet able to mate and not avoiding danger
-            if (!this.canMate && !this.targetFood && !avoidingGeyser) {
-                this.findFood();
-            }
-            
-            // Move towards food if hunting, or towards mate if courting,
-            // otherwise normal swimming
-            if (this.targetFood && !this.canMate && !avoidingGeyser) {
-                this.moveTowardsFood();
-            } else if (this.courtingPartner) {
-                // Do nothing - courtship movement handled in performCourtship
-            } else if (!avoidingGeyser) {
-                this.swim();
-            }
-            
-            // Stay within boundaries
-            this.enforceBoundaries();
-            
-            // Check if hit by geyser
-            if (geyserActive) {
-                // Calculate if fish is within geyser cone
-                const isHitByGeyser = this.checkGeyserCollision();
+            for (const other of fishes) {
+                if (other === this) continue;
                 
-                if (isHitByGeyser) {
-                    // Fish is killed by geyser
-                    this.killFish();
-                    return;
+                // Check if other fish could be a predator
+                if (other.dietType > 0.7 && other.aggressiveness > 0.4) {
+                    // Size factor - only scared of larger predators
+                    const mySize = this.bodyWidth * this.bodyHeight;
+                    const otherSize = other.bodyWidth * other.bodyHeight;
+                    
+                    // More scared of larger predators
+                    if (otherSize > mySize * 0.8) {
+                        const dx = other.x - this.x;
+                        const dy = other.y - this.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        // Detection range based on predator detection ability and predator's camouflage
+                        const detectionRange = this.effectiveVisionRange * this.predatorDetection;
+                        const effectiveDetectionRange = detectionRange * (1 - other.camouflage * 0.5);
+                        
+                        // Check if predator can be detected
+                        if (dist < effectiveDetectionRange) {
+                            // Learn about this predator
+                            const predatorProfile = {
+                                id: other.id,
+                                size: otherSize,
+                                bodyColor: [...other.bodyColor],
+                                pattern: other.pattern,
+                                location: { x: other.x, y: other.y },
+                                time: gameTime
+                            };
+                            
+                            // Remember this predator
+                            this.learn(predatorProfile, 'predators');
+                            
+                            // Set fleeing state
+                            this.fleeingFrom = other;
+                            return true;
+                        }
+                        
+                        // Check for memory recognition of similar predators
+                        for (const memory of this.memory.predators) {
+                            // Color similarity check for predator recognition
+                            const colorSimilarity = this.colorSimilarity(memory.bodyColor, other.bodyColor);
+                            const patternMatch = memory.pattern === other.pattern;
+                            
+                            // If looks like a remembered predator and is reasonably close
+                            if (colorSimilarity > 0.7 && patternMatch && dist < detectionRange * 1.3) {
+                                this.fleeingFrom = other;
+                                return true;
+                            }
+                        }
+                    }
                 }
             }
             
-            // Reduce food points over time (metabolism)
-            if (gameTime % 300 === 0) { // Every 5 seconds
-                this.foodPoints = Math.max(0, this.foodPoints - 1);
-                
-                // If food runs out, can no longer mate
-                if (this.foodPoints < 10) {
-                    this.canMate = false;
-                }
-            }
+            // No predators detected
+            this.fleeingFrom = null;
+            return false;
         }
 
-        checkGeyserCollision() {
-            // Check if fish is within the geyser cone
-            const dx = this.x - geyserPosition.x;
-            const dy = this.y - geyserPosition.y;
+        fleeFromPredator(predator) {
+            // Calculate escape angle - away from predator
+            const dx = predator.x - this.x;
+            const dy = predator.y - this.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
             
-            // Geyser cone parameters
-            const geyserHeight = 500; // How high the geyser reaches
-            const geyserBaseWidth = 30;   // Base width of the geyser 
-            const geyserTopWidth = 50;    // Top width of the geyser
+            // Stop fleeing if predator is far away
+            if (dist > this.effectiveVisionRange * 1.5) {
+                this.fleeingFrom = null;
+                return false;
+            }
             
-            // Only check if within possible range
-            if (dist > geyserHeight) return false;
+            const escapeAngle = Math.atan2(-dy, -dx);
             
-            // Calculate angle from geyser to fish
-            const angleToFish = Math.atan2(dy, dx);
+            // Turn towards escape angle quickly
+            const angleDiff = escapeAngle - this.angle;
+            const normalizedDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+            this.angle += normalizedDiff * this.reactSpeed * 0.3;
             
-            // Geyser shoots straight up (270 degrees or -90 degrees)
-            const geyserAngle = -Math.PI / 2;
+            // Use burst speed when fleeing
+            const speedBoost = this.escapeSpeed * (1 + (1.5 - dist / this.effectiveVisionRange) * 0.5);
+            this.x += Math.cos(this.angle) * this.speed * speedBoost;
+            this.y += Math.sin(this.angle) * this.speed * speedBoost;
             
-            // Calculate angle difference
-            let angleDiff = Math.abs(angleToFish - geyserAngle);
-            angleDiff = Math.min(angleDiff, 2 * Math.PI - angleDiff);
+            // Look for other fish to school with (safety in numbers)
+            if (this.schoolingTendency > 0.5) {
+                const nearbyFriends = this.findSchoolmates();
+                if (nearbyFriends.length > 0) {
+                    // Adjust angle slightly towards the center of the group
+                    let centerX = 0, centerY = 0;
+                    for (const friend of nearbyFriends) {
+                        centerX += friend.x;
+                        centerY += friend.y;
+                    }
+                    centerX /= nearbyFriends.length;
+                    centerY /= nearbyFriends.length;
+                    
+                    // If the school center is not in the same direction as the predator
+                    const toCenterAngle = Math.atan2(centerY - this.y, centerX - this.x);
+                    const predatorAngle = Math.atan2(dy, dx);
+                    const angleDiffToCenter = Math.abs(toCenterAngle - predatorAngle);
+                    
+                    if (angleDiffToCenter > Math.PI / 2) {
+                        // School is in a safer direction, adjust angle towards it
+                        const centerAngleDiff = toCenterAngle - this.angle;
+                        this.angle += Math.sin(centerAngleDiff) * 0.2 * this.schoolingTendency;
+                    }
+                }
+            }
             
-            // Calculate distance from center of geyser cone
-            const upwardDist = -dy; // How far up the geyser cone the fish is
+            return true;
+        }
+
+        findPotentialPrey() {
+            // Only for predatory fish
+            if (this.dietType < 0.5 || this.aggressiveness < 0.3) return null;
             
-            if (upwardDist <= 0) return false; // Fish is below the geyser
+            // Find potential prey
+            let bestPreyScore = 0;
+            let bestPrey = null;
             
-            // Calculate allowed width at fish's height
-            const widthAtHeight = geyserBaseWidth + (geyserTopWidth - geyserBaseWidth) * (upwardDist / geyserHeight);
+            for (const other of fishes) {
+                if (other === this) continue;
+                
+                // Check if potential prey (smaller and preferably herbivore)
+                const mySize = this.bodyWidth * this.bodyHeight;
+                const otherSize = other.bodyWidth * other.bodyHeight;
+                
+                // Need to be bigger to hunt effectively
+                if (otherSize < mySize * 0.8) {
+                    const dx = other.x - this.x;
+                    const dy = other.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Check if within vision range
+                    if (dist < this.effectiveVisionRange) {
+                        // Calculate prey attractiveness score
+                        let preyScore = (mySize / otherSize) * (1 - dist / this.effectiveVisionRange);
+                        
+                        // Prefer herbivores
+                        if (other.dietType < 0.3) {
+                            preyScore *= 1.5;
+                        }
+                        
+                        // Target weaker prey
+                        if (other.parasiteLevel > 0.5) {
+                            preyScore *= 1.3;
+                        }
+                        
+                        // Harder to detect camouflaged prey
+                        preyScore *= (1 - other.camouflage * 0.7);
+                        
+                        // Target isolated individuals over schools
+                        const hasNearbyFriends = other.findSchoolmates().length > 2;
+                        if (hasNearbyFriends) {
+                            preyScore *= 0.6;
+                        }
+                        
+                        // Select best prey
+                        if (preyScore > bestPreyScore && preyScore > 0.3) {
+                            bestPreyScore = preyScore;
+                            bestPrey = other;
+                        }
+                    }
+                }
+            }
             
-            // Calculate horizontal distance to geyser center line
-            const horizontalDist = Math.abs(dx);
+            return bestPrey;
+        }
+
+        chasePrey() {
+            if (!this.targetPrey) return false;
             
-            // Check if in cone based on horizontal distance at that height
-            if (horizontalDist < widthAtHeight / 2) {
+            // Check if prey still exists (might have been removed)
+            if (!fishes.includes(this.targetPrey)) {
+                this.targetPrey = null;
+                return false;
+            }
+            
+            const dx = this.targetPrey.x - this.x;
+            const dy = this.targetPrey.y - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            // Give up if prey is too far away
+            if (dist > this.effectiveVisionRange * 1.2) {
+                this.targetPrey = null;
+                return false;
+            }
+            
+            // Turn toward prey
+            const toPreyAngle = Math.atan2(dy, dx);
+            const angleDiff = toPreyAngle - this.angle;
+            this.angle += Math.sin(angleDiff) * 0.2;
+            
+            // Move faster when chasing
+            const huntSpeed = this.speed * (1 + this.predatoryAbility + this.jawStrength * 0.5);
+            this.x += Math.cos(this.angle) * huntSpeed;
+            this.y += Math.sin(this.angle) * huntSpeed;
+            
+            // Check if caught prey
+            if (dist < 15) {
+                // Success depends on predatory ability, jaw strength, and target's escape ability
+                const escapeChance = this.targetPrey.escapeSpeed * (1 - this.jawStrength);
+                const catchChance = this.predatoryAbility * (1 - escapeChance);
+                
+                if (Math.random() < catchChance) {
+                    // Calculate energy gain based on prey size
+                    const preySize = this.targetPrey.bodyWidth * this.targetPrey.bodyHeight;
+                    const energyGain = preySize * 30; // Considerable energy from eating a fish
+                    
+                    // Add food points
+                    this.foodPoints += energyGain;
+                    
+                    // Allow mating if well-fed
+                    if (this.foodPoints >= 10) {
+                        this.canMate = true;
+                    }
+                    
+                    // Remove prey from simulation
+                    const index = fishes.indexOf(this.targetPrey);
+                    if (index > -1) {
+                        fishes.splice(index, 1);
+                        fishDeathsTotal++;
+                        predationDeaths++;
+                        ecosystemStats.deathsByPredation++;
+                    }
+                }
+                
+                // End chase regardless of outcome
+                this.targetPrey = null;
+                return true;
+            }
+            
+            return true;
+        }
+        findSchoolmates() {
+            // Find similar fish for schooling
+            const schoolmates = [];
+            
+            // Only school with similar fish (similar size, color, and pattern)
+            for (const other of fishes) {
+                if (other === this) continue;
+                
+                // Similar diet type (not predator-prey relationship)
+                const dietDifference = Math.abs(this.dietType - other.dietType);
+                if (dietDifference > 0.4) continue;
+                
+                // Check appearance for species recognition
+                const colorSimilarity = this.colorSimilarity(this.bodyColor, other.bodyColor);
+                const sizeRatio = (this.bodyWidth * this.bodyHeight) / (other.bodyWidth * other.bodyHeight);
+                const sizeSimilarity = sizeRatio > 0.7 && sizeRatio < 1.3;
+                const patternMatch = this.pattern === other.pattern;
+                
+                // Only school with similar-looking fish (same species)
+                if (colorSimilarity > 0.7 && sizeSimilarity && patternMatch) {
+                    const dx = other.x - this.x;
+                    const dy = other.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Check distance for schooling
+                    if (dist < 100) {
+                        schoolmates.push(other);
+                    }
+                }
+                }
+            
+            return schoolmates;
+            }
+        
+        formSchool() {
+            const schoolmates = this.findSchoolmates();
+            
+            // Only form school if enough similar fish are found
+            if (schoolmates.length >= 2) {
+                const alignmentVector = {x: 0, y: 0};
+                const cohesionPoint = {x: 0, y: 0};
+                const separationForce = {x: 0, y: 0};
+                let count = 0;
+                
+                // Calculate schooling forces
+                for (const other of schoolmates) {
+                    const dx = other.x - this.x;
+                    const dy = other.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < 100) {
+                        count++;
+                        
+                        // Alignment: match velocity
+                        alignmentVector.x += Math.cos(other.angle);
+                        alignmentVector.y += Math.sin(other.angle);
+                        
+                        // Cohesion: move toward center
+                        cohesionPoint.x += other.x;
+                        cohesionPoint.y += other.y;
+                        
+                        // Separation: avoid collisions
+                        if (dist < 30) {
+                            separationForce.x -= dx / (dist * dist + 0.1);
+                            separationForce.y -= dy / (dist * dist + 0.1);
+                        }
+                    }
+                }
+                
+                // Apply schooling behavior if enough schoolmates found
+                if (count > 0) {
+                    // Normalize and apply forces
+                    const schoolStrength = this.schoolingTendency * 0.1;
+                    
+                    // Alignment
+                    if (alignmentVector.x !== 0 || alignmentVector.y !== 0) {
+                        const alignmentAngle = Math.atan2(alignmentVector.y, alignmentVector.x);
+                        const alignmentDiff = alignmentAngle - this.angle;
+                        this.angle += Math.sin(alignmentDiff) * schoolStrength;
+                    }
+                    
+                    // Cohesion
+                    if (count > 0) {
+                        cohesionPoint.x /= count;
+                        cohesionPoint.y /= count;
+                        
+                        const toCenterAngle = Math.atan2(cohesionPoint.y - this.y, 
+                                                       cohesionPoint.x - this.x);
+                        const centerDiff = toCenterAngle - this.angle;
+                        this.angle += Math.sin(centerDiff) * schoolStrength * 0.5;
+                    }
+                    
+                    // Separation
+                    if (separationForce.x !== 0 || separationForce.y !== 0) {
+                        const magnitude = Math.sqrt(separationForce.x * separationForce.x + 
+                                                  separationForce.y * separationForce.y);
+                        if (magnitude > 0) {
+                            separationForce.x /= magnitude;
+                            separationForce.y /= magnitude;
+                            
+                            const separationAngle = Math.atan2(separationForce.y, separationForce.x);
+                            const separationDiff = separationAngle - this.angle;
+                            this.angle += Math.sin(separationDiff) * schoolStrength * 2.0;
+                        }
+                    }
+                    
+                    // Swimming in school increases predator detection
+                    this.effectiveVisionRange = this.visionRange * (1 + 0.2 * Math.min(schoolmates.length / 5, 1));
+                    
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        seekHostFish() {
+            // Only cleaners with high cleaning behavior seek hosts
+            if (this.cleaningBehavior < 0.7) return false;
+            
+            let bestHost = null;
+            let highestParasiteLevel = 0.3; // Minimum parasite level to bother cleaning
+            
+            for (const other of fishes) {
+                if (other === this || other.dietType > 0.7) continue; // Don't clean predators
+                
+                // Only clean larger fish
+                if (other.bodyWidth * other.bodyHeight > this.bodyWidth * this.bodyHeight * 1.5) {
+                    const dx = other.x - this.x;
+                    const dy = other.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < this.effectiveVisionRange && other.parasiteLevel > highestParasiteLevel) {
+                        bestHost = other;
+                        highestParasiteLevel = other.parasiteLevel;
+                    }
+                }
+            }
+            
+            if (bestHost) {
+                // Move towards host
+                const dx = bestHost.x - this.x;
+                const dy = bestHost.y - this.y;
+                this.angle = Math.atan2(dy, dx);
+                
+                // Move towards host
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+                
+                // Check if reached host
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 15) {
+                    // Clean the host (reduce parasite level)
+                    const cleaningAmount = 0.1 * this.cleaningBehavior;
+                    bestHost.parasiteLevel = Math.max(0, bestHost.parasiteLevel - cleaningAmount);
+                    
+                    // Cleaner gets food from this
+                    this.foodPoints += cleaningAmount * 5;
+                    
+                    // Visual indicator of cleaning
+                    this.cleaning = bestHost.id;
+                    setTimeout(() => { this.cleaning = null; }, 2000);
+                    
+                    // Host fish also recognizes benefit
+                    bestHost.learn({
+                        id: this.id,
+                        type: 'cleaner',
+                        benefit: cleaningAmount,
+                        bodyColor: [...this.bodyColor],
+                        pattern: this.pattern
+                    }, 'observations');
+                    
+                    // Allow mating if well-fed
+                    if (this.foodPoints >= 10) {
+                        this.canMate = true;
+                    }
+                    
+                    return true;
+                }
+                
                 return true;
             }
             
             return false;
         }
         
-        killFish() {
-            // Find and remove this fish from the fishes array
-            const index = fishes.indexOf(this);
-            if (index > -1) {
-                fishes.splice(index, 1);
-                fishDeathsTotal++;
+        defendTerritory() {
+            if (!this.territory) return false;
+            
+            // Return to territory center if too far
+            const distToCenter = Math.sqrt(
+                Math.pow(this.x - this.territory.x, 2) + 
+                Math.pow(this.y - this.territory.y, 2)
+            );
+            
+            if (distToCenter > this.territory.radius * 0.8) {
+                // Return to territory
+                const centerAngle = Math.atan2(
+                    this.territory.y - this.y,
+                    this.territory.x - this.x
+                );
+                
+                // Gradually turn towards center
+                const angleDiff = centerAngle - this.angle;
+                this.angle += Math.sin(angleDiff) * 0.1;
+                
+                // Move back to territory
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+                
+                return true;
             }
+            
+            // Check for intruders
+            for (const other of fishes) {
+                if (other === this) continue;
+                
+                const distToIntruder = Math.sqrt(
+                    Math.pow(other.x - this.territory.x, 2) + 
+                    Math.pow(other.y - this.territory.y, 2)
+                );
+                
+                // If intruder in territory and not courting
+                if (distToIntruder < this.territory.radius && !this.courtingPartner) {
+                    // Aggression level depends on territoriality and diet type
+                    const aggressionLevel = this.territoriality * (0.5 + this.dietType * 0.5);
+                    
+                    // Less aggressive towards similar fish (same pattern and color)
+                    const colorSimilarity = this.colorSimilarity(this.bodyColor, other.bodyColor);
+                    const patternMatch = this.pattern === other.pattern;
+                    
+                    // Reduced aggression towards similar fish
+                    if (colorSimilarity > 0.7 && patternMatch) {
+                        continue; // Allow similar fish in territory
+                    }
+                    
+                    // Chase away intruder if sufficiently aggressive
+                    if (Math.random() < aggressionLevel) {
+                        const toIntruderAngle = Math.atan2(
+                            other.y - this.y,
+                            other.x - this.x
+                        );
+                        
+                        // Turn towards intruder
+                        const angleDiff = toIntruderAngle - this.angle;
+                        this.angle += Math.sin(angleDiff) * 0.2;
+                        
+                        // Move faster towards intruder
+                        this.x += Math.cos(this.angle) * this.speed * 1.5;
+                        this.y += Math.sin(this.angle) * this.speed * 1.5;
+                        
+                        // Mark territory with visual indicator
+                        this.markTerritory = true;
+                        setTimeout(() => { this.markTerritory = false; }, 1000);
+                        
+                        return true;
+                    }
+                }
+            }
+            
+            return false;
         }
+        
+        stayNearAnemone() {
+            if (!this.homeAnemone) return false;
+            
+            const dx = this.homeAnemone.x - this.x;
+            const dy = this.homeAnemone.y - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            // Return to anemone if too far
+            if (dist > this.homeAnemone.radius * 2) {
+                // Turn towards anemone
+                const toAnemoneAngle = Math.atan2(dy, dx);
+                const angleDiff = toAnemoneAngle - this.angle;
+                this.angle += Math.sin(angleDiff) * 0.2;
+                
+                // Move towards anemone
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+                
+                return true;
+            }
+            
+            // Swim around anemone if close enough
+            if (dist < this.homeAnemone.radius * 1.5) {
+                // Circle around anemone
+                const circleAngle = Math.atan2(dy, dx) + Math.PI / 2;
+                const angleDiff = circleAngle - this.angle;
+                this.angle += Math.sin(angleDiff) * 0.1;
+                
+                // Slower movement near anemone
+                this.x += Math.cos(this.angle) * this.speed * 0.7;
+                this.y += Math.sin(this.angle) * this.speed * 0.7;
+                
+                return true;
+            }
+            
+            return false;
+        }
+
         observeOtherFish() {
             // Observe successful fish nearby and learn from them
             if (Math.random() < 0.05 * this.learningAbility) {
@@ -726,8 +1578,8 @@
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     
                     // Only observe fish within vision range
-                    if (dist < this.visionRange) {
-                        // Learn from successful hunters
+                    if (dist < this.effectiveVisionRange) {
+                        // Learn from successful hunters/foragers
                         if (other.foodPoints > this.foodPoints + 10) {
                             // Adjust hunting strategy slightly towards observed fish
                             const learningStrength = 0.1 * this.learningAbility;
@@ -763,6 +1615,24 @@
                             }, 'successfulMates');
                         }
                         
+                        // Learn about predators from fleeing fish
+                        if (other.fleeingFrom && Math.random() < this.learningAbility * 0.5) {
+                            const predator = other.fleeingFrom;
+                            
+                            // Create predator profile
+                            const predatorProfile = {
+                                id: predator.id,
+                                bodyColor: [...predator.bodyColor],
+                                pattern: predator.pattern,
+                                size: predator.bodyWidth * predator.bodyHeight,
+                                location: { x: predator.x, y: predator.y },
+                                time: gameTime
+                            };
+                            
+                            // Learn about this predator
+                            this.learn(predatorProfile, 'predators');
+                        }
+                        
                         // Learn about danger avoidance from fish fleeing the geyser area
                         const isOtherFleeing = dist < 100 && 
                                              Math.sqrt(Math.pow(other.x - geyserPosition.x, 2) + 
@@ -789,7 +1659,6 @@
                 }
             }
         }
-        
         findFood() {
             let bestFood = null;
             let bestScore = -Infinity;
@@ -827,9 +1696,9 @@
                     const angleDiff = Math.abs(angleToFood - this.angle);
                     const normalizedAngleDiff = Math.min(angleDiff, 2 * Math.PI - angleDiff);
                     
-                    if (dist < this.visionRange && normalizedAngleDiff < this.visionAngle / 2) {
+                    if (dist < this.effectiveVisionRange && normalizedAngleDiff < this.visionAngle / 2) {
                         canDetect = true;
-                        detectionScore = (1 - dist / this.visionRange) * (1 - this.huntingStrategy);
+                        detectionScore = (1 - dist / this.effectiveVisionRange) * (1 - this.huntingStrategy);
                     }
                     
                     // Smell detection (based on scent strength)
@@ -850,9 +1719,11 @@
             
             // Set target food
             this.targetFood = bestFood;
+            return bestFood !== null;
         }
+
         moveTowardsFood() {
-            if (!this.targetFood) return;
+            if (!this.targetFood) return false;
             
             const dx = this.targetFood.x - this.x;
             const dy = this.targetFood.y - this.y;
@@ -881,11 +1752,15 @@
                 if (this.foodPoints >= 10) {
                     this.canMate = true;
                 }
+                
+                return true;
             }
             
             // Move faster when hunting food
             this.x += Math.cos(this.angle) * this.speed * this.foodSpeed;
             this.y += Math.sin(this.angle) * this.speed * this.foodSpeed;
+            
+            return true;
         }
         
         swim() {
@@ -957,22 +1832,77 @@
                 this.angle = -this.angle;
             }
         }
+
+        checkGeyserCollision() {
+            // Check if fish is within the geyser cone
+            const dx = this.x - geyserPosition.x;
+            const dy = this.y - geyserPosition.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            // Geyser cone parameters
+            const geyserHeight = 500; // How high the geyser reaches
+            const geyserBaseWidth = 30;   // Base width of the geyser 
+            const geyserTopWidth = 50;    // Top width of the geyser
+            
+            // Only check if within possible range
+            if (dist > geyserHeight) return false;
+            
+            // Calculate angle from geyser to fish
+            const angleToFish = Math.atan2(dy, dx);
+            
+            // Geyser shoots straight up (270 degrees or -90 degrees)
+            const geyserAngle = -Math.PI / 2;
+            
+            // Calculate angle difference
+            let angleDiff = Math.abs(angleToFish - geyserAngle);
+            angleDiff = Math.min(angleDiff, 2 * Math.PI - angleDiff);
+            
+            // Calculate distance from center of geyser cone
+            const upwardDist = -dy; // How far up the geyser cone the fish is
+            
+            if (upwardDist <= 0) return false; // Fish is below the geyser
+            
+            // Calculate allowed width at fish's height
+            const widthAtHeight = geyserBaseWidth + (geyserTopWidth - geyserBaseWidth) * (upwardDist / geyserHeight);
+            
+            // Calculate horizontal distance to geyser center line
+            const horizontalDist = Math.abs(dx);
+            
+            // Check if in cone based on horizontal distance at that height
+            if (horizontalDist < widthAtHeight / 2) {
+                return true;
+            }
+            
+            return false;
+        }
+        
+        killFish() {
+            // Find and remove this fish from the fishes array
+            const index = fishes.indexOf(this);
+            if (index > -1) {
+                fishes.splice(index, 1);
+                fishDeathsTotal++;
+            }
+        }
+
         draw(ctx) {
             ctx.save();
             ctx.translate(this.x, this.y);
             ctx.rotate(this.angle);
             
             // Draw vision cone if hunting
-            if (!this.canMate && this.targetFood) {
-                ctx.fillStyle = 'rgba(255, 255, 0, 0.1)';
+            if (!this.canMate && (this.targetFood || this.targetPrey)) {
+                ctx.fillStyle = this.targetPrey ? 
+                              'rgba(255, 0, 0, 0.1)' : // Red for hunting
+                              'rgba(255, 255, 0, 0.1)'; // Yellow for foraging
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
-                ctx.arc(0, 0, this.visionRange, -this.visionAngle/2, this.visionAngle/2);
+                ctx.arc(0, 0, this.effectiveVisionRange, -this.visionAngle/2, this.visionAngle/2);
                 ctx.closePath();
                 ctx.fill();
                 
                 // Draw scent detection indicator (pulsing nose)
-                if (this.targetFood && this.targetFood.getScentStrengthAt(this.x, this.y) > this.smellSensitivity) {
+                if ((this.targetFood || this.targetPrey) && this.huntingStrategy > 0.5) {
                     ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
                     const pulseSize = 5 + Math.sin(Date.now() * 0.005) * 2;
                     ctx.beginPath();
@@ -981,9 +1911,10 @@
                 }
             }
             
-            // Draw danger perception if avoiding geyser
-            if (this.geyserInterval > 0 && Math.abs(this.geyserInterval - CONFIG.geyserFrequency) < 5) {
-                // Fish has learned the geyser timing
+            // Draw danger perception if avoiding geyser or predator
+            if ((this.geyserInterval > 0 && Math.abs(this.geyserInterval - CONFIG.geyserFrequency) < 5) ||
+                this.fleeingFrom) {
+                // Fish has learned danger avoidance
                 ctx.fillStyle = 'rgba(255, 0, 0, 0.1)';
                 ctx.beginPath();
                 ctx.arc(0, 0, this.dangerPerception * 50, 0, Math.PI * 2);
@@ -993,18 +1924,20 @@
             // Special effect for displaying to potential mates
             if (this.courtingPartner) {
                 switch (this.displayBehavior) {
-                    case 0: // Dance display - wiggling
+                    case DISPLAY_BEHAVIORS.DANCE: // Dance display - wiggling
                         // This is handled in the courtship movement
                         break;
-                    case 1: // Color flash - temporarily brighten colors
+                    case DISPLAY_BEHAVIORS.COLOR_FLASH: // Color flash - temporarily brighten colors
                         const intensity = 0.3 + 0.7 * Math.sin(Date.now() * 0.01 * this.displayIntensity);
                         for (let i = 0; i < 3; i++) {
                             this.bodyColor[i] = Math.min(1, this.bodyColor[i] * (1 + intensity * 0.3));
                             this.finColor[i] = Math.min(1, this.finColor[i] * (1 + intensity * 0.3));
                         }
                         break;
-                    case 2: // Fin display - temporarily enlarge fins
+                    case DISPLAY_BEHAVIORS.FIN_DISPLAY: // Fin display - temporarily enlarge fins
                         // This is handled in the fin drawing code below
+                        break;
+                    case DISPLAY_BEHAVIORS.SPIRAL: // Spiral dance - handled in courtship movement
                         break;
                 }
             }
@@ -1015,8 +1948,57 @@
             ctx.ellipse(0, 0, this.bodyWidth * 15, this.bodyHeight * 10, 0, 0, Math.PI * 2);
             ctx.fill();
             
+            // Draw patterns on body
+            const patternColor = `rgb(${Math.floor(this.patternColor[0]*255)},${Math.floor(this.patternColor[1]*255)},${Math.floor(this.patternColor[2]*255)})`;
+            ctx.fillStyle = patternColor;
+            
+            switch (this.pattern) {
+                case PATTERNS.SOLID:
+                    // No pattern, just the base color
+                    break;
+                    
+                case PATTERNS.STRIPED:
+                    // Draw stripes
+                    const stripeCount = Math.floor(3 * this.patternDensity) + 2;
+                    for (let i = 0; i < stripeCount; i++) {
+                        const offset = (i / stripeCount) * this.bodyWidth * 30 - this.bodyWidth * 15 * 0.5;
+                        ctx.fillRect(offset - 2, -this.bodyHeight * 10, 4, this.bodyHeight * 20);
+                    }
+                    break;
+                    
+                case PATTERNS.SPOTTED:
+                    // Draw spots
+                    const spotCount = Math.floor(10 * this.patternDensity) + 3;
+                    for (let i = 0; i < spotCount; i++) {
+                        const spotX = (Math.random() - 0.5) * this.bodyWidth * 12;
+                        const spotY = (Math.random() - 0.5) * this.bodyHeight * 8;
+                        const spotSize = 2 + Math.random() * 3;
+                        
+                        ctx.beginPath();
+                        ctx.arc(spotX, spotY, spotSize, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    break;
+                    
+                case PATTERNS.GRADIENT:
+                    // Create a gradient overlay
+                    const gradient = ctx.createLinearGradient(
+                        -this.bodyWidth * 15, 0,
+                        this.bodyWidth * 15, 0
+                    );
+                    gradient.addColorStop(0, 'rgba(255,255,255,0.4)');
+                    gradient.addColorStop(0.5, patternColor);
+                    gradient.addColorStop(1, 'rgba(0,0,0,0.3)');
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, this.bodyWidth * 15, this.bodyHeight * 10, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+            }
+            
             // Draw tail fin
-            const displayedFinSize = this.courtingPartner && this.displayBehavior === 2 ? 
+            const displayedFinSize = this.courtingPartner && this.displayBehavior === DISPLAY_BEHAVIORS.FIN_DISPLAY ? 
                   this.finSize * (1 + 0.5 * Math.sin(Date.now() * 0.01 * this.displayIntensity)) : 
                   this.finSize;
                   
@@ -1043,11 +2025,67 @@
             ctx.arc(this.bodyWidth * 5, eyeOffset, this.eyeSize * 2, 0, Math.PI * 2);
             ctx.fill();
             
+            // Draw predator jaw for carnivores
+            if (this.dietType > 0.7) {
+                // Jaw size based on jaw strength
+                const jawSize = 3 + this.jawStrength * 7;
+                
+                // Draw teeth
+                ctx.fillStyle = 'white';
+                const teethCount = Math.floor(3 + this.jawStrength * 4);
+                for (let i = 0; i < teethCount; i++) {
+                    const teethAngle = (i / teethCount) * Math.PI - Math.PI/2;
+                    const teethX = this.bodyWidth * 12 + Math.cos(teethAngle) * (this.bodyWidth * 5);
+                    const teethY = Math.sin(teethAngle) * (this.bodyHeight * 3);
+                    
+                    // Triangular teeth
+                    ctx.beginPath();
+                    ctx.moveTo(teethX, teethY);
+                    ctx.lineTo(teethX + 2, teethY - 3);
+                    ctx.lineTo(teethX + 4, teethY);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                
+                // Draw jaw line
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(this.bodyWidth * 8, 0, jawSize, -Math.PI/2 - 0.3, -Math.PI/2 + 0.3);
+                ctx.stroke();
+            }
+            
             // Draw gender indicator (subtle)
             ctx.fillStyle = this.isFemale ? 'rgba(255, 150, 150, 0.7)' : 'rgba(150, 150, 255, 0.7)';
             ctx.beginPath();
             ctx.arc(this.bodyWidth * 10, 0, 2, 0, Math.PI * 2);
             ctx.fill();
+            
+            // Draw diet type indicator
+            if (this.dietType > 0.3) {
+                const dietColor = this.dietType > 0.7 ? 
+                                'rgba(255, 0, 0, 0.7)' : // Carnivore
+                                'rgba(255, 165, 0, 0.7)'; // Omnivore
+                ctx.fillStyle = dietColor;
+                ctx.beginPath();
+                ctx.arc(this.bodyWidth * 7, -this.bodyHeight * 5, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Draw parasite indicators if infested
+            if (this.parasiteLevel > 0.3) {
+                const parasiteCount = Math.floor(this.parasiteLevel * 10);
+                ctx.fillStyle = 'rgba(100, 50, 50, 0.6)';
+                
+                for (let i = 0; i < parasiteCount; i++) {
+                    const px = (Math.random() - 0.5) * this.bodyWidth * 20;
+                    const py = (Math.random() - 0.5) * this.bodyHeight * 15;
+                    
+                    ctx.beginPath();
+                    ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
             
             // Draw generation indicator (subtle ring)
             if (this.generation > 0) {
@@ -1081,7 +2119,25 @@
                 ctx.setLineDash([]);
             }
             
-            ctx.restore();
+            // Draw territory boundary if fish is territorial and marking
+            if (this.territory && this.markTerritory) {
+                ctx.restore(); // Restore world coordinates for territory
+                
+                const territoryColor = `rgba(${Math.floor(this.bodyColor[0]*255)},${Math.floor(this.bodyColor[1]*255)},${Math.floor(this.bodyColor[2]*255)},0.3)`;
+                ctx.strokeStyle = territoryColor;
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.arc(this.territory.x, this.territory.y, this.territory.radius, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                ctx.save(); // Save again for later restore
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+            } else {
+                ctx.restore();
+            }
             
             // Draw additional status indicators above fish (in world coordinates)
             this.drawStatusIndicators(ctx);
@@ -1114,9 +2170,17 @@
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
                 ctx.fillRect(-15, 0, 30, 3);
                 
+                // Food bar color based on diet type
+                let foodBarColor = '#00ff00'; // Green for herbivores
+                if (this.dietType > 0.7) {
+                    foodBarColor = '#ff3300'; // Red for carnivores
+                } else if (this.dietType > 0.3) {
+                    foodBarColor = '#ffaa00'; // Orange for omnivores
+                }
+                
                 // Food bar
                 const foodBarWidth = Math.min(30, (this.foodPoints / 40) * 30);
-                ctx.fillStyle = this.foodPoints >= 10 ? '#00ff00' : '#ffff00';
+                ctx.fillStyle = this.foodPoints >= 10 ? foodBarColor : '#ffff00';
                 ctx.fillRect(-15, 0, foodBarWidth, 3);
                 
                 ctx.restore();
@@ -1164,9 +2228,56 @@
                 
                 ctx.restore();
             }
+            
+            // Draw cleaning indicator
+            if (this.cleaning) {
+                ctx.save();
+                ctx.translate(this.x, indicatorY - 10);
+                
+                // Draw cleaning symbol (bubbles)
+                ctx.fillStyle = 'rgba(200, 240, 255, 0.8)';
+                const bubbleCount = 5;
+                for (let i = 0; i < bubbleCount; i++) {
+                    const bubbleX = (Math.random() - 0.5) * 20;
+                    const bubbleY = (Math.random() - 0.5) * 10;
+                    const bubbleSize = 2 + Math.random() * 3;
+                    
+                    ctx.beginPath();
+                    ctx.arc(bubbleX, bubbleY, bubbleSize, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.restore();
+            }
+            
+            // Draw predatory indicator when hunting
+            if (this.targetPrey) {
+                ctx.save();
+                ctx.translate(this.x, indicatorY);
+                
+                // Draw hunting symbol (crosshair)
+                ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+                ctx.lineWidth = 1.5;
+                
+                // Outer circle
+                ctx.beginPath();
+                ctx.arc(0, 0, 8, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // Crosshair lines
+                ctx.beginPath();
+                ctx.moveTo(-8, 0);
+                ctx.lineTo(8, 0);
+                ctx.moveTo(0, -8);
+                ctx.lineTo(0, 8);
+                ctx.stroke();
+                
+                ctx.restore();
+            }
         }
     }
-        class FoodPellet {
+
+    class FoodPellet {
         constructor() {
             this.x = Math.random() * (width - 40) + 20;
             this.y = Math.random() * (height - 40) + 20;
@@ -1266,7 +2377,131 @@
             }
         }
     }
-        function hslToRgb(h, s, l) {
+
+    class Anemone {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.radius = 30 + Math.random() * 20;
+            this.tentacleLength = 15 + Math.random() * 10;
+            this.tentacleCount = 8 + Math.floor(Math.random() * 8);
+            this.color = [0.1 + Math.random() * 0.2, 0.5 + Math.random() * 0.3, 0.5 + Math.random() * 0.3];
+            this.symbioticFish = null; // Fish that has immunity and lives here
+            this.lastFoodCapture = 0;
+            this.tentacleWave = 0;
+        }
+        
+        update() {
+            if (paused) return;
+            
+            this.tentacleWave += 0.03;
+            
+            // Capture small fish that come too close (except symbiotic partner)
+            for (const fish of fishes) {
+                if (fish === this.symbioticFish) continue;
+                
+                // Skip if the fish has the same pattern as symbiotic fish (species immunity)
+                if (this.symbioticFish && fish.pattern === this.symbioticFish.pattern) continue;
+                
+                const dx = fish.x - this.x;
+                const dy = fish.y - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                // Check if fish is within tentacle range
+                if (dist < this.radius + this.tentacleLength && gameTime - this.lastFoodCapture > 300) {
+                    // Smaller fish can be caught
+                    if (fish.bodyWidth * fish.bodyHeight < 1.0) {
+                        const catchChance = 0.6 - (fish.bodyWidth * fish.bodyHeight);
+                        
+                        if (Math.random() < catchChance) {
+                            // Capture fish
+                            const index = fishes.indexOf(fish);
+                            if (index > -1) {
+                                fishes.splice(index, 1);
+                                fishDeathsTotal++;
+                            }
+                            
+                            this.lastFoodCapture = gameTime;
+                            
+                            // Spawn food for symbiotic fish
+                            if (this.symbioticFish) {
+                                for (let i = 0; i < 3; i++) {
+                                    const angle = Math.random() * Math.PI * 2;
+                                    const distance = this.radius * 0.7;
+                                    
+                                    const foodPellet = new FoodPellet();
+                                    foodPellet.x = this.x + Math.cos(angle) * distance;
+                                    foodPellet.y = this.y + Math.sin(angle) * distance;
+                                    foodPellets.push(foodPellet);
+                                    foodSpawnedTotal += 5;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Check for potential symbiotic partners
+                if (!this.symbioticFish && dist < this.radius * 2) {
+                    // Fish with striped pattern (special trait) are immune
+                    if (fish.pattern === PATTERNS.STRIPED && fish.symbioticTendency > 0.7) {
+                        this.symbioticFish = fish;
+                        fish.homeAnemone = this;
+                    }
+                }
+            }
+        }
+        
+        draw(ctx) {
+            // Draw base
+            const gradient = ctx.createRadialGradient(
+                this.x, this.y, 0,
+                this.x, this.y, this.radius
+            );
+            
+            gradient.addColorStop(0, `rgba(${this.color[0]*255}, ${this.color[1]*255}, ${this.color[2]*255}, 0.9)`);
+            gradient.addColorStop(1, `rgba(${this.color[0]*255}, ${this.color[1]*255}, ${this.color[2]*255}, 0.6)`);
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw tentacles
+            ctx.strokeStyle = `rgba(${this.color[0]*255}, ${this.color[1]*255}, ${this.color[2]*255}, 0.7)`;
+            ctx.lineWidth = 3;
+            
+            for (let i = 0; i < this.tentacleCount; i++) {
+                const angle = (i / this.tentacleCount) * Math.PI * 2;
+                const waveOffset = Math.sin(this.tentacleWave + i * 0.7) * 5;
+                
+                ctx.beginPath();
+                ctx.moveTo(
+                    this.x + Math.cos(angle) * this.radius,
+                    this.y + Math.sin(angle) * this.radius
+                );
+                
+                // Wavy tentacle
+                ctx.lineTo(
+                    this.x + Math.cos(angle) * (this.radius + this.tentacleLength) + Math.cos(angle + Math.PI/2) * waveOffset,
+                    this.y + Math.sin(angle) * (this.radius + this.tentacleLength) + Math.sin(angle + Math.PI/2) * waveOffset
+                );
+                
+                ctx.stroke();
+            }
+            
+            // Show which fish is the symbiotic partner
+            if (this.symbioticFish) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.symbioticFish.x, this.symbioticFish.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+    }
+    function hslToRgb(h, s, l) {
         let r, g, b;
         
         if (s === 0) {
@@ -1296,29 +2531,90 @@
         fishes = [];
         eggs = [];
         foodPellets = [];
+        anemones = [];
         gameTime = 0;
         highestGeneration = 0;
         fishDeathsTotal = 0;
+        predationDeaths = 0;
         foodSpawnedTotal = 0;
         lastGeyserTime = 0;
         geyserActive = false;
+        environmentalCycle = 0;
+        
+        // Reset ecosystem stats
+        ecosystemStats = {
+            herbivoreCount: 0,
+            omnivoreCount: 0, 
+            carnivoreCount: 0,
+            lastHerbivoreCount: 0,
+            lastOmnivoreCount: 0,
+            lastCarnivoreCount: 0,
+            herbivoreHistory: [],
+            omnivoreHistory: [],
+            carnivoreHistory: [],
+            deathsByPredation: 0,
+            deathsByStarvation: 0,
+            deathsByGeyser: 0
+        };
         
         // Set geyser position
         geyserPosition.x = width / 2;
         geyserPosition.y = height - 30;
         
-        // Create first generation - 6 fish (3 males, 3 females)
-        for (let i = 0; i < 6; i++) {
+        // Create anemones (2-4 randomly placed)
+        const anemoneCount = Math.floor(Math.random() * 3) + 2;
+        for (let i = 0; i < anemoneCount; i++) {
+            // Place anemones away from each other and from the geyser
+            let x, y, validPosition;
+            let attempts = 0;
+            
+            do {
+                validPosition = true;
+                x = Math.random() * (width - 200) + 100;
+                y = Math.random() * (height - 200) + 100;
+                
+                // Check distance from geyser
+                const distToGeyser = Math.sqrt(
+                    Math.pow(x - geyserPosition.x, 2) + 
+                    Math.pow(y - geyserPosition.y, 2)
+                );
+                
+                if (distToGeyser < 250) {
+                    validPosition = false;
+                }
+                
+                // Check distance from other anemones
+                for (const anemone of anemones) {
+                    const distToAnemone = Math.sqrt(
+                        Math.pow(x - anemone.x, 2) + 
+                        Math.pow(y - anemone.y, 2)
+                    );
+                    
+                    if (distToAnemone < 200) {
+                        validPosition = false;
+                        break;
+                    }
+                }
+                
+                attempts++;
+                if (attempts > 20) break; // Prevent infinite loop
+            } while (!validPosition);
+            
+            anemones.push(new Anemone(x, y));
+        }
+        
+        // Create first generation - equal males and females with diverse colors
+        for (let i = 0; i < 10; i++) {
             const fish = new Fish();
-            fish.isFemale = i < 3; // First 3 are females
+            fish.isFemale = i < 5; // First half are females
             
             // Assign distinct colors to make it easier to identify them
-            const hue = (i / 6) * 360;
+            const hue = (i / 10) * 360;
             const [r, g, b] = hslToRgb(hue / 360, 0.7, 0.5);
             fish.bodyColor = [r, g, b];
             
             // Spread them out in the tank
-            const angle = (i / 6) * Math.PI * 2;
+            const angle = (i / 10) * Math.PI * 2;
             const radius = Math.min(width, height) * 0.3;
             fish.x = width / 2 + Math.cos(angle) * radius;
             fish.y = height / 2 + Math.sin(angle) * radius;
@@ -1326,6 +2622,22 @@
             // First generation starts with food
             fish.foodPoints = 15;
             fish.canMate = true;
+            
+            // Give them some diverse patterns
+            fish.pattern = i % 4;
+            
+            // One fish is a potential cleaner
+            if (i === 9) {
+                fish.cleaningBehavior = 0.9;
+            }
+            
+            // One fish has higher predatory tendency
+            if (i === 8) {
+                fish.dietType = DIET_TYPES.OMNIVORE;
+                fish.predatoryAbility = 0.5;
+                fish.jawStrength = 0.5;
+                fish.aggressiveness = 0.5;
+            }
             
             fishes.push(fish);
         }
@@ -1341,7 +2653,8 @@
             foodSpawnedTotal += 5;
         }
     }
-        function findMate(fish) {
+
+    function findMate(fish) {
         if (fish.cooldown > 0) return null;
         
         // Must have eaten at least 10 food to mate
@@ -1422,7 +2735,7 @@
         let speed = 0.05;
         
         switch (fish.displayBehavior) {
-            case 0: // Dance pattern - figure 8
+            case DISPLAY_BEHAVIORS.DANCE: // Dance pattern - figure 8
                 fish.dancePhase += speed * fish.displayIntensity;
                 const pattern = Math.sin(fish.dancePhase * 2);
                 const offset = fish.isFemale ? 0 : Math.PI;
@@ -1430,17 +2743,25 @@
                 fish.y = centerY + Math.sin(fish.dancePhase + offset) * radius;
                 break;
                 
-            case 1: // Color flash - subtle movement in place
+            case DISPLAY_BEHAVIORS.COLOR_FLASH: // Color flash - subtle movement in place
                 fish.dancePhase += speed * 0.7;
                 fish.x = centerX + (fish.isFemale ? -1 : 1) * radius * 0.7;
                 fish.y = centerY + Math.sin(fish.dancePhase) * radius * 0.3;
                 break;
                 
-            case 2: // Fin display - circling
+            case DISPLAY_BEHAVIORS.FIN_DISPLAY: // Fin display - circling
                 fish.dancePhase += speed * fish.displayIntensity;
                 const circleOffset = fish.isFemale ? 0 : Math.PI;
                 fish.x = centerX + Math.cos(fish.dancePhase + circleOffset) * radius;
                 fish.y = centerY + Math.sin(fish.dancePhase + circleOffset) * radius;
+                break;
+                
+            case DISPLAY_BEHAVIORS.SPIRAL: // Spiral dance - complex movement
+                fish.dancePhase += speed * fish.displayIntensity;
+                const spiralRadius = radius * (1 + 0.5 * (fish.dancePhase % 1));
+                const spiralOffset = fish.isFemale ? 0 : Math.PI;
+                fish.x = centerX + Math.cos(fish.dancePhase * 3 + spiralOffset) * spiralRadius;
+                fish.y = centerY + Math.sin(fish.dancePhase * 3 + spiralOffset) * spiralRadius;
                 break;
         }
         
@@ -1628,14 +2949,133 @@
             }
         }
     }
-        function update() {
+    
+    function updateEcosystemBalance() {
+        // Count fish by diet type
+        let herbivoreCount = 0;
+        let omnivoreCount = 0;
+        let carnivoreCount = 0;
+        
+        for (const fish of fishes) {
+            if (fish.dietType < 0.3) {
+                herbivoreCount++;
+            } else if (fish.dietType > 0.7) {
+                carnivoreCount++;
+            } else {
+                omnivoreCount++;
+            }
+        }
+        
+        // Update ecosystem stats
+        ecosystemStats.herbivoreCount = herbivoreCount;
+        ecosystemStats.omnivoreCount = omnivoreCount;
+        ecosystemStats.carnivoreCount = carnivoreCount;
+        
+        // Update population history (every few seconds)
+        if (gameTime % 180 === 0) {
+            ecosystemStats.herbivoreHistory.push(herbivoreCount);
+            ecosystemStats.omnivoreHistory.push(omnivoreCount);
+            ecosystemStats.carnivoreHistory.push(carnivoreCount);
+            
+            // Keep history from growing too large
+            const maxHistoryLength = 100;
+            if (ecosystemStats.herbivoreHistory.length > maxHistoryLength) {
+                ecosystemStats.herbivoreHistory.shift();
+                ecosystemStats.omnivoreHistory.shift();
+                ecosystemStats.carnivoreHistory.shift();
+            }
+        }
+        
+        // Check if predator-prey ratio is out of balance
+        if (carnivoreCount > 0) {
+            const preyCount = herbivoreCount + omnivoreCount;
+            const predatorPreyRatio = preyCount / carnivoreCount;
+            
+            // If predator-prey ratio is too low (too many predators)
+            if (predatorPreyRatio < 3 && carnivoreCount > CONFIG.predatorPopulationCap * 0.8) {
+                // Increase metabolic costs for carnivores
+                for (const fish of fishes) {
+                    if (fish.dietType > 0.7) {
+                        fish.foodPoints = Math.max(0, fish.foodPoints - 0.5);
+                    }
+                }
+            }
+            
+            // If predator-prey ratio is very high (too few predators)
+            if (predatorPreyRatio > 10 && carnivoreCount < 2 && preyCount > 20) {
+                // Encourage omnivores to evolve towards carnivores
+                for (const fish of fishes) {
+                    if (fish.dietType > 0.3 && fish.dietType < 0.7) {
+                        if (Math.random() < 0.1) {
+                            fish.dietType += 0.05;
+                            fish.predatoryAbility += 0.05;
+                            fish.jawStrength += 0.05;
+                            fish.aggressiveness += 0.05;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Update UI indicators
+        document.getElementById('herbivore-count').textContent = herbivoreCount;
+        document.getElementById('omnivore-count').textContent = omnivoreCount;
+        document.getElementById('carnivore-count').textContent = carnivoreCount;
+        
+        const totalPopulation = fishes.length;
+        if (totalPopulation > 0) {
+            document.getElementById('herbivore-fill').style.width = 
+                `${Math.round(herbivoreCount / totalPopulation * 100)}%`;
+            document.getElementById('omnivore-fill').style.width = 
+                `${Math.round(omnivoreCount / totalPopulation * 100)}%`;
+            document.getElementById('carnivore-fill').style.width = 
+                `${Math.round(carnivoreCount / totalPopulation * 100)}%`;
+        }
+    }
+    
+    function updateEnvironmentCycle() {
+        environmentalCycle = (environmentalCycle + 1) % CONFIG.environmentalCycleDuration;
+        const cyclePeriod = environmentalCycle / CONFIG.environmentalCycleDuration;
+        
+        // Water clarity (affects vision range) changes with cycle
+        const waterClarityFactor = 0.7 + Math.cos(cyclePeriod * Math.PI * 2) * 0.3;
+        
+        // Apply to all fish
+        for (const fish of fishes) {
+            fish.effectiveVisionRange = fish.visionRange * waterClarityFactor;
+        }
+        
+        // Food availability varies with cycle
+        if (gameTime % 900 === 0) { // Every 15 seconds
+            // Cyclical food spawning rate with environmental changes
+            const baseFoodRate = CONFIG.foodPerMinute;
+            const cyclicalFoodRate = baseFoodRate * (0.7 + Math.sin(cyclePeriod * Math.PI * 2) * 0.3);
+            
+            const foodPerInterval = cyclicalFoodRate / 4; // Per 15 seconds
+            const countToSpawn = Math.min(15, Math.max(1, Math.floor(foodPerInterval / 5)));
+            spawnFood(countToSpawn);
+        }
+        
+        // Plankton density varies with cycle - affects passive herbivore feeding
+        CONFIG.planktonDensity = 0.5 + Math.sin(cyclePeriod * Math.PI * 2) * 0.3;
+    }
+
+    function update() {
         if (paused) return;
         
         // Increment game time (frames)
         gameTime++;
         
+        // Update environmental cycle
+        updateEnvironmentCycle();
+        
         // Update geyser state
         updateGeyser();
+        
+        // Update anemones
+        for (const anemone of anemones) {
+            anemone.update();
+        }
         
         // Update all fish
         for (let i = fishes.length - 1; i >= 0; i--) {
@@ -1671,11 +3111,9 @@
             }
         }
         
-        // Spawn food periodically
-        if (gameTime % 900 === 0) { // Every 15 seconds
-            const foodPerInterval = CONFIG.foodPerMinute / 4; // Per 15 seconds
-            const countToSpawn = Math.min(10, Math.max(1, Math.floor(foodPerInterval / 5)));
-            spawnFood(countToSpawn);
+        // Update ecosystem balance statistics
+        if (gameTime % 60 === 0) { // Once per second
+            updateEcosystemBalance();
         }
         
         // Occasionally update stats display (not every frame to save performance)
@@ -1693,6 +3131,11 @@
         ctx.strokeStyle = "#003366";
         ctx.lineWidth = 3;
         ctx.strokeRect(10, 10, width - 20, height - 20);
+        
+        // Draw anemones
+        for (const anemone of anemones) {
+            anemone.draw(ctx);
+        }
         
         // Draw geyser
         drawGeyser(ctx);
@@ -1727,6 +3170,16 @@
             drawBeautyVisualization(selectedFish);
         }
         
+        // Draw environmental cycle indicator
+        const cyclePeriod = environmentalCycle / CONFIG.environmentalCycleDuration;
+        const waterClarity = 0.7 + Math.cos(cyclePeriod * Math.PI * 2) * 0.3;
+        const planktonDensity = 0.5 + Math.sin(cyclePeriod * Math.PI * 2) * 0.3;
+        
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '12px Arial';
+        ctx.fillText(`Water Clarity: ${Math.round(waterClarity * 100)}%`, 20, 30);
+        ctx.fillText(`Plankton: ${Math.round(planktonDensity * 100)}%`, 20, 50);
+        
         // Draw "Paused" indicator if simulation is paused
         if (paused) {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -1739,7 +3192,8 @@
             ctx.textAlign = 'left';
         }
     }
-        function drawBeautyVisualization(fish) {
+
+    function drawBeautyVisualization(fish) {
         if (!fish) return;
         
         // Update beauty visualization for selected fish
@@ -1776,8 +3230,18 @@
             <p>Population: ${fishes.length} fish</p>
             <p>Eggs: ${eggs.length}</p>
             <p>Food available: ${foodPellets.length * 5}</p>
-            <p>Deaths by geyser: ${fishDeathsTotal}</p>
+            <p>Deaths by geyser: ${ecosystemStats.deathsByGeyser}</p>
+            <p>Deaths by predation: ${ecosystemStats.deathsByPredation}</p>
+            <p>Deaths by starvation: ${ecosystemStats.deathsByStarvation}</p>
             <p>Time to next geyser: ${Math.max(0, Math.floor(CONFIG.geyserFrequency - (gameTime - lastGeyserTime) / 60))}s</p>
+        `;
+        
+        // Population breakdown
+        statsHTML += `
+            <p><strong>Population:</strong></p>
+            <p>Herbivores: ${ecosystemStats.herbivoreCount}</p>
+            <p>Omnivores: ${ecosystemStats.omnivoreCount}</p>
+            <p>Carnivores: ${ecosystemStats.carnivoreCount}</p>
         `;
         
         // Evolutionary trends
@@ -1790,6 +3254,11 @@
             let avgSmellSensitivity = 0;
             let avgDangerPerception = 0;
             let avgReactSpeed = 0;
+            let avgPredatorDetection = 0;
+            let avgEscapeSpeed = 0;
+            let avgSchoolingTendency = 0;
+            let avgJawStrength = 0;
+            let avgAggressiveness = 0;
             
             for (const fish of fishes) {
                 avgSymmetry += fish.symmetry;
@@ -1799,22 +3268,38 @@
                 avgSmellSensitivity += fish.smellSensitivity;
                 avgDangerPerception += fish.dangerPerception;
                 avgReactSpeed += fish.reactSpeed;
+                avgPredatorDetection += fish.predatorDetection;
+                avgEscapeSpeed += fish.escapeSpeed;
+                avgSchoolingTendency += fish.schoolingTendency;
+                avgJawStrength += fish.jawStrength;
+                avgAggressiveness += fish.aggressiveness;
             }
             
-            avgSymmetry /= fishes.length;
-            avgEyeSize /= fishes.length;
-            avgFinSize /= fishes.length;
-            avgVisionRange /= fishes.length;
-            avgSmellSensitivity /= fishes.length;
-            avgDangerPerception /= fishes.length;
-            avgReactSpeed /= fishes.length;
+            const count = fishes.length;
+            avgSymmetry /= count;
+            avgEyeSize /= count;
+            avgFinSize /= count;
+            avgVisionRange /= count;
+            avgSmellSensitivity /= count;
+            avgDangerPerception /= count;
+            avgReactSpeed /= count;
+            avgPredatorDetection /= count;
+            avgEscapeSpeed /= count;
+            avgSchoolingTendency /= count;
+            avgJawStrength /= count;
+            avgAggressiveness /= count;
             
             statsHTML += `
                 <p><strong>Evolution Trends:</strong></p>
                 <p>Avg Danger Perception: ${avgDangerPerception.toFixed(2)}</p>
                 <p>Avg React Speed: ${avgReactSpeed.toFixed(2)}</p>
+                <p>Avg Predator Detection: ${avgPredatorDetection.toFixed(2)}</p>
+                <p>Avg Escape Speed: ${avgEscapeSpeed.toFixed(2)}</p>
+                <p>Avg Schooling: ${avgSchoolingTendency.toFixed(2)}</p>
                 <p>Avg Vision: ${avgVisionRange.toFixed(2)}</p>
                 <p>Avg Smell: ${avgSmellSensitivity.toFixed(3)}</p>
+                <p>Avg Jaw Strength: ${avgJawStrength.toFixed(2)}</p>
+                <p>Avg Aggressiveness: ${avgAggressiveness.toFixed(2)}</p>
             `;
             
             // Count males vs females
@@ -1827,19 +3312,71 @@
             
             // Selected fish details
             if (selectedFish) {
+                let dietType = "Herbivore";
+                if (selectedFish.dietType > 0.7) {
+                    dietType = "Carnivore";
+                } else if (selectedFish.dietType > 0.3) {
+                    dietType = "Omnivore";
+                }
+                
                 statsHTML += `
                     <p><strong>Selected Fish:</strong></p>
+                    <p>Diet: ${dietType} (${selectedFish.dietType.toFixed(2)})</p>
                     <p>Gender: ${selectedFish.isFemale ? 'Female' : 'Male'}</p>
                     <p>Generation: ${selectedFish.generation}</p>
+                    <p>Food: ${Math.round(selectedFish.foodPoints)}</p>
+                    <p>Age: ${selectedFish.age.toFixed(1)}</p>
                     <p>Eggs laid: ${selectedFish.eggsLaid}</p>
+                    <p>Pattern: ${['Solid', 'Striped', 'Spotted', 'Gradient'][selectedFish.pattern]}</p>
+                `;
+                
+                if (selectedFish.dietType > 0.5) {
+                    statsHTML += `
+                        <p>Predatory ability: ${selectedFish.predatoryAbility.toFixed(2)}</p>
+                        <p>Jaw strength: ${selectedFish.jawStrength.toFixed(2)}</p>
+                        <p>Aggressiveness: ${selectedFish.aggressiveness.toFixed(2)}</p>
+                    `;
+                } else {
+                    statsHTML += `
+                        <p>Predator detection: ${selectedFish.predatorDetection.toFixed(2)}</p>
+                        <p>Escape speed: ${selectedFish.escapeSpeed.toFixed(2)}</p>
+                        <p>Schooling: ${selectedFish.schoolingTendency.toFixed(2)}</p>
+                    `;
+                }
+                
+                statsHTML += `
                     <p>Danger perception: ${selectedFish.dangerPerception.toFixed(2)}</p>
                     <p>React speed: ${selectedFish.reactSpeed.toFixed(2)}</p>
                     <p>Learning ability: ${selectedFish.learningAbility.toFixed(2)}</p>
                 `;
                 
+                if (selectedFish.cleaningBehavior > 0.6) {
+                    statsHTML += `
+                        <p>Cleaning behavior: ${selectedFish.cleaningBehavior.toFixed(2)}</p>
+                    `;
+                }
+                
+                if (selectedFish.territoriality > 0.6) {
+                    statsHTML += `
+                        <p>Territoriality: ${selectedFish.territoriality.toFixed(2)}</p>
+                    `;
+                }
+                
                 if (selectedFish.geyserInterval > 0) {
                     statsHTML += `
                         <p>Learned geyser timing: ${selectedFish.geyserInterval.toFixed(1)}s</p>
+                    `;
+                }
+                
+                if (selectedFish.parasiteLevel > 0.2) {
+                    statsHTML += `
+                        <p>Parasite level: ${(selectedFish.parasiteLevel * 100).toFixed(0)}%</p>
+                    `;
+                }
+                
+                if (selectedFish.homeAnemone) {
+                    statsHTML += `
+                        <p>Has anemone symbiosis</p>
                     `;
                 }
             }
@@ -1847,7 +3384,8 @@
         
         statsDiv.innerHTML = statsHTML;
     }
-        function animate() {
+
+    function animate() {
         update();
         draw();
         requestAnimationFrame(animate);
@@ -1885,6 +3423,7 @@
             CONFIG.foodPerMinute = parseInt(document.getElementById('foodPerMinute').value);
             CONFIG.learningRate = parseFloat(document.getElementById('learningRate').value);
             CONFIG.geyserFrequency = parseInt(document.getElementById('geyserFrequency').value);
+            CONFIG.predatorEmergenceRate = parseFloat(document.getElementById('predatorEmergenceRate').value);
             
             // Resume simulation
             togglePause();
@@ -1928,12 +3467,27 @@
         
         // Key press for toggling fish detail view
         document.addEventListener('keydown', (event) => {
+            // Toggle detail view with 'D' key
             if (event.key === 'd' || event.key === 'D') {
                 showFishDetails = !showFishDetails;
                 
                 // Update visibility of beauty visualization
                 if (!showFishDetails && document.getElementById('beauty-visualization')) {
                     document.getElementById('beauty-visualization').style.opacity = '0';
+                }
+            }
+            
+            // Pause/resume with spacebar
+            if (event.key === ' ') {
+                togglePause();
+                event.preventDefault(); // Prevent scrolling with spacebar
+            }
+            
+            // Reset with 'R' key
+            if (event.key === 'r' || event.key === 'R') {
+                if (confirm('Reset the simulation?')) {
+                    createInitialGeneration();
+                    if (paused) togglePause();
                 }
             }
         });
@@ -1952,6 +3506,13 @@
             const margin = fish.bodySize + 5;
             fish.x = Math.max(margin, Math.min(width - margin, fish.x));
             fish.y = Math.max(margin, Math.min(height - margin, fish.y));
+        }
+        
+        // Update anemone positions if needed
+        for (const anemone of anemones) {
+            const margin = anemone.radius;
+            anemone.x = Math.max(margin, Math.min(width - margin, anemone.x));
+            anemone.y = Math.max(margin, Math.min(height - margin, anemone.y));
         }
     }
 
