@@ -2441,10 +2441,10 @@
                 }
                 
                 // Check for potential symbiotic partners
-                const alreadySymbiotic = this.symbioticFish.includes(fish);
-                if (!alreadySymbiotic && dist < this.radius * 2) {
+                if (!this.symbioticFish && dist < this.radius * 2) {
+                    // Fish with striped pattern (special trait) are immune
                     if (fish.pattern === PATTERNS.STRIPED && fish.symbioticTendency > 0.7) {
-                        this.symbioticFish.push(fish);
+                        this.symbioticFish = fish;
                         fish.homeAnemone = this;
                     }
                 }
