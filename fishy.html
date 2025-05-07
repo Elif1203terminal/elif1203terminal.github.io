@@ -323,7 +323,7 @@
                 this.speed = 1 + Math.random() * 0.5;
                 
                 // Diet traits (new) - allows for predator emergence
-                this.dietType = Math.random() < 0.3 ? DIET_TYPES.OMNIVORE : DIET_TYPES.HERBIVORE; // Start with mostly herbivores
+                this.dietType = Math.random() < 0.5 ? DIET_TYPES.OMNIVORE : DIET_TYPES.HERBIVORE; // Start with mostly herbivores
                 this.predatoryAbility = 0.1 + Math.random() * 0.1; // Initially low
                 this.jawStrength = 0.2 + Math.random() * 0.2; // For catching prey
                 this.aggressiveness = 0.1 + Math.random() * 0.2; // Willingness to attack
