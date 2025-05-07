@@ -93,36 +93,63 @@
             font-size: 14px;
             display: none;
         }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 16px;
+            display: none;
+            text-align: center;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
-</head>
-<body>
-    <canvas id="canvas"></canvas>
+    </head>
+    <body>
+        <canvas id="canvas"></canvas>
+        
+        <button id="start-button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 19V5M5 12l7-7 7 7"/>
+            </svg>
+            Click Me
+        </button>
+        
+        <div id="fractal-info"></div>
+        <div id="loading">Generating fractal <span class="spinner"></span></div>
+        
+        <div id="controls">
+            <button id="pause-button" class="control-button">Pause</button>
+            <button id="save-jpg-button" class="control-button" style="display: none;">Save JPG</button>
+            <button id="save-mp4-button" class="control-button" style="display: none;">Save MP4</button>
+        </div>
+        
+        <div id="restart-container">
+            <button id="restart-button" class="control-button">Restart</button>
+        </div>
     
-    <button id="start-button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 19V5M5 12l7-7 7 7"/>
-        </svg>
-        Click Me
-    </button>
-    
-    <div id="fractal-info"></div>
-    
-    <div id="controls">
-        <button id="pause-button" class="control-button">Pause</button>
-        <button id="save-jpg-button" class="control-button" style="display: none;">Save JPG</button>
-        <button id="save-mp4-button" class="control-button" style="display: none;">Save MP4</button>
-    </div>
-    
-    <div id="restart-container">
-        <button id="restart-button" class="control-button">Restart</button>
-    </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/CCapture.js/1.1.0/CCapture.all.min.js"></script>
-    
-    <script>
-        // Initialize canvas
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/CCapture.js/1.1.0/CCapture.all.min.js"></script>
+        
+        <script>
+            // Initialize canvas
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
         
         // Set canvas to full window size
         function resizeCanvas() {
@@ -162,6 +189,10 @@
         const restartContainer = document.getElementById('restart-container');
         const restartButton = document.getElementById('restart-button');
         const fractalInfo = document.getElementById('fractal-info');
+        const loadingElement = document.getElementById('loading');
+        
+        // Check if CCapture is available
+        const isCCaptureAvailable = typeof CCapture !== 'undefined';
         
         // Array to store the path that has been drawn
         let drawnPath = [];
@@ -310,7 +341,7 @@
                 "F->F+F-F-F+F", // Koch snowflake variant
                 "F->F+F--F+F", // Koch curve variant
                 "F->FF+F++F+F" // Dragon curve variant with curves
-            ];
+                ];
             
             const rule = ruleOptions[Math.floor(Math.random() * ruleOptions.length)];
             const angle = 60 + Math.floor(Math.random() * 20); // Randomize angle for variety
@@ -385,24 +416,56 @@
             const extra1 = 0.1 + Math.random() * 0.2; // Extra modulator
             const extra2 = 0.1 + Math.random() * 0.2; // Extra phase shift
             
-            // Calculate the ratio for determining the periodicity
+            // Fixed GCD calculation for spirograph
             const gcd = function(a, b) {
-                return b ? gcd(b, a % b) : a;
+                if (Math.abs(b) < 0.001) return Math.max(0.001, a);
+                return b ? gcd(b, a % b) : Math.max(0.001, a);
             };
-            const ratio = gcd(R, r) / r;
-            const maxT = 2 * Math.PI * ratio;
+            
+            // Calculate the ratio with safety checks
+            let ratio = 1;
+            try {
+                ratio = gcd(R, r) / Math.max(0.001, r);
+                if (!isFinite(ratio) || ratio < 0.1) ratio = 5;
+            } catch (e) {
+                ratio = 5; // Fallback to a reasonable value
+            }
+            
+            // Limit maxT to prevent infinite loops
+            const maxT = Math.min(2 * Math.PI * ratio, 20 * Math.PI);
             
             // Create spirograph with extra curves
             for (let i = 0; i < numPoints; i++) {
                 const t = (i / numPoints) * maxT;
                 
-                // Standard spirograph equation with extra curve terms
-                const x = centerX + (R - r) * Math.cos(t) + 
-                        d * Math.cos((R - r) * t / r) * (1 + extra1 * Math.sin(t * 5));
-                const y = centerY + (R - r) * Math.sin(t) - 
-                        d * Math.sin((R - r) * t / r) * (1 + extra2 * Math.cos(t * 7));
-                
-                points.push({ x, y });
+                try {
+                    // Standard spirograph equation with extra curve terms
+                    const x = centerX + (R - r) * Math.cos(t) + 
+                            d * Math.cos((R - r) * t / r) * (1 + extra1 * Math.sin(t * 5));
+                    const y = centerY + (R - r) * Math.sin(t) - 
+                            d * Math.sin((R - r) * t / r) * (1 + extra2 * Math.cos(t * 7));
+                    
+                    // Check for valid coordinates
+                    if (isFinite(x) && isFinite(y)) {
+                        points.push({ x, y });
+                    }
+                } catch (e) {
+                    // Skip this point if calculation fails
+                    continue;
+                }
+            }
+            
+            // Ensure we have at least some points
+            if (points.length < 10) {
+                // Fallback to simple circle if spirograph fails
+                for (let i = 0; i < numPoints; i++) {
+                    const angle = (i / numPoints) * 2 * Math.PI;
+                    const radius = size * 0.4;
+                    points.push({
+                        x: centerX + radius * Math.cos(angle),
+                        y: centerY + radius * Math.sin(angle)
+                    });
+                }
             }
             
             // Ensure no points go off-screen
@@ -425,21 +488,33 @@
         function generateFractalPath(type, complexity) {
             let points = [];
             
-            switch (type) {
-                case 'mandelbrot':
+            try {
+                switch (type) {
+                    case 'mandelbrot':
+                        points = generateMandelbrotPath(complexity);
+                        break;
+                    case 'julia':
+                        points = generateJuliaPath(complexity);
+                        break;
+                    case 'lsystem':
+                        points = generateLSystemPath(complexity);
+                        break;
+                    case 'spirograph':
+                        points = generateSpirographPath(complexity);
+                        break;
+                    default:
+                        points = generateMandelbrotPath(complexity);
+                }
+                
+                // Ensure we have enough points
+                if (points.length < 10) {
+                    console.warn(`Not enough points generated for ${type}, falling back to mandelbrot`);
                     points = generateMandelbrotPath(complexity);
-                    break;
-                case 'julia':
-                    points = generateJuliaPath(complexity);
-                    break;
-                case 'lsystem':
-                    points = generateLSystemPath(complexity);
-                    break;
-                case 'spirograph':
-                    points = generateSpirographPath(complexity);
-                    break;
-                default:
-                    points = generateMandelbrotPath(complexity);
+                }
+            } catch (e) {
+                console.error(`Error generating ${type} fractal:`, e);
+                // Fallback to mandelbrot on error
+                points = generateMandelbrotPath(complexity);
             }
             
             return points;
@@ -463,6 +538,7 @@
             ctx.restore();
         }
         
+        // Improved path drawing with optimized bezier curves
         function drawPath() {
             // Draw the path that has been drawn so far
             if (drawnPath.length < 2) return;
@@ -471,38 +547,48 @@
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             
-            // Use bezier curves for smoother drawing
-            let i = 0;
-            while (i < drawnPath.length - 1) {
-                const point = drawnPath[i];
-                const nextPoint = drawnPath[i + 1];
+            // Batch rendering for better performance
+            const batchSize = 50;
+            let startIdx = 0;
+            
+            while (startIdx < drawnPath.length) {
+                const endIdx = Math.min(startIdx + batchSize, drawnPath.length - 1);
                 
-                // Get color based on progress through the fractal
-                const progress = i / drawnPath.length;
-                ctx.strokeStyle = getColor(progress, currentComplexity);
-                
-                // Draw curved lines
+                // Draw this batch
                 ctx.beginPath();
+                ctx.moveTo(drawnPath[startIdx].x, drawnPath[startIdx].y);
                 
-                if (i === 0) {
-                    ctx.moveTo(point.x, point.y);
-                } else {
-                    // Use control points for smoother curves
-                    const prevPoint = drawnPath[i - 1];
-                    const cp1x = prevPoint.x + (point.x - prevPoint.x) * 0.5;
-                    const cp1y = prevPoint.y + (point.y - prevPoint.y) * 0.5;
-                    const cp2x = point.x + (nextPoint.x - point.x) * 0.5;
-                    const cp2y = point.y + (nextPoint.y - point.y) * 0.5;
+                for (let i = startIdx + 1; i <= endIdx; i++) {
+                    const point = drawnPath[i];
+                    const progress = i / drawnPath.length;
                     
-                    ctx.bezierCurveTo(
-                        cp1x, cp1y,
-                        cp2x, cp2y,
-                        nextPoint.x, nextPoint.y
-                    );
+                    // Update color for this segment
+                    ctx.strokeStyle = getColor(progress, currentComplexity);
+                    
+                    if (i < 2 || i >= drawnPath.length - 1) {
+                        // For first and last segments, just draw lines
+                        ctx.lineTo(point.x, point.y);
+                    } else {
+                        // Use bezier curves for smoother drawing in the middle
+                        const prev = drawnPath[i-1];
+                        const next = drawnPath[i+1];
+                        
+                        // Calculate control points for smoother curves
+                        const cp1x = prev.x + (point.x - prev.x) * 0.5;
+                        const cp1y = prev.y + (point.y - prev.y) * 0.5;
+                        const cp2x = point.x + (next.x - point.x) * 0.5;
+                        const cp2y = point.y + (next.y - point.y) * 0.5;
+                        
+                        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, point.x, point.y);
+                    }
+                    
+                    // Stroke for this color segment
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(point.x, point.y);
                 }
                 
-                ctx.stroke();
-                i++;
+                startIdx = endIdx + 1;
             }
         }
         
@@ -518,18 +604,33 @@
                 currentComplexity++;
                 fractalInfo.textContent = `Drawing ${fractalType} fractal - Level ${currentComplexity}`;
                 
-                // Generate new curve points with increased complexity
-                currentCurvePoints = generateFractalPath(fractalType, currentComplexity);
-                currentPointIndex = 0;
+                // Show loading while generating new points
+                loadingElement.style.display = 'block';
                 
-                // Keep drawing from the last position
-                if (drawnPath.length > 0) {
-                    const lastPoint = drawnPath[drawnPath.length - 1];
-                    currentDrawPosition = { x: lastPoint.x, y: lastPoint.y };
-                }
-                
-                // Set next complexity increase time
-                nextComplexityTime = now + 15000; // 15 seconds per level
+                // Use setTimeout to avoid blocking the UI
+                setTimeout(() => {
+                    try {
+                        // Generate new curve points with increased complexity
+                        currentCurvePoints = generateFractalPath(fractalType, currentComplexity);
+                        currentPointIndex = 0;
+                        
+                        // Keep drawing from the last position
+                        if (drawnPath.length > 0) {
+                            const lastPoint = drawnPath[drawnPath.length - 1];
+                            currentDrawPosition = { x: lastPoint.x, y: lastPoint.y };
+                        }
+                        
+                        // Set next complexity increase time
+                        nextComplexityTime = now + 15000; // 15 seconds per level
+                        
+                        // Hide loading
+                        loadingElement.style.display = 'none';
+                    } catch (e) {
+                        console.error("Error increasing complexity:", e);
+                        // Hide loading and continue with current complexity
+                        loadingElement.style.display = 'none';
+                    }
+                }, 0);
             }
             
             // If we have points to draw
@@ -568,12 +669,27 @@
                     currentComplexity++;
                     fractalInfo.textContent = `Drawing ${fractalType} fractal - Level ${currentComplexity}`;
                     
-                    // Generate new points with increased complexity
-                    currentCurvePoints = generateFractalPath(fractalType, currentComplexity);
-                    currentPointIndex = 0;
+                    // Show loading while generating new points
+                    loadingElement.style.display = 'block';
                     
-                    // Set next complexity increase time
-                    nextComplexityTime = now + 15000;
+                    // Use setTimeout to avoid blocking the UI
+                    setTimeout(() => {
+                        try {
+                            // Generate new points with increased complexity
+                            currentCurvePoints = generateFractalPath(fractalType, currentComplexity);
+                            currentPointIndex = 0;
+                            
+                            // Set next complexity increase time
+                            nextComplexityTime = now + 15000;
+                            
+                            // Hide loading
+                            loadingElement.style.display = 'none';
+                        } catch (e) {
+                            console.error("Error increasing complexity:", e);
+                            // Hide loading and continue with current complexity
+                            loadingElement.style.display = 'none';
+                        }
+                    }, 0);
                 }
             }
             
@@ -601,6 +717,9 @@
                 startButton.style.display = 'none';
             }, 500);
             
+            // Show loading
+            loadingElement.style.display = 'block';
+            
             // Show controls and info
             controls.style.display = 'block';
             restartContainer.style.display = 'block';
@@ -613,31 +732,45 @@
             currentComplexity = 1;
             drawnPath = [];
             
-            // Choose a random fractal type
-            fractalType = selectRandomFractalType();
-            fractalInfo.textContent = `Drawing ${fractalType} fractal - Level ${currentComplexity}`;
-            
-            // Generate initial curve points
-            currentCurvePoints = generateFractalPath(fractalType, currentComplexity);
-            currentPointIndex = 0;
-            
-            // Set starting position to the first point
-            if (currentCurvePoints.length > 0) {
-                currentDrawPosition = { ...currentCurvePoints[0] };
-                drawnPath.push({ ...currentDrawPosition });
-                currentPointIndex++;
-                
-                // Set time for next complexity increase
-                nextComplexityTime = startTime + 15000; // 15 seconds
-                
-                // Start the animation
-                animationFrameId = requestAnimationFrame(animate);
-            } else {
-                // If for some reason we couldn't generate points, try again with a different fractal
-                console.error("Failed to generate points, retrying with different fractal type");
-                fractalType = selectRandomFractalType();
-                setTimeout(initAnimation, 100);
-            }
+            // Use setTimeout to avoid blocking the UI
+            setTimeout(() => {
+                try {
+                    // Choose a random fractal type
+                    fractalType = selectRandomFractalType();
+                    fractalInfo.textContent = `Drawing ${fractalType} fractal - Level ${currentComplexity}`;
+                    
+                    // Generate initial curve points
+                    currentCurvePoints = generateFractalPath(fractalType, currentComplexity);
+                    currentPointIndex = 0;
+                    
+                    // Set starting position to the first point
+                    if (currentCurvePoints.length > 0) {
+                        currentDrawPosition = { ...currentCurvePoints[0] };
+                        drawnPath.push({ ...currentDrawPosition });
+                        currentPointIndex++;
+                        
+                        // Set time for next complexity increase
+                        nextComplexityTime = startTime + 15000; // 15 seconds
+                        
+                        // Hide loading
+                        loadingElement.style.display = 'none';
+                        
+                        // Start the animation
+                        animationFrameId = requestAnimationFrame(animate);
+                    } else {
+                        // If for some reason we couldn't generate points, try again with a different fractal
+                        console.error("Failed to generate points, retrying with different fractal type");
+                        fractalType = selectRandomFractalType();
+                        setTimeout(initAnimation, 100);
+                    }
+                } catch (e) {
+                    console.error("Error initializing animation:", e);
+                    // Hide loading and retry with different fractal
+                    loadingElement.style.display = 'none';
+                    fractalType = selectRandomFractalType();
+                    setTimeout(initAnimation, 100);
+                }
+            }, 0);
         }
         
         // Event listeners
@@ -658,7 +791,7 @@
             
             // Show/hide save buttons based on pause state
             saveJpgButton.style.display = isPaused ? 'inline-block' : 'none';
-            saveMp4Button.style.display = isPaused ? 'inline-block' : 'none';
+            saveMp4Button.style.display = isPaused && isCCaptureAvailable ? 'inline-block' : 'none';
             
             if (!isPaused) {
                 // Resume animation
@@ -697,12 +830,17 @@
         saveJpgButton.addEventListener('click', () => {
             // Create a download link
             const link = document.createElement('a');
-            link.download = 'fractal.jpg';
+            link.download = `fractal-${fractalType}-level-${currentComplexity}.jpg`;
             link.href = canvas.toDataURL('image/jpeg', 0.8);
             link.click();
         });
         
         saveMp4Button.addEventListener('click', () => {
+            if (!isCCaptureAvailable) {
+                alert('CCapture.js library is not available. MP4 recording is not possible.');
+                return;
+            }
+            
             if (isRecording) {
                 // Stop recording
                 isRecording = false;
@@ -712,7 +850,7 @@
                 capturer.save((blob) => {
                     const url = URL.createObjectURL(blob);
                     const link = document.createElement('a');
-                    link.download = 'fractal.mp4';
+                    link.download = `fractal-${fractalType}-level-${currentComplexity}.mp4`;
                     link.href = url;
                     link.click();
                 });
@@ -721,17 +859,36 @@
                 isRecording = true;
                 saveMp4Button.textContent = 'Stop Recording';
                 
-                // Initialize CCapture
-                capturer = new CCapture({
-                    format: 'webm',
-                    framerate: 30,
-                    quality: 90,
-                    verbose: true
-                });
-                
-                capturer.start();
+                try {
+                    // Initialize CCapture
+                    capturer = new CCapture({
+                        format: 'webm',
+                        framerate: 30,
+                        quality: 90,
+                        verbose: true
+                    });
+                    
+                    capturer.start();
+                } catch (e) {
+                    console.error("Error starting recording:", e);
+                    alert('Error starting recording. Please try again.');
+                    isRecording = false;
+                    saveMp4Button.textContent = 'Save MP4';
+                }
             }
         });
+        
+        // Draw a welcome message on the canvas
+        function drawWelcomeMessage() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Click the arrow to start drawing a beautiful fractal', canvas.width / 2, canvas.height / 2 + 60);
+        }
+        
+        // Call welcome message on load
+        drawWelcomeMessage();
     </script>
 </body>
 </html>
