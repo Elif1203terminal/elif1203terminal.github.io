@@ -24,7 +24,6 @@
             height: 100vh;
             display: block;
         }
-
         .controls {
             position: absolute;
             top: 20px;
@@ -34,6 +33,7 @@
             gap: 20px;
             z-index: 10;
         }
+        
         .button {
             padding: 12px 24px;
             border: 2px solid #8a7653;
@@ -56,12 +56,12 @@
             box-shadow: 0 6px 12px rgba(0, 0, 0, 0.8), inset 0 2px 5px rgba(255, 255, 255, 0.2);
             transform: translateY(-2px);
         }
-
         .button:active {
             background-color: rgba(40, 30, 20, 0.9);
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.6), inset 0 1px 2px rgba(0, 0, 0, 0.3);
             transform: translateY(1px);
         }
+        
         #message {
             position: absolute;
             bottom: 30px;
@@ -82,7 +82,6 @@
             max-width: 80%;
             letter-spacing: 1px;
         }
-
         #message.show {
             opacity: 1;
             transform: translateX(-50%) translateY(-10px);
@@ -100,6 +99,7 @@
             font-family: 'Cinzel Decorative', serif;
             letter-spacing: 2px;
         }
+        
         .loading-screen {
             position: fixed;
             top: 0;
@@ -114,7 +114,6 @@
             z-index: 100;
             transition: opacity 1s ease;
         }
-
         .loading-text {
             color: #d0c7b3;
             font-size: 1.5rem;
@@ -130,6 +129,7 @@
             border-top-color: #8a7653;
             animation: spin 1.5s linear infinite;
         }
+        
         .ring-info {
             position: absolute;
             bottom: 20px;
@@ -141,7 +141,6 @@
             font-size: 0.9rem;
             z-index: 10;
         }
-
         .instruction {
             position: absolute;
             top: 100px;
@@ -160,6 +159,7 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        
         .reset-button {
             position: absolute;
             top: 20px;
@@ -176,7 +176,6 @@
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.6);
             z-index: 10;
         }
-
         .reset-button:hover {
             background-color: rgba(80, 60, 40, 0.9);
             box-shadow: 0 6px 12px rgba(0, 0, 0, 0.8);
@@ -210,7 +209,7 @@
     
     <div class="instruction">
         Click on a ring to select it, then use the buttons to rotate.<br>
-        Align all rings to reveal the ancient glyph.
+        Align all rings to reveal the ancient carved glyph.
     </div>
 
     <canvas id="gameCanvas"></canvas>
@@ -243,36 +242,37 @@
         camera.position.z = 7;
 
         // Add ambient light
-        const ambientLight = new THREE.AmbientLight(0x555555);
+        const ambientLight = new THREE.AmbientLight(0x443322, 0.5);
         scene.add(ambientLight);
 
-        // Add directional light with shadows
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(5, 10, 7);
+        // Add directional light with shadows for dramatic lighting
+        const directionalLight = new THREE.DirectionalLight(0xffeecc, 1.0);
+        directionalLight.position.set(3, 5, 7);
         directionalLight.castShadow = true;
         directionalLight.shadow.mapSize.width = 1024;
         directionalLight.shadow.mapSize.height = 1024;
         scene.add(directionalLight);
-        // Add point light to highlight the rings
-        const pointLight = new THREE.PointLight(0xe1c78f, 1, 20);
-        pointLight.position.set(2, 2, 5);
-        scene.add(pointLight);
+        // Add dramatic side lights to highlight the carvings
+        const leftLight = new THREE.PointLight(0xb58d4c, 1.2, 20);
+        leftLight.position.set(-3, 2, 5);
+        scene.add(leftLight);
 
-        // Add subtle blue-ish light from the other side for depth
-        const backLight = new THREE.PointLight(0x8ba3b9, 0.5, 20);
-        backLight.position.set(-3, -2, 3);
+        // Add blue-ish backlight for depth and contrast
+        const backLight = new THREE.PointLight(0x8ba3b9, 0.6, 20);
+        backLight.position.set(2, -2, -3);
         scene.add(backLight);
 
-        // Add fog for atmosphere
+        // Add fog for atmospheric depth
         scene.fog = new THREE.FogExp2(0x111111, 0.03);
 
-        // Orbit Controls 
+        // Orbit Controls with better constraints
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.1;
         controls.rotateSpeed = 0.5;
         controls.minDistance = 5;
         controls.maxDistance = 15;
+        controls.maxPolarAngle = Math.PI / 1.5; // Limit vertical rotation
         const rotateLeftButton = document.getElementById('rotateLeft');
         const rotateRightButton = document.getElementById('rotateRight');
         const messageElement = document.getElementById('message');
@@ -283,7 +283,7 @@
         let selectedRingIndex = 0;
         let rings = [];
         const ringRadius = 2.5;
-        const ringThickness = 0.28;
+        const ringThickness = 0.32; // Slightly thicker rings
         const numberOfRings = 7;
         const glyphText = "SOLV";
         let isSolved = false;
@@ -299,45 +299,47 @@
             "Sixth Ring", 
             "Inner Ring"
         ];
-        // Load textures
+        // Load better stone textures with more visible patterns
         const textureLoader = new THREE.TextureLoader();
-        const stoneTexture = textureLoader.load('https://i.imgur.com/vvQqXDV.jpg', function() {
-            const normalMap = textureLoader.load('https://i.imgur.com/RVXMV11.jpg', function() {
-                const roughnessMap = textureLoader.load('https://i.imgur.com/BzXx1A3.jpg', function() {
-                    // All textures loaded, hide loading screen
-                    setTimeout(() => {
-                        loadingScreen.style.opacity = 0;
+        const stoneTexture = textureLoader.load('https://i.imgur.com/XNrEoRv.jpg', function() {
+            const normalMap = textureLoader.load('https://i.imgur.com/jvnQwN9.jpg', function() {
+                const roughnessMap = textureLoader.load('https://i.imgur.com/n2r6LZP.jpg', function() {
+                    const aoMap = textureLoader.load('https://i.imgur.com/9MRfLy0.jpg', function() {
+                        // All textures loaded, hide loading screen
                         setTimeout(() => {
-                            loadingScreen.style.display = 'none';
-                        }, 1000);
-                    }, 1500); // Add slight delay for effect
-                    createRings(stoneTexture, normalMap, roughnessMap);
-                    animate();
+                            loadingScreen.style.opacity = 0;
+                            setTimeout(() => {
+                                loadingScreen.style.display = 'none';
+                            }, 1000);
+                        }, 1500); // Add slight delay for effect
+                        createRings(stoneTexture, normalMap, roughnessMap, aoMap);
+                        animate();
+                    });
                 });
             });
         });
-        // Custom shader for the rings with carved glyph effect and stone texture
-        function createRingMaterial(stoneTexture, normalMap, roughnessMap, ringIndex) {
-            // Define different glyph colors for each ring (subtle variations)
+        // Custom shader for the rings with dramatically improved glyph effect
+        function createRingMaterial(stoneTexture, normalMap, roughnessMap, aoMap, ringIndex) {
+            // Define more dramatic glyph colors (darker for better carving effect)
             const glyphColors = [
-                new THREE.Color(0x1a1a1a), // Darker for outer ring
-                new THREE.Color(0x221a14),
-                new THREE.Color(0x2a201c),
-                new THREE.Color(0x262018),
-                new THREE.Color(0x221c16),
-                new THREE.Color(0x1e1a14),
-                new THREE.Color(0x1a1610)  // Slightly warmer for inner ring
+                new THREE.Color(0x080808), // Almost black for deeper carving effect
+                new THREE.Color(0x0c0a08),
+                new THREE.Color(0x0e0c0a),
+                new THREE.Color(0x0a0806),
+                new THREE.Color(0x090705),
+                new THREE.Color(0x080604),
+                new THREE.Color(0x070503)  // Dark inner carving
             ];
             
-            // Define different ring colors (subtle stone variations)
+            // Define better stone colors with more variation
             const ringColors = [
-                new THREE.Color(0xa39884), // Outer ring - lighter
-                new THREE.Color(0x9c8f7d),
-                new THREE.Color(0x968a79),
-                new THREE.Color(0x8f8574),
-                new THREE.Color(0x887f6f),
-                new THREE.Color(0x83796a),
-                new THREE.Color(0x7d7466)  // Inner ring - darker
+                new THREE.Color(0xd6c7b8), // Lighter outer ring
+                new THREE.Color(0xcdbfb0),
+                new THREE.Color(0xc4b6a7),
+                new THREE.Color(0xbead9e),
+                new THREE.Color(0xb8a695),
+                new THREE.Color(0xb29f8d),
+                new THREE.Color(0xab9884)  // Darker inner ring
             ];
             return new THREE.ShaderMaterial({
                 vertexShader: `
@@ -346,13 +348,16 @@
                     varying float vRingRadius;
                     varying float vRingThickness;
                     varying vec3 vNormal;
+                    varying vec3 vWorldPosition;
 
                     void main() {
                         vPosition = position;
                         vUv = uv;
-                        vNormal = normal;
+                        vNormal = normalize(normalMatrix * normal);
                         vRingRadius = ${ringRadius.toFixed(2)};
                         vRingThickness = ${ringThickness.toFixed(2)};
+                        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                        vWorldPosition = worldPosition.xyz;
                         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                     }
                 `,
@@ -363,6 +368,7 @@
                     varying float vRingRadius;
                     varying float vRingThickness;
                     varying vec3 vNormal;
+                    varying vec3 vWorldPosition;
                     
                     uniform float uRotation;
                     uniform int uIndex;
@@ -372,105 +378,179 @@
                     uniform sampler2D uStoneTexture;
                     uniform sampler2D uNormalMap;
                     uniform sampler2D uRoughnessMap;
+                    uniform sampler2D uAOMap;
                     uniform float uTime;
                     uniform vec3 uLightPos;
-                    // Hash function for noise
+                    // Improved hash function for better noise
                     float hash(vec2 p) {
-                        return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453123);
+                        p = fract(p * vec2(123.34, 456.21));
+                        p += dot(p, p + 45.32);
+                        return fract(p.x * p.y);
                     }
                     
-                    // Simplex noise function
+                    // Better noise function for stone detail
                     float noise(vec2 p) {
                         vec2 i = floor(p);
                         vec2 f = fract(p);
-                        f = f * f * (3.0 - 2.0 * f);
-                        return mix(
-                            mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
-                            mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x),
-                            f.y
-                        );
+                        
+                        // Quintic interpolation for smoother transitions
+                        vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+                        
+                        float a = hash(i);
+                        float b = hash(i + vec2(1.0, 0.0));
+                        float c = hash(i + vec2(0.0, 1.0));
+                        float d = hash(i + vec2(1.0, 1.0));
+                        
+                        return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
                     }
-                    // S glyph
+
+                    // Fractal noise for better stone texture
+                    float fbm(vec2 p) {
+                        float value = 0.0;
+                        float amplitude = 0.5;
+                        float frequency = 1.0;
+                        
+                        // Add multiple layers of noise with different frequencies
+                        for (int i = 0; i < 5; i++) {
+                            value += amplitude * noise(p * frequency);
+                            amplitude *= 0.5;
+                            frequency *= 2.0;
+                        }
+                        
+                        return value;
+                    }
+                        // Dramatically improved S glyph with deeper carving
                     float getS(vec2 uv, float scale) {
                         uv *= scale;
-                        float d = 10.0;
+                        float d = 1000.0; // Initialize with a large value
                         
-                        // S curve top horizontal
-                        d = min(d, length(uv - vec2(0.0, 0.5)) - 0.15);
+                        // Define the S shape with smoother, more defined curves
+                        // Top curve
+                        float topCurve = length(uv - vec2(-0.05, 0.5)) - 0.25;
+                        d = min(d, topCurve);
                         
-                        // S curve bottom horizontal
-                        d = min(d, length(uv - vec2(0.0, -0.5)) - 0.15);
+                        // Bottom curve
+                        float bottomCurve = length(uv - vec2(0.05, -0.5)) - 0.25;
+                        d = min(d, bottomCurve);
                         
-                        // S curve middle
-                        d = min(d, length(uv - vec2(0.0, 0.0)) - 0.15);
+                        // Middle curve
+                        float middleCurve = length(uv - vec2(0.0, 0.0)) - 0.2;
+                        d = min(d, middleCurve);
                         
-                        // S curve vertical segments
-                        d = min(d, length(uv - vec2(0.2, 0.25)) - 0.15);
-                        d = min(d, length(uv - vec2(-0.2, -0.25)) - 0.15);
+                        // Connecting segments
+                        float topConnect = length(uv - vec2(0.15, 0.25)) - 0.1;
+                        float bottomConnect = length(uv - vec2(-0.15, -0.25)) - 0.1;
+                        d = min(d, topConnect);
+                        d = min(d, bottomConnect);
                         
-                        return smoothstep(0.05, 0.0, d);
+                        // Create a smoother, deeper carving effect
+                        float carved = smoothstep(0.01, -0.05, d);
+                        
+                        // Add noise to edges for weathered look
+                        float edgeNoise = noise(uv * 50.0) * 0.03;
+                        carved = max(0.0, carved - edgeNoise);
+                        
+                        return carved;
                     }
-                    // O glyph
+                        // Improved O glyph with realistic carving
                     float getO(vec2 uv, float scale) {
                         uv *= scale;
                         float r = length(uv);
-                        float thickness = 0.15;
-                        float innerRadius = 0.3;
-                        float outerRadius = innerRadius + thickness;
                         
-                        return smoothstep(innerRadius - 0.05, innerRadius, r) * 
-                               smoothstep(outerRadius + 0.05, outerRadius, r);
+                        // Create a thicker, more visible ring
+                        float innerRadius = 0.3;
+                        float outerRadius = 0.5;
+                        
+                        // Smoother transition for carved effect
+                        float carved = smoothstep(innerRadius + 0.01, innerRadius - 0.05, r) - 
+                                       smoothstep(outerRadius - 0.01, outerRadius + 0.05, r);
+                        
+                        // Add weathered details to the edges
+                        float edgeNoise = noise(uv * 60.0) * 0.04;
+                        carved = max(0.0, carved - edgeNoise * (1.0 - abs(r - ((innerRadius + outerRadius) * 0.5)) * 4.0));
+                        
+                        return carved;
                     }
                     
-                    // L glyph
+                    // Improved L glyph with better carving
                     float getL(vec2 uv, float scale) {
                         uv *= scale;
-                        float d = 10.0;
+                        float d = 1000.0;
                         
-                        // L vertical line
-                        float vLine = abs(uv.x + 0.2) - 0.1;
-                        if (uv.y < 0.6) d = min(d, vLine);
+                        // Vertical stem of the L
+                        float vLine = length(vec2(uv.x + 0.3, max(0.0, uv.y))) - 0.18;
+                        d = min(d, vLine);
                         
-                        // L horizontal line
-                        float hLine = abs(uv.y + 0.5) - 0.1;
-                        if (uv.x > -0.25 && uv.x < 0.2) d = min(d, hLine);
+                        // Horizontal base of the L
+                        float hLine = length(vec2(min(0.0, uv.x + 0.2), uv.y + 0.5)) - 0.18;
+                        d = min(d, hLine);
                         
-                        return smoothstep(0.05, 0.0, d);
+                        // Corner of the L needs special handling for smoother carving
+                        float corner = length(vec2(uv.x + 0.3, uv.y + 0.5)) - 0.18;
+                        d = min(d, corner);
+                        
+                        // Create deeper carved effect
+                        float carved = smoothstep(0.02, -0.05, d);
+                        
+                        // Add weathering to edges
+                        float edgeNoise = noise(uv * 55.0) * 0.03;
+                        carved = max(0.0, carved - edgeNoise * smoothstep(-0.1, 0.1, d));
+                        
+                        return carved;
                     }
-                    // V glyph
+                    // Improved V glyph with better carving and definition
                     float getV(vec2 uv, float scale) {
                         uv *= scale;
-                        float d = 10.0;
                         
-                        // V left diagonal
-                        float dist1 = abs(uv.x + uv.y * 0.8) - 0.1;
-                        if (uv.y < 0.1) d = min(d, dist1);
+                        // Create two lines meeting at a point
+                        float leftLine = abs(uv.x + uv.y * 0.9) - 0.08;
+                        float rightLine = abs(uv.x - uv.y * 0.9) - 0.08;
                         
-                        // V right diagonal
-                        float dist2 = abs(uv.x - uv.y * 0.8) - 0.1;
-                        if (uv.y < 0.1) d = min(d, dist2);
+                        // Keep only the portions above a certain y value for the V shape
+                        leftLine = max(leftLine, uv.y + 0.7);
+                        rightLine = max(rightLine, uv.y + 0.7);
                         
-                        return smoothstep(0.05, 0.0, d);
+                        // Combine the two lines
+                        float d = min(leftLine, rightLine);
+                        
+                        // Create deeper carved effect
+                        float carved = smoothstep(0.02, -0.05, d);
+                        
+                        // Add weathering to edges
+                        float edgeNoise = noise(uv * 65.0) * 0.04;
+                        carved = max(0.0, carved - edgeNoise * smoothstep(-0.1, 0.1, d));
+                        
+                        return carved;
                     }
 
                     void main() {
-                        // Calculate radial coordinates
+                        // Calculate radial coordinates with better mapping for the stone texture
                         vec2 radialUV = vec2(
                             atan(vPosition.y, vPosition.x) / (2.0 * 3.14159) + 0.5,
-                            0.5
+                            0.5 + vPosition.z / vRingThickness * 0.25
                         );
-                    // Sample the stone texture
-                        vec3 stoneColor = texture2D(uStoneTexture, radialUV * 3.0).rgb;
-                        float roughness = texture2D(uRoughnessMap, radialUV * 2.0).r;
+                        // Apply multiple layers of stone texture detail
+                        vec3 stoneColor = texture2D(uStoneTexture, radialUV * 2.0).rgb;
+                        float roughness = texture2D(uRoughnessMap, radialUV * 3.0).r;
+                        float ao = texture2D(uAOMap, radialUV * 2.5).r;
                         
-                        // Apply some aging variation to the stone
-                        float noise1 = noise(radialUV * 10.0) * 0.1;
-                        float noise2 = noise(radialUV * 20.0 + vec2(uTime * 0.01, 0.0)) * 0.05;
-                        stoneColor *= (0.9 + noise1);
+                        // Enhanced aging and weathering effects
+                        float stoneFbm = fbm(radialUV * 15.0);
+                        float weathering = fbm(radialUV * 30.0 + vec2(uTime * 0.01, stoneFbm));
                         
-                        // Base color is the stone texture tinted with the ring color
+                        // Adjust stone color with weathering and dirt patterns
+                        stoneColor *= mix(0.85, 1.1, stoneFbm);
+                        stoneColor *= mix(0.9, 1.0, weathering);
+                        
+                        // Add realistic stone variations with cracks and imperfections
+                        float crackPattern = smoothstep(0.6, 0.8, fbm(radialUV * 20.0 + vec2(weathering)));
+                        stoneColor *= mix(0.9, 1.05, crackPattern);
+                        
+                        // Base color with better stone color blending
                         vec3 baseColor = stoneColor * uRingColor;
                         
+                        // Account for ambient occlusion in stone color
+                        baseColor *= mix(0.8, 1.0, ao);
                         // Normalize position for glyph calculation
                         vec2 normPos = normalize(vPosition.xy);
                         
@@ -480,38 +560,73 @@
                             normPos.x * cos(angle) - normPos.y * sin(angle),
                             normPos.x * sin(angle) + normPos.y * cos(angle)
                         );
-                    // Select the appropriate glyph based on ring index
+                        
+                        // Select the appropriate glyph based on ring index with better distribution
                         float glyphValue = 0.0;
-                        if (uIndex == 0) glyphValue = getS(rotatedUV, 1.5);
-                        else if (uIndex == 1) glyphValue = getO(rotatedUV, 1.5);
-                        else if (uIndex == 2) glyphValue = getL(rotatedUV, 1.5);
-                        else if (uIndex == 3) glyphValue = getV(rotatedUV, 1.5);
-                        else if (uIndex == 4) glyphValue = getS(rotatedUV, 1.5) * 0.7; // Fainter repetition
-                        else if (uIndex == 5) glyphValue = getO(rotatedUV, 1.5) * 0.6; // Fainter repetition
-                        else if (uIndex == 6) glyphValue = getL(rotatedUV, 1.5) * 0.5; // Fainter repetition
                         
-                        // Create a carved glyph effect with depth
-                        vec3 glyphShadowColor = uGlyphColor * 0.6; // Darker shadow inside carving
-                        vec3 finalColor = mix(baseColor, glyphShadowColor, glyphValue * 0.8);
-                    // Add some weathered look to the carving edges
-                        float edgeNoise = noise(rotatedUV * 50.0) * 0.1;
-                        float edgeIntensity = smoothstep(0.6, 0.8, glyphValue) * smoothstep(1.0, 0.8, glyphValue);
-                        finalColor = mix(finalColor, vec3(0.4, 0.35, 0.3) * stoneColor, edgeIntensity * edgeNoise);
+                        // Distribute glyphs across rings with clearer carving
+                        if (uIndex == 0) {
+                            glyphValue = getS(rotatedUV, 2.0); // S on the outer ring
+                        } else if (uIndex == 1) {
+                            glyphValue = getO(rotatedUV, 1.8); // O on the second ring
+                        } else if (uIndex == 2) {
+                            glyphValue = getL(rotatedUV, 1.9); // L on the third ring
+                        } else if (uIndex == 3) {
+                            glyphValue = getV(rotatedUV, 1.8); // V on the fourth ring
+                        } else if (uIndex == 4) {
+                            glyphValue = getS(rotatedUV, 1.5) * 0.9; // Fainter repetition on inner rings
+                        } else if (uIndex == 5) {
+                            glyphValue = getO(rotatedUV, 1.4) * 0.8;
+                        } else if (uIndex == 6) {
+                            glyphValue = getL(rotatedUV, 1.3) * 0.7;
+                        }
+                            // Create a deeply carved glyph effect with realistic depth and shadows
+                        // Darker shadow inside the carving
+                        vec3 glyphShadowColor = vec3(0.05, 0.04, 0.03);
                         
-                        // Add darker shadow based on lighting direction
-                        vec3 lightDir = normalize(uLightPos - vPosition);
-                        float lightIntensity = max(0.1, dot(vNormal, lightDir));
-                        finalColor *= 0.7 + (lightIntensity * 0.3);
+                        // Factor in ambient occlusion for deeper carving appearance
+                        float carvingDepth = glyphValue * (0.85 + roughness * 0.3);
                         
-                        // Weathering effects - moss/dirt in crevices
-                        float weathering = noise(radialUV * 15.0) * roughness;
-                        vec3 mossColor = vec3(0.2, 0.3, 0.1);
-                        finalColor = mix(finalColor, mossColor, weathering * 0.15 * (1.0 - glyphValue));
-                    // Selection highlight with pulsing effect
+                        // Add grime buildup in the carvings
+                        vec3 grimeDarkColor = vec3(0.08, 0.05, 0.03);
+                        vec3 carvingColor = mix(glyphShadowColor, grimeDarkColor, weathering * roughness);
+                        
+                        // Mix the stone color with the carving color based on the glyph value
+                        vec3 finalColor = mix(baseColor, carvingColor, carvingDepth);
+                        
+                        // Add lighting effects to enhance the 3D appearance of carvings
+                        // Calculate lighting direction for each point on the surface
+                        vec3 lightDir = normalize(uLightPos - vWorldPosition);
+                        float diffuseLighting = max(0.1, dot(vNormal, lightDir));
+                        // Create enhanced shadows and highlights for the carvings
+                        float highlightIntensity = smoothstep(0.8, 1.0, glyphValue) * smoothstep(0.7, 0.5, diffuseLighting);
+                        float shadowIntensity = smoothstep(0.4, 0.7, glyphValue) * smoothstep(0.5, 0.2, diffuseLighting);
+                        
+                        // Apply dramatic lighting to the carvings
+                        finalColor = mix(finalColor, glyphShadowColor * 0.7, shadowIntensity * 0.6);
+                        
+                        // Add dirt and moss buildup in crevices and carved areas
+                        float creviceEffect = glyphValue * roughness * (1.0 - diffuseLighting) * 0.8;
+                        vec3 mossColor = vec3(0.15, 0.23, 0.08);
+                        vec3 dirtColor = vec3(0.25, 0.20, 0.15);
+                        finalColor = mix(finalColor, mix(dirtColor, mossColor, weathering), creviceEffect * weathering);
+                        
+                        // Add general lighting to the whole surface
+                        finalColor *= 0.6 + diffuseLighting * 0.5;
+                        
+                        // Apply weathering effects to the surface
+                        float stoneEdgeWear = smoothstep(0.4, 0.6, fbm(radialUV * 20.0)) * 0.15;
+                        finalColor = mix(finalColor, baseColor * 0.7, stoneEdgeWear * (1.0 - glyphValue));
+                        // Selection highlight with pulsing effect
                         if (uSelectedRingIndex == uIndex) {
-                            float pulse = 0.7 + 0.3 * sin(uTime * 3.0);
+                            float pulse = 0.6 + 0.4 * sin(uTime * 2.5);
                             vec3 highlightColor = vec3(1.0, 0.9, 0.7) * pulse;
                             finalColor = mix(finalColor, highlightColor, 0.3);
+                        }
+                        
+                        // Enhance lighting for selected ring
+                        if (uSelectedRingIndex == uIndex) {
+                            finalColor *= 1.2;
                         }
                         
                         // Color adjustments
@@ -524,32 +639,33 @@
                     uRotation: { value: 0.0 },
                     uIndex: { value: ringIndex },
                     uSelectedRingIndex: { value: 0 }, // Start with the outer ring selected
-                    uGlyphColor: { value: glyphColors[ringIndex] },
-                    uRingColor: { value: ringColors[ringIndex] },
-                    uStoneTexture: { value: stoneTexture },
-                    uNormalMap: { value: normalMap },
-                    uRoughnessMap: { value: roughnessMap },
-                    uTime: { value: 0.0 },
-                    uLightPos: { value: new THREE.Vector3(5, 5, 5) }
-                },
-            });
-        }
-        // Create the rings with texture
-        function createRings(stoneTexture, normalMap, roughnessMap) {
+                   uGlyphColor: { value: glyphColors[ringIndex] },
+                   uRingColor: { value: ringColors[ringIndex] },
+                   uStoneTexture: { value: stoneTexture },
+                   uNormalMap: { value: normalMap },
+                   uRoughnessMap: { value: roughnessMap },
+                   uAOMap: { value: aoMap },
+                   uTime: { value: 0.0 },
+                   uLightPos: { value: new THREE.Vector3(5, 5, 5) }
+               },
+           });
+       }
+       // Create the rings with enhanced texture and depth
+       function createRings(stoneTexture, normalMap, roughnessMap, aoMap) {
             for (let i = 0; i < numberOfRings; i++) {
                 const geometry = new THREE.TorusGeometry(
                     ringRadius - (i * ringThickness * 1.2), 
                     ringThickness, 
-                    64, 
+                    96,  // Higher segment count for smoother rings
                     128
                 );
                 
-                const material = createRingMaterial(stoneTexture, normalMap, roughnessMap, i);
+                const material = createRingMaterial(stoneTexture, normalMap, roughnessMap, aoMap, i);
                 const ring = new THREE.Mesh(geometry, material);
                 
                 ring.rotation.x = Math.PI / 2; // Face forward
                 
-                // Randomize initial rotation for puzzle start
+                // Randomize initial rotation for puzzle start - substantial randomization
                 const randomRotation = Math.random() * Math.PI * 2;
                 ring.userData = { 
                     rotationOffset: randomRotation, 
@@ -557,6 +673,14 @@
                     targetRotation: randomRotation 
                 };
                 ring.material.uniforms.uRotation.value = randomRotation;
+                
+                // Add subtle random positioning to make the rings look more ancient/less perfect
+                ring.position.set(
+                    (Math.random() - 0.5) * 0.05,
+                    (Math.random() - 0.5) * 0.05,
+                    (Math.random() - 0.5) * 0.03
+                );
+                
                 scene.add(ring);
                 rings.push(ring);
             }
@@ -566,8 +690,10 @@
                 rings[0].material.uniforms.uSelectedRingIndex.value = 0;
                 updateRingInfo(0);
             }
+            
+            // Show initial message about the puzzle being scrambled
+            showMessage("Ancient glyphs scattered across the rings... Can you restore them?");
         }
-
         // Function to handle rotation with smooth animation
         function rotateRing(index, direction) {
             if (isSolved) return;
@@ -578,18 +704,21 @@
             // Set the target rotation
             ring.userData.targetRotation = ring.userData.rotationOffset + (direction * rotationStep);
             
-            // Add a subtle vibration effect
-            ring.position.x += (Math.random() - 0.5) * 0.05;
-            ring.position.y += (Math.random() - 0.5) * 0.05;
+            // Add a subtle vibration effect for stone grinding
+            ring.position.x += (Math.random() - 0.5) * 0.08;
+            ring.position.y += (Math.random() - 0.5) * 0.08;
+            
+            // Slight z-axis movement for depth feel
+            ring.position.z += (Math.random() - 0.5) * 0.04;
         }
+
         // Update ring info display
         function updateRingInfo(index) {
             ringInfoElement.textContent = `Selected: ${ringNames[index]}`;
         }
-
-        // Function to check if the puzzle is solved
+        // Function to check if the puzzle is solved with improved tolerance
         function checkForSolution() {
-            const tolerance = 0.1; // Tolerance for alignment
+            const tolerance = 0.15; // Slightly more forgiving tolerance
             
             // Check if all rings are aligned to zero rotation (modulo 2π)
             for (let i = 0; i < rings.length; i++) {
@@ -604,28 +733,45 @@
             
             // If we got here, the puzzle is solved
             isSolved = true;
-            showMessage("Ancient Secret Revealed! The Glyph Speaks...");
+            showMessage("Ancient Secret Revealed! The Carved Glyphs Align...");
             
             // Victory effects
             celebrateSolution();
         }
-        // Function to celebrate solving the puzzle
+        // Function to celebrate solving the puzzle with enhanced effects
         function celebrateSolution() {
-            // Add glow effect to the rings
-            rings.forEach(ring => {
-                const glowIntensity = rings.indexOf(ring) * 0.2;
-                ring.material.uniforms.uGlyphColor.value = new THREE.Color(0.8 + glowIntensity, 0.7 + glowIntensity, 0.5 + glowIntensity);
+            // Add dramatic glow effect to the rings
+            rings.forEach((ring, index) => {
+                const glowIntensity = 0.2 + (rings.length - index) * 0.15;
+                
+                // Create golden hue in the carvings for victory effect
+                const goldGlyphColor = new THREE.Color(0.9 + glowIntensity * 0.2, 
+                                                     0.8 + glowIntensity * 0.15, 
+                                                     0.5 + glowIntensity * 0.1);
+                ring.material.uniforms.uGlyphColor.value = goldGlyphColor;
+                
+                // Animate to aligned position with a slight delay based on ring index
+                setTimeout(() => {
+                    // Center the rings perfectly
+                    ring.position.set(0, 0, 0);
+                }, index * 100);
             });
             
-            // Add a point light in the center that pulses
-            const victoryLight = new THREE.PointLight(0xf7e9bc, 2, 15);
-            victoryLight.position.set(0, 0, 0);
+            // Add a point light in the center that pulses with golden light
+            const victoryLight = new THREE.PointLight(0xffd700, 2, 15);
+            victoryLight.position.set(0, 0, 2);
             scene.add(victoryLight);
             
-            // Animate the victory light
+            // Add subtle rays of light from the center
+            const victoryBackLight = new THREE.PointLight(0xffffcc, 1.5, 12);
+            victoryBackLight.position.set(0, 0, -3);
+            scene.add(victoryBackLight);
+            
+            // Animate the victory lights
             function pulseLight() {
                 const time = Date.now() * 0.001;
-                victoryLight.intensity = 1 + Math.sin(time * 3) * 0.5;
+                victoryLight.intensity = 1.5 + Math.sin(time * 3) * 0.8;
+                victoryBackLight.intensity = 1.2 + Math.sin(time * 2.5 + 1) * 0.5;
                 
                 if (isSolved) {
                     requestAnimationFrame(pulseLight);
@@ -643,7 +789,7 @@
             if (!text.includes("Ancient Secret Revealed")) {
                 setTimeout(() => {
                     messageElement.classList.remove('show');
-                }, 3000);
+                }, 3500);
             }
         }
 
@@ -663,26 +809,34 @@
                 // Reset any special effects
                 const ringIndex = rings.indexOf(ring);
                 const glyphColors = [
-                    new THREE.Color(0x1a1a1a),
-                    new THREE.Color(0x221a14),
-                    new THREE.Color(0x2a201c),
-                    new THREE.Color(0x262018),
-                    new THREE.Color(0x221c16),
-                    new THREE.Color(0x1e1a14),
-                    new THREE.Color(0x1a1610)
+                    new THREE.Color(0x080808),
+                    new THREE.Color(0x0c0a08),
+                    new THREE.Color(0x0e0c0a),
+                    new THREE.Color(0x0a0806),
+                    new THREE.Color(0x090705),
+                    new THREE.Color(0x080604),
+                    new THREE.Color(0x070503)
                 ];
                 ring.material.uniforms.uGlyphColor.value = glyphColors[ringIndex];
                 
-                // Reset position
-                ring.position.set(0, 0, 0);
+                // Add subtle random positioning for ancient look
+                ring.position.set(
+                    (Math.random() - 0.5) * 0.05,
+                    (Math.random() - 0.5) * 0.05,
+                    (Math.random() - 0.5) * 0.03
+                );
             });
             
             // Show reset message
-            showMessage("Puzzle Reset - Try Again!");
+            showMessage("Puzzle Reset - Ancient Glyphs Scattered Once More!");
             
             // Remove any victory lights
             scene.children.forEach(child => {
-                if (child.type === "PointLight" && child !== pointLight && child !== backLight) {
+                if (child.type === "PointLight" && 
+                    child !== leftLight && 
+                    child !== backLight && 
+                    child !== directionalLight && 
+                    child !== ambientLight) {
                     scene.remove(child);
                 }
             });
@@ -692,7 +846,6 @@
                 animate();
             }
         }
-
         // Set up event listeners
         rotateLeftButton.addEventListener('click', () => {
             rotateRing(selectedRingIndex, -1); // Negative for counterclockwise
@@ -701,9 +854,10 @@
         rotateRightButton.addEventListener('click', () => {
             rotateRing(selectedRingIndex, 1); // Positive for clockwise
         });
+        
         resetButton.addEventListener('click', resetPuzzle);
 
-        // Event listener for ring selection via mouse/touch
+        // Event listener for ring selection via mouse/touch with improved selection
         canvas.addEventListener('click', (event) => {
             if (isSolved) return; // Disable selection when solved
             
@@ -721,11 +875,11 @@
             if (intersects.length > 0) {
                 // Update selected ring
                 const newIndex = rings.indexOf(intersects[0].object);
-                
                 // Reset highlighting on all rings
                 rings.forEach((ring) => {
                     ring.material.uniforms.uSelectedRingIndex.value = -1;
                 });
+                
                 // Highlight newly selected ring
                 selectedRingIndex = newIndex;
                 rings[selectedRingIndex].material.uniforms.uSelectedRingIndex.value = selectedRingIndex;
@@ -733,10 +887,7 @@
                 // Update UI
                 updateRingInfo(selectedRingIndex);
                 
-                // Play selection sound (if implemented)
-                // playSelectionSound();
-                
-                // Slight pop effect
+                // Selection effect - slight pop and glow
                 const ring = rings[selectedRingIndex];
                 ring.scale.set(1.03, 1.03, 1.03);
                 setTimeout(() => {
@@ -755,7 +906,7 @@
             
             renderer.setSize(width, height);
         });
-        // Keyboard controls
+        // Keyboard controls with improved responsiveness
         window.addEventListener('keydown', (event) => {
             if (isSolved) return;
             
@@ -800,7 +951,7 @@
             }
         });
 
-        // Animation function
+        // Animation function with improved effects
         function animate() {
             animationFrameId = requestAnimationFrame(animate);
             
@@ -813,7 +964,7 @@
                 // Smooth rotation animation towards target
                 if (ring.userData.rotationOffset !== ring.userData.targetRotation) {
                     const diff = ring.userData.targetRotation - ring.userData.rotationOffset;
-                    ring.userData.rotationOffset += diff * 0.1; // Ease towards target
+                    ring.userData.rotationOffset += diff * 0.12; // Ease towards target
                     
                     // Update shader rotation
                     ring.material.uniforms.uRotation.value = ring.userData.rotationOffset;
@@ -829,9 +980,29 @@
                 }
                 
                 // Gradually return rings to center position (from vibration effect)
-                ring.position.x *= 0.9;
-                ring.position.y *= 0.9;
+                ring.position.x *= 0.92;
+                ring.position.y *= 0.92;
+                ring.position.z *= 0.92;
+                
+                // Add subtle breathing effect for non-selected rings when not solved
+                if (!isSolved && ring.material.uniforms.uSelectedRingIndex.value === -1) {
+                    const breathEffect = Math.sin(time * 0.5 + rings.indexOf(ring)) * 0.0005;
+                    ring.position.z += breathEffect;
+                }
             });
+            // Create subtle camera sway for more dynamic feel
+            if (!isSolved) {
+                camera.position.x = Math.sin(time * 0.2) * 0.3;
+                camera.position.y = Math.cos(time * 0.3) * 0.2;
+            } else {
+                // Slowly orbit around the solved rings for dramatic effect
+                const orbitRadius = 7;
+                const orbitSpeed = 0.2;
+                camera.position.x = Math.sin(time * orbitSpeed) * orbitRadius;
+                camera.position.z = Math.cos(time * orbitSpeed) * orbitRadius;
+                camera.lookAt(0, 0, 0);
+            }
+            
             // Update controls
             controls.update();
             
@@ -852,11 +1023,6 @@
 
         // Initialize size
         initialResize();
-        
-        // Show an initial instruction
-        setTimeout(() => {
-            showMessage("Select a ring and rotate to solve the puzzle");
-        }, 3000);
     </script>
 </body>
 </html>
