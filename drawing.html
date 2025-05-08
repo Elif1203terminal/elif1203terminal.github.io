@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fluid Face Line Art</title>
+    <title>Anime Face Line Art</title>
     <style>
         body, html {
             margin: 0;
@@ -137,9 +137,8 @@
         let currentPathIndex = 0;
         let currentDrawPosition = { x: 0, y: 0 };
         let targetDrawPosition = { x: 0, y: 0 };
-        let drawSpeed = 0.03; // Speed at which the pen moves (0-1)
+        let drawSpeed = 0.02; // Slower for more elegant drawing
         let arrowAngle = 0;
-        let facesDrawn = 0;
         
         // Controls
         const startButton = document.getElementById('start-button');
@@ -154,130 +153,468 @@
         let drawnPath = [];
         // Color utilities
         function getColor(progress) {
-            // Convert progress to hue (0-360)
-            const hue = Math.floor(progress * 360) % 360;
-            return `hsl(${hue}, 100%, 60%)`;
+            // Soft pastel colors for anime aesthetic
+            const hues = [335, 280, 200, 170, 130, 50]; // Pink, purple, blue, teal, green, gold
+            const hueIndex = Math.floor(progress * hues.length);
+            const nextHueIndex = (hueIndex + 1) % hues.length;
+            
+            const t = (progress * hues.length) % 1;
+            const hue = hues[hueIndex] * (1 - t) + hues[nextHueIndex] * t;
+            
+            return `hsl(${hue}, 85%, 75%)`;
         }
         
         // Make sure the drawing is confined to the window dimensions
         function constrainToWindow(x, y) {
-            const padding = 20;
+            const padding = 50; // Larger padding for centered face
             return {
                 x: Math.max(padding, Math.min(canvas.width - padding, x)),
                 y: Math.max(padding, Math.min(canvas.height - padding, y))
             };
         }
         
-        // Simple circle drawing helper
-        function drawCircle(points, x, y, radius, segments) {
-            for (let i = 0; i <= segments; i++) {
-                const angle = (i / segments) * Math.PI * 2;
-                const pointX = x + Math.cos(angle) * radius;
-                const pointY = y + Math.sin(angle) * radius;
-                points.push({ x: pointX, y: pointY });
-            }
-            return points;
-        }
-        
-        // Generate face path
-        function generateFace(centerX, centerY, size) {
+        // Curve utility function - creates smooth bezier curve points
+        function createCurve(startX, startY, endX, endY, controlPoints, numPoints) {
             const points = [];
             
-            // Face outline (oval shape)
-            const faceWidth = size;
-            const faceHeight = size * 1.3;
-            
-            // Draw face outline
-            for (let i = 0; i < 30; i++) {
-                const angle = (i / 30) * Math.PI * 2;
-                const x = centerX + Math.cos(angle) * faceWidth/2;
-                const y = centerY + Math.sin(angle) * faceHeight/2;
+            for (let i = 0; i <= numPoints; i++) {
+                const t = i / numPoints;
+                
+                // Cubic bezier curve
+                const x = Math.pow(1-t, 3) * startX + 
+                          3 * Math.pow(1-t, 2) * t * controlPoints[0].x + 
+                          3 * (1-t) * Math.pow(t, 2) * controlPoints[1].x + 
+                          Math.pow(t, 3) * endX;
+                          
+                const y = Math.pow(1-t, 3) * startY + 
+                          3 * Math.pow(1-t, 2) * t * controlPoints[0].y + 
+                          3 * (1-t) * Math.pow(t, 2) * controlPoints[1].y + 
+                          Math.pow(t, 3) * endY;
+                          
                 points.push({ x, y });
             }
-            // Add eyes
-            const eyeSpacing = size * 0.25;
-            const eyeY = centerY - size * 0.1;
-            const eyeSize = size * 0.1;
             
-            // Left eye
-            drawCircle(points, centerX - eyeSpacing, eyeY, eyeSize, 15);
+            return points;
+        }
+        // Helper for elliptical shapes
+        function createEllipse(centerX, centerY, radiusX, radiusY, startAngle, endAngle, segments) {
+            const points = [];
+            const angleRange = endAngle - startAngle;
             
-            // Right eye
-            drawCircle(points, centerX + eyeSpacing, eyeY, eyeSize, 15);
-            
-            // Nose - simple triangle
-            points.push({ x: centerX, y: eyeY + size * 0.15 });  // top
-            points.push({ x: centerX - size * 0.08, y: eyeY + size * 0.3 });  // left
-            points.push({ x: centerX + size * 0.08, y: eyeY + size * 0.3 });  // right
-            points.push({ x: centerX, y: eyeY + size * 0.15 });  // back to top
-            
-            // Mouth - simple curve
-            const mouthY = centerY + size * 0.2;
-            const mouthWidth = size * 0.3;
-            
-            // Mouth points
-            for (let i = 0; i <= 10; i++) {
-                const t = i / 10;
-                const x = centerX - mouthWidth/2 + mouthWidth * t;
-                // Smile curve
-                const y = mouthY - Math.sin(Math.PI * t) * (size * 0.05);
+            for (let i = 0; i <= segments; i++) {
+                const angle = startAngle + (i / segments) * angleRange;
+                const x = centerX + Math.cos(angle) * radiusX;
+                const y = centerY + Math.sin(angle) * radiusY;
                 points.push({ x, y });
             }
             
             return points;
         }
         
-        // Generate multiple faces arranged in a grid
-        function generateFacesPath() {
-            // Number of faces
-            const numFaces = 5;
-            
-            // Create a grid layout
-            const gridCols = 3;
-            const gridRows = 2;
-            
-            const cellWidth = canvas.width / gridCols;
-            const cellHeight = canvas.height / gridRows;
-            const faceSize = Math.min(cellWidth, cellHeight) * 0.5;
-            let allPoints = [];
-            
-            // Generate faces in a grid
-            for (let row = 0; row < gridRows; row++) {
-                for (let col = 0; col < gridCols; col++) {
-                    // Skip some positions to avoid having too many faces
-                    if (row * gridCols + col >= numFaces) continue;
-                    
-                    // Calculate center position with some randomness
-                    const centerX = col * cellWidth + cellWidth/2 + (Math.random() * 0.2 - 0.1) * cellWidth;
-                    const centerY = row * cellHeight + cellHeight/2 + (Math.random() * 0.2 - 0.1) * cellHeight;
-                    
-                    // Generate a face at this position
-                    const facePoints = generateFace(centerX, centerY, faceSize);
-                    
-                    // If this isn't the first face, add a connecting line
-                    if (allPoints.length > 0) {
-                        const lastPoint = allPoints[allPoints.length - 1];
-                        // Simple straight line to connect faces
-                        const firstPoint = facePoints[0];
-                        
-                        // Create a smooth connection with a few points
-                        const steps = 5;
-                        for (let s = 1; s <= steps; s++) {
-                            const t = s / steps;
-                            const x = lastPoint.x + (firstPoint.x - lastPoint.x) * t;
-                            const y = lastPoint.y + (firstPoint.y - lastPoint.y) * t;
-                            allPoints.push({ x, y });
-                        }
-                    }
-                    
-                    // Add this face's points to the combined path
-                    allPoints = allPoints.concat(facePoints);
+        // Generate a random anime face style
+        function getRandomAnimeStyle() {
+            const styles = [
+                {
+                    name: "Shojo",
+                    eyeSize: 0.12,
+                    eyeHeight: -0.15,
+                    eyeSpacing: 0.25,
+                    faceLengthRatio: 1.4,
+                    faceWidthRatio: 0.85,
+                    hairLength: "long",
+                    hairStyle: Math.floor(Math.random() * 4)
+                },
+                {
+                    name: "Modern",
+                    eyeSize: 0.1,
+                    eyeHeight: -0.1,
+                    eyeSpacing: 0.22,
+                    faceLengthRatio: 1.25,
+                    faceWidthRatio: 0.8,
+                    hairLength: "medium",
+                    hairStyle: Math.floor(Math.random() * 4)
+                },
+                {
+                    name: "Classic",
+                    eyeSize: 0.11,
+                    eyeHeight: -0.12,
+                    eyeSpacing: 0.23,
+                    faceLengthRatio: 1.35,
+                    faceWidthRatio: 0.82,
+                    hairLength: "varied",
+                    hairStyle: Math.floor(Math.random() * 4)
                 }
+            ];
+            
+            return styles[Math.floor(Math.random() * styles.length)];
+        }
+        // Generate a beautiful anime face path
+        function generateAnimeFace() {
+            const style = getRandomAnimeStyle();
+            
+            // Use center of canvas
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            // Scale based on canvas size
+            const scale = Math.min(canvas.width, canvas.height) * 0.35;
+            
+            const points = [];
+            
+            // 1. Face outline - elegant oval shape for anime face
+            const faceWidth = scale * style.faceWidthRatio;
+            const faceHeight = scale * style.faceLengthRatio;
+            
+            // Create face outline with a slightly pointed chin for anime style
+            const facePoints = [];
+            const faceSegments = 30;
+            
+            for (let i = 0; i <= faceSegments; i++) {
+                const t = i / faceSegments;
+                const angle = Math.PI * (0.5 + t);
+                
+                // Adjust the radius to create more of an egg-shape with narrower chin
+                let radiusX = faceWidth * (0.9 + Math.sin(angle) * 0.1);
+                let radiusY = faceHeight * (0.9 + Math.sin(angle - Math.PI/2) * 0.1);
+                
+                // Make chin slightly more pointed
+                if (angle > Math.PI * 1.25 && angle < Math.PI * 1.75) {
+                    radiusY *= 0.95;
+                    radiusX *= 0.97;
+                }
+                
+                const x = centerX + Math.cos(angle) * radiusX;
+                const y = centerY + Math.sin(angle) * radiusY;
+                
+                facePoints.push({ x, y });
             }
             
-            return allPoints;
+            points.push(...facePoints);
+            
+            // 2. Draw hair (connect from face outline)
+            const hairPoints = generateAnimeHair(centerX, centerY, scale, style);
+            points.push(...hairPoints);
+            // 3. Draw eyes (large anime style)
+            const eyeY = centerY + (scale * style.eyeHeight);
+            const eyeSpacing = scale * style.eyeSpacing;
+            const eyeSize = scale * style.eyeSize;
+            
+            // Left eye
+            const leftEyeX = centerX - eyeSpacing;
+            const leftEye = generateAnimeEye(leftEyeX, eyeY, eyeSize, "left");
+            points.push(...leftEye);
+            
+            // Connect to right eye with elegant curve (across the nose bridge)
+            const noseBridge = createCurve(
+                leftEye[leftEye.length-1].x, leftEye[leftEye.length-1].y,
+                centerX + eyeSpacing - eyeSize*1.8, eyeY - eyeSize*0.5,
+                [
+                    { x: centerX - eyeSpacing/2, y: eyeY - eyeSize },
+                    { x: centerX + eyeSpacing/2, y: eyeY - eyeSize }
+                ],
+                10
+            );
+            points.push(...noseBridge);
+            
+            // Right eye
+            const rightEyeX = centerX + eyeSpacing;
+            const rightEye = generateAnimeEye(rightEyeX, eyeY, eyeSize, "right");
+            points.push(...rightEye);
+            
+            // 4. Draw nose (very subtle for anime style)
+            const nosePoints = generateAnimeNose(centerX, centerY, scale);
+            points.push(...nosePoints);
+            
+            // 5. Draw mouth
+            const mouthPoints = generateAnimeMouth(centerX, centerY, scale);
+            points.push(...mouthPoints);
+            
+            // 6. Add final details (eyebrows, etc.)
+            const detailPoints = generateAnimeDetails(centerX, centerY, scale, style);
+            points.push(...detailPoints);
+            
+            return points;
         }
-        // Draw the arrow
+        // Generate anime-style hair
+        function generateAnimeHair(centerX, centerY, scale, style) {
+            const points = [];
+            const hairType = style.hairStyle;
+            
+            switch(hairType) {
+                case 0: // Long flowing hair
+                    // Top of head
+                    const topY = centerY - scale * 0.7;
+                    
+                    // Create flowing bangs
+                    const bangLength = scale * 0.2;
+                    const bangStart = { x: centerX - scale * 0.3, y: topY };
+                    
+                    // Left side of hair
+                    const leftSideControl1 = { x: centerX - scale * 0.8, y: topY + scale * 0.1 };
+                    const leftSideControl2 = { x: centerX - scale * 0.7, y: centerY + scale * 0.5 };
+                    const leftSideEnd = { x: centerX - scale * 0.2, y: centerY + scale * 0.8 };
+                    
+                    const leftSide = createCurve(
+                        bangStart.x, bangStart.y,
+                        leftSideEnd.x, leftSideEnd.y,
+                        [leftSideControl1, leftSideControl2],
+                        20
+                    );
+                    
+                    // Right side of hair
+                    const rightSideControl1 = { x: centerX + scale * 0.8, y: topY + scale * 0.1 };
+                    const rightSideControl2 = { x: centerX + scale * 0.7, y: centerY + scale * 0.5 };
+                    const rightSideEnd = { x: centerX + scale * 0.4, y: centerY + scale * 0.7 };
+                    
+                    const rightSide = createCurve(
+                        centerX + scale * 0.3, topY,
+                        rightSideEnd.x, rightSideEnd.y,
+                        [rightSideControl1, rightSideControl2],
+                        20
+                    );
+                    
+                    // Front bangs
+                    const bangPoints = createCurve(
+                        bangStart.x, bangStart.y,
+                        centerX + scale * 0.3, topY,
+                        [
+                            { x: centerX - scale * 0.2, y: topY + bangLength * 0.7 },
+                            { x: centerX + scale * 0.2, y: topY + bangLength * 0.6 }
+                        ],
+                        15
+                    );
+                    
+                    points.push(...bangPoints);
+                    points.push(...rightSide);
+                    points.push(...leftSide.reverse());
+                    break;
+                    case 1: // Short pixie cut
+                    // Create crown shape
+                    const crownPoints = [];
+                    for (let i = 0; i <= 20; i++) {
+                        const t = i / 20;
+                        const angle = Math.PI * (1 + t);
+                        
+                        // Add spiky texture to hair
+                        const spikeNoise = Math.sin(t * 15) * scale * 0.05;
+                        
+                        const x = centerX + Math.cos(angle) * (scale * 0.65 + spikeNoise);
+                        const y = centerY + Math.sin(angle) * (scale * 0.8 + spikeNoise) - scale * 0.15;
+                        crownPoints.push({ x, y });
+                    }
+                    
+                    points.push(...crownPoints);
+                    break;
+                    
+                case 2: // Twin tails/pigtails
+                    // Top hair
+                    const topHairPoints = createEllipse(centerX, centerY - scale * 0.4, scale * 0.5, scale * 0.6, Math.PI, 0, 15);
+                    
+                    // Left twintail
+                    const leftTailStart = topHairPoints[0];
+                    const leftTailControl1 = { x: leftTailStart.x - scale * 0.3, y: leftTailStart.y + scale * 0.2 };
+                    const leftTailControl2 = { x: leftTailStart.x - scale * 0.4, y: leftTailStart.y + scale * 0.8 };
+                    const leftTailEnd = { x: leftTailStart.x - scale * 0.2, y: leftTailStart.y + scale * 1.2 };
+                    
+                    const leftTail = createCurve(
+                        leftTailStart.x, leftTailStart.y,
+                        leftTailEnd.x, leftTailEnd.y,
+                        [leftTailControl1, leftTailControl2],
+                        15
+                    );
+                    
+                    // Right twintail
+                    const rightTailStart = topHairPoints[topHairPoints.length - 1];
+                    const rightTailControl1 = { x: rightTailStart.x + scale * 0.3, y: rightTailStart.y + scale * 0.2 };
+                    const rightTailControl2 = { x: rightTailStart.x + scale * 0.4, y: rightTailStart.y + scale * 0.8 };
+                    const rightTailEnd = { x: rightTailStart.x + scale * 0.2, y: rightTailStart.y + scale * 1.2 };
+                    
+                    const rightTail = createCurve(
+                        rightTailStart.x, rightTailStart.y,
+                        rightTailEnd.x, rightTailEnd.y,
+                        [rightTailControl1, rightTailControl2],
+                        15
+                    );
+                    
+                    points.push(...topHairPoints, ...rightTail, ...leftTail.reverse());
+                    break;
+                    case 3: // Elegant bob with side sweep
+                    // Top hair curve
+                    const topCurve = createEllipse(centerX, centerY - scale * 0.3, scale * 0.55, scale * 0.7, Math.PI, 0, 15);
+                    
+                    // Left side of hair
+                    const bobLeftControl1 = { x: centerX - scale * 0.7, y: centerY - scale * 0.3 };
+                    const bobLeftControl2 = { x: centerX - scale * 0.6, y: centerY + scale * 0.3 };
+                    const bobLeftEnd = { x: centerX - scale * 0.3, y: centerY + scale * 0.5 };
+                    
+                    const leftBob = createCurve(
+                        topCurve[0].x, topCurve[0].y,
+                        bobLeftEnd.x, bobLeftEnd.y,
+                        [bobLeftControl1, bobLeftControl2],
+                        15
+                    );
+                    
+                    // Right side of hair (longer sweep)
+                    const bobRightControl1 = { x: centerX + scale * 0.7, y: centerY - scale * 0.2 };
+                    const bobRightControl2 = { x: centerX + scale * 0.8, y: centerY + scale * 0.3 };
+                    const bobRightEnd = { x: centerX + scale * 0.5, y: centerY + scale * 0.6 };
+                    
+                    const rightBob = createCurve(
+                        topCurve[topCurve.length - 1].x, topCurve[topCurve.length - 1].y,
+                        bobRightEnd.x, bobRightEnd.y,
+                        [bobRightControl1, bobRightControl2],
+                        15
+                    );
+                    
+                    points.push(...topCurve, ...rightBob, ...leftBob.reverse());
+                    break;
+            }
+            
+            return points;
+        }
+        // Generate anime eye
+        function generateAnimeEye(centerX, centerY, size, side) {
+            const points = [];
+            
+            // Almond-shaped eye outline
+            const eyeWidth = size * 1.8;
+            const eyeHeight = size;
+            
+            // Top and bottom curves of eye
+            let startAngle, endAngle;
+            
+            if (side === "left") {
+                startAngle = Math.PI * 0.2;
+                endAngle = Math.PI * 1.8;
+            } else {
+                startAngle = Math.PI * 1.2;
+                endAngle = Math.PI * 2.8;
+            }
+            
+            // Create anime eye shape
+            const eyeOutline = createEllipse(centerX, centerY, eyeWidth, eyeHeight, startAngle, endAngle, 20);
+            points.push(...eyeOutline);
+            
+            // Add iris
+            const irisSize = size * 0.65;
+            const iris = createEllipse(centerX, centerY, irisSize, irisSize, 0, Math.PI * 2, 15);
+            points.push(...iris);
+            
+            // Add pupil
+            const pupilSize = size * 0.3;
+            const pupil = createEllipse(centerX, centerY, pupilSize, pupilSize, 0, Math.PI * 2, 8);
+            points.push(...pupil);
+            
+            // Add highlight (small circle)
+            const highlightX = centerX + irisSize * 0.3;
+            const highlightY = centerY - irisSize * 0.3;
+            const highlight = createEllipse(highlightX, highlightY, size * 0.15, size * 0.15, 0, Math.PI * 2, 6);
+            points.push(...highlight);
+            
+            return points;
+        }
+        // Generate anime nose (very subtle)
+        function generateAnimeNose(centerX, centerY, scale) {
+            // Anime noses are often just a subtle line or dot
+            const noseY = centerY - scale * 0.05;
+            const noseSize = scale * 0.03;
+            
+            // Create a small vertical line
+            return [
+                { x: centerX, y: noseY },
+                { x: centerX - noseSize, y: noseY + noseSize * 2 },
+                { x: centerX + noseSize, y: noseY + noseSize * 2 }
+            ];
+        }
+        
+        // Generate anime mouth
+        function generateAnimeMouth(centerX, centerY, scale) {
+            const points = [];
+            const mouthY = centerY + scale * 0.25;
+            const mouthWidth = scale * 0.25;
+            
+            // Random mouth style
+            const mouthStyle = Math.floor(Math.random() * 3);
+            
+            switch(mouthStyle) {
+                case 0: // Small smile
+                    points.push(...createCurve(
+                        centerX - mouthWidth/2, mouthY,
+                        centerX + mouthWidth/2, mouthY,
+                        [
+                            { x: centerX, y: mouthY - scale * 0.05 },
+                            { x: centerX, y: mouthY - scale * 0.05 }
+                        ],
+                        10
+                    ));
+                    break;
+                    
+                case 1: // Small "o" mouth
+                    points.push(...createEllipse(centerX, mouthY, mouthWidth * 0.4, mouthWidth * 0.3, 0, Math.PI * 2, 15));
+                    break;
+                    
+                case 2: // Subtle line mouth
+                    points.push({ x: centerX - mouthWidth/2, y: mouthY });
+                    points.push({ x: centerX + mouthWidth/2, y: mouthY });
+                    break;
+            }
+            
+            return points;
+        }
+        // Generate anime details (eyebrows, blush, etc.)
+        function generateAnimeDetails(centerX, centerY, scale, style) {
+            const points = [];
+            
+            // Eyebrows
+            const eyebrowY = centerY - scale * 0.25;
+            const eyebrowSpacing = scale * style.eyeSpacing;
+            const eyebrowLength = scale * 0.15;
+            const eyebrowHeight = scale * 0.03;
+            
+            // Left eyebrow
+            const leftEyebrowX = centerX - eyebrowSpacing;
+            const leftEyebrow = createCurve(
+                leftEyebrowX - eyebrowLength/2, eyebrowY,
+                leftEyebrowX + eyebrowLength/2, eyebrowY,
+                [
+                    { x: leftEyebrowX, y: eyebrowY - eyebrowHeight },
+                    { x: leftEyebrowX, y: eyebrowY - eyebrowHeight }
+                ],
+                8
+            );
+            
+            // Right eyebrow
+            const rightEyebrowX = centerX + eyebrowSpacing;
+            const rightEyebrow = createCurve(
+                rightEyebrowX - eyebrowLength/2, eyebrowY,
+                rightEyebrowX + eyebrowLength/2, eyebrowY,
+                [
+                    { x: rightEyebrowX, y: eyebrowY - eyebrowHeight },
+                    { x: rightEyebrowX, y: eyebrowY - eyebrowHeight }
+                ],
+                8
+            );
+            
+            points.push(...leftEyebrow);
+            points.push(...rightEyebrow);
+            
+            // Optional: Add blush marks or other details
+            const addBlush = Math.random() > 0.5;
+            if (addBlush) {
+                const blushY = centerY + scale * 0.12;
+                const blushDistance = scale * 0.35;
+                
+                // Simple circles for blush
+                const leftBlush = createEllipse(centerX - blushDistance, blushY, scale * 0.08, scale * 0.05, 0, Math.PI * 2, 8);
+                const rightBlush = createEllipse(centerX + blushDistance, blushY, scale * 0.08, scale * 0.05, 0, Math.PI * 2, 8);
+                
+                points.push(...leftBlush);
+                points.push(...rightBlush);
+            }
+            
+            return points;
+        }
+        // Draw the arrow that follows the path
         function drawArrow(x, y, angle) {
             ctx.save();
             ctx.translate(x, y);
@@ -303,7 +640,7 @@
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             
-            // Draw line segments with colors
+            // Use a gradient of colors for the path
             for (let i = 1; i < drawnPath.length; i++) {
                 const point = drawnPath[i];
                 const prevPoint = drawnPath[i - 1];
@@ -355,15 +692,18 @@
                     }
                 } else {
                     // We've completed the drawing
-                    infoElement.textContent = `Completed! 5 faces drawn`;
+                    infoElement.textContent = "Drawing complete! ✨";
                 }
             }
+            
             // Clear the canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             // Draw the path and the arrow
             drawPath();
-            drawArrow(currentDrawPosition.x, currentDrawPosition.y, arrowAngle);
+            if (currentPathIndex < pathPoints.length) {
+                drawArrow(currentDrawPosition.x, currentDrawPosition.y, arrowAngle);
+            }
             
             // Continue the animation
             animationFrameId = requestAnimationFrame(animate);
@@ -381,7 +721,7 @@
             controls.style.display = 'block';
             restartContainer.style.display = 'block';
             infoElement.style.display = 'block';
-            infoElement.textContent = "Drawing line art faces...";
+            infoElement.textContent = "Drawing anime face...";
             
             // Reset animation state
             isDrawing = true;
@@ -389,9 +729,8 @@
             drawnPath = [];
             currentPathIndex = 0;
             
-            // Generate faces path
-            pathPoints = generateFacesPath();
-            facesDrawn = 5;
+            // Generate new anime face path
+            pathPoints = generateAnimeFace();
             
             // Set starting position to the first point
             if (pathPoints.length > 0) {
@@ -447,8 +786,8 @@
         saveJpgButton.addEventListener('click', function() {
             // Create a download link
             const link = document.createElement('a');
-            link.download = 'face-line-art.jpg';
-            link.href = canvas.toDataURL('image/jpeg', 0.8);
+            link.download = 'anime-face-art.jpg';
+            link.href = canvas.toDataURL('image/jpeg', 0.9);
             link.click();
         });
         
@@ -458,11 +797,12 @@
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
             ctx.font = '24px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('Fluid Face Line Art', canvas.width / 2, canvas.height / 2 - 40);
+            ctx.fillText('Anime Face Line Art', canvas.width / 2, canvas.height / 2 - 40);
             
             ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
             ctx.font = '16px Arial';
-            ctx.fillText('Click the arrow to begin drawing beautiful line art faces', canvas.width / 2, canvas.height / 2 + 40);
+            ctx.fillText('Click the arrow to begin drawing a beautiful anime face', canvas.width / 2, canvas.height / 2 + 40);
+            ctx.fillText('Each drawing creates a unique character!', canvas.width / 2, canvas.height / 2 + 70);
         }
         
         // Call welcome message on load
