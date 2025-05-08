@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>True Mathematical Fractals</title>
+    <title>Fluid Face Line Art</title>
     <style>
         body, html {
             margin: 0;
@@ -83,54 +83,13 @@
             background-color: rgba(255, 255, 255, 0.3);
         }
         
-        #fractal-info {
+        #info {
             position: absolute;
             top: 20px;
             left: 20px;
             color: rgba(255, 255, 255, 0.7);
             font-size: 14px;
             display: none;
-        }
-        
-        #loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 16px;
-            display: none;
-            text-align: center;
-        }
-        .spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 1s linear infinite;
-            margin-left: 10px;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        #fractal-selector {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            display: none;
-        }
-        
-        #fractal-selector select {
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
         }
     </style>
 </head>
@@ -144,24 +103,13 @@
         Click Me
     </button>
     
-    <div id="fractal-info"></div>
-    <div id="loading">Rendering fractal <span class="spinner"></span></div>
-    
-    <div id="fractal-selector">
-        <select id="fractal-type">
-            <option value="mandelbrot">Mandelbrot Set</option>
-            <option value="julia">Julia Set</option>
-            <option value="burningship">Burning Ship Fractal</option>
-            <option value="tricorn">Tricorn Fractal</option>
-        </select>
-    </div>
+    <div id="info"></div>
     
     <div id="controls">
         <button id="pause-button" class="control-button">Pause</button>
         <button id="save-jpg-button" class="control-button">Save JPG</button>
-        <button id="zoom-in-button" class="control-button">Zoom In</button>
-        <button id="zoom-out-button" class="control-button">Zoom Out</button>
     </div>
+    
     <div id="restart-container">
         <button id="restart-button" class="control-button">Restart</button>
     </div>
@@ -170,7 +118,6 @@
         // Initialize canvas
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        
         // Set canvas to full window size
         function resizeCanvas() {
             canvas.width = window.innerWidth;
@@ -184,31 +131,15 @@
         let isDrawing = false;
         let isPaused = false;
         let animationFrameId = null;
-        let startTime = 0;
         
         // Drawing state
-        let currentX = 0;
-        let currentY = 0;
-        let targetX = 0;
-        let targetY = 0;
+        let pathPoints = [];
+        let currentPathIndex = 0;
+        let currentDrawPosition = { x: 0, y: 0 };
+        let targetDrawPosition = { x: 0, y: 0 };
+        let drawSpeed = 0.03; // Speed at which the pen moves (0-1)
         let arrowAngle = 0;
-        let drawSpeed = 0.05;
-        let currentPixel = 0;
-        let maxPixel = 0;
-        // Fractal state
-        let fractalType = 'mandelbrot';
-        let fractalData = [];
-        let colorPalette = [];
-        let zoomLevel = 1;
-        
-        // Complex plane boundaries
-        let xMin = -2.5;
-        let xMax = 1.5;
-        let yMin = -1.5;
-        let yMax = 1.5;
-        
-        // Julia set parameters
-        let juliaC = { x: -0.7, y: 0.27 }; // Initial interesting value
+        let facesDrawn = 0;
         
         // Controls
         const startButton = document.getElementById('start-button');
@@ -217,200 +148,12 @@
         const saveJpgButton = document.getElementById('save-jpg-button');
         const restartContainer = document.getElementById('restart-container');
         const restartButton = document.getElementById('restart-button');
-        const fractalInfo = document.getElementById('fractal-info');
-        const loadingElement = document.getElementById('loading');
-        const fractalSelector = document.getElementById('fractal-selector');
-        const fractalTypeSelect = document.getElementById('fractal-type');
-        const zoomInButton = document.getElementById('zoom-in-button');
-        const zoomOutButton = document.getElementById('zoom-out-button');
+        const infoElement = document.getElementById('info');
         
-        // Generate a color palette
-        function generateColorPalette(numColors) {
-            const palette = [];
-            for (let i = 0; i < numColors; i++) {
-                const hue = (i / numColors) * 360;
-                palette.push(`hsl(${hue}, 100%, 50%)`);
-            }
-            return palette;
-        }
-        // Color mapping functions
-        function mapColor(iterations, maxIterations) {
-            if (iterations === maxIterations) return '#000000'; // Black for the set itself
-            
-            // Advanced coloring using normalized iterations
-            const normalized = iterations + 1 - Math.log(Math.log(2)) / Math.log(2);
-            const hue = (normalized * 10) % 360;
-            const saturation = 100;
-            const lightness = 50;
-            
-            return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-        }
-        
-        // Fractal computation functions
-        function computeMandelbrot(cx, cy, maxIterations) {
-            let x = 0;
-            let y = 0;
-            let iteration = 0;
-            
-            while (x*x + y*y <= 4 && iteration < maxIterations) {
-                const xTemp = x*x - y*y + cx;
-                y = 2*x*y + cy;
-                x = xTemp;
-                iteration++;
-            }
-            
-            return iteration;
-        }
-        
-        function computeJulia(zx, zy, cx, cy, maxIterations) {
-            let x = zx;
-            let y = zy;
-            let iteration = 0;
-            
-            while (x*x + y*y <= 4 && iteration < maxIterations) {
-                const xTemp = x*x - y*y + cx;
-                y = 2*x*y + cy;
-                x = xTemp;
-                iteration++;
-            }
-            
-            return iteration;
-        }
-        function computeBurningShip(cx, cy, maxIterations) {
-            let x = 0;
-            let y = 0;
-            let iteration = 0;
-            
-            while (x*x + y*y <= 4 && iteration < maxIterations) {
-                const xTemp = x*x - y*y + cx;
-                y = Math.abs(2*x*y) + cy;
-                x = xTemp;
-                iteration++;
-            }
-            
-            return iteration;
-        }
-        
-        function computeTricorn(cx, cy, maxIterations) {
-            let x = 0;
-            let y = 0;
-            let iteration = 0;
-            
-            while (x*x + y*y <= 4 && iteration < maxIterations) {
-                const xTemp = x*x - y*y + cx;
-                y = -2*x*y + cy;
-                x = xTemp;
-                iteration++;
-            }
-            
-            return iteration;
-        }
-        
-        // Generate fractal data
-        function generateFractalData() {
-            const maxIterations = 100;
-            const pixelData = [];
-            const width = canvas.width;
-            const height = canvas.height;
-            
-            // Calculate aspect ratio to preserve fractal shape
-            const aspectRatio = width / height;
-            let yRange = yMax - yMin;
-            xMin = -2.5 / zoomLevel;
-            xMax = 1.5 / zoomLevel;
-            yMin = -1.5 / zoomLevel;
-            yMax = 1.5 / zoomLevel;
-            // Adjust for different fractal types
-            if (fractalType === 'julia') {
-                xMin = -2 / zoomLevel;
-                xMax = 2 / zoomLevel;
-                yMin = -1.5 / zoomLevel;
-                yMax = 1.5 / zoomLevel;
-            }
-            
-            // Create coordinate path for drawing animation
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    const index = y * width + x;
-                    
-                    // Map pixel coordinates to complex plane
-                    const cx = xMin + (x / width) * (xMax - xMin);
-                    const cy = yMin + (y / height) * (yMax - yMin);
-                    
-                    // Compute fractal value based on type
-                    let iterations;
-                    
-                    switch (fractalType) {
-                        case 'mandelbrot':
-                            iterations = computeMandelbrot(cx, cy, maxIterations);
-                            break;
-                        case 'julia':
-                            iterations = computeJulia(cx, cy, juliaC.x, juliaC.y, maxIterations);
-                            break;
-                        case 'burningship':
-                            iterations = computeBurningShip(cx, cy, maxIterations);
-                            break;
-                        case 'tricorn':
-                            iterations = computeTricorn(cx, cy, maxIterations);
-                            break;
-                        default:
-                            iterations = computeMandelbrot(cx, cy, maxIterations);
-                    }
-                    
-                    // Store data for animation
-                    pixelData.push({
-                        x: x,
-                        y: y,
-                        iterations: iterations,
-                        color: mapColor(iterations, maxIterations)
-                    });
-                }
-            }
-            return pixelData;
-        }
-        
-        // Create an offscreen buffer for the fractal image
-        function renderFullFractal() {
-            const offCanvas = document.createElement('canvas');
-            offCanvas.width = canvas.width;
-            offCanvas.height = canvas.height;
-            const offCtx = offCanvas.getContext('2d');
-            
-            // Create image data object
-            const imageData = offCtx.createImageData(canvas.width, canvas.height);
-            const data = imageData.data;
-            
-            // Fill image data with fractal colors
-            for (let i = 0; i < fractalData.length; i++) {
-                const pixel = fractalData[i];
-                const color = pixel.color;
-                
-                // Convert HSL to RGB
-                const rgbColor = hslToRgb(color);
-                
-                // Set pixel data
-                const index = (pixel.y * canvas.width + pixel.x) * 4;
-                data[index] = rgbColor[0];     // R
-                data[index + 1] = rgbColor[1]; // G
-                data[index + 2] = rgbColor[2]; // B
-                data[index + 3] = 255;         // A
-            }
-            
-            // Put the image data on the offscreen canvas
-            offCtx.putImageData(imageData, 0, 0);
-            
-            return offCanvas;
-        }
-        
-        // Convert HSL color to RGB
-        function hslToRgb(hslColor) {
-            // Parse HSL color string
-            const hslMatch = hslColor.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
-            if (!hslMatch) return [0, 0, 0]; // Default black if parsing fails
-            
-            const h = parseInt(hslMatch[1]) / 360;
-            const s = parseInt(hslMatch[2]) / 100;
-            const l = parseInt(hslMatch[3]) / 100;
+        // Array to store the path that has been drawn
+        let drawnPath = [];
+        // Color utilities
+        function hslToRgb(h, s, l) {
             let r, g, b;
             
             if (s === 0) {
@@ -436,7 +179,509 @@
             return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
         }
         
-        // Draw single point with smooth curve
+        function getColor(progress) {
+            // Very bright rainbow colors that stand out against black
+            const hue = progress % 1.0;
+            const [r, g, b] = hslToRgb(hue, 0.9, 0.6);
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+        // Make sure the drawing is confined to the window dimensions
+        function constrainToWindow(x, y) {
+            const padding = 20;
+            return {
+                x: Math.max(padding, Math.min(canvas.width - padding, x)),
+                y: Math.max(padding, Math.min(canvas.height - padding, y))
+            };
+        }
+        
+        // Face feature generator functions
+        function generateFaceOutline(centerX, centerY, size) {
+            const points = [];
+            const faceHeight = size * 1.3;
+            const faceWidth = size;
+            
+            // Start at the top of the forehead (slightly off-center for interest)
+            const startX = centerX - faceWidth * 0.1;
+            const startY = centerY - faceHeight/2;
+            
+            points.push({x: startX, y: startY});
+            
+            // Left side of face - add some randomness for variety
+            const numSegments = 20;
+            const chinRandomness = (Math.random() * 0.1) + 0.05; // How pointy or round the chin is
+            
+            // Draw the left side of the face
+            for (let i = 1; i <= numSegments; i++) {
+                const t = i / numSegments;
+                
+                // Parametric curve for left side with a slight bump for cheekbone
+                let x = startX - faceWidth/2 * Math.sin(t * Math.PI);
+                let y = startY + faceHeight * t;
+                
+                // Add some curve to the jaw with a slight randomization
+                if (t > 0.5) {
+                    const jawCurve = Math.sin((t - 0.5) * Math.PI) * faceWidth * 0.25;
+                    x += jawCurve * (1 + chinRandomness);
+                }
+                
+                points.push({x, y});
+            }
+            
+            // Now up the right side - add asymmetry
+            for (let i = numSegments; i >= 0; i--) {
+                const t = i / numSegments;
+                
+                // Parametric curve for right side with variation
+                let x = startX + faceWidth/2 * Math.sin(t * Math.PI);
+                let y = startY + faceHeight * t;
+                
+                // Add curve to the jaw with different randomization for asymmetry
+                if (t > 0.5) {
+                    const jawCurve = Math.sin((t - 0.5) * Math.PI) * faceWidth * 0.25;
+                    x -= jawCurve * (1 - chinRandomness * 0.5);
+                }
+                
+                points.push({x, y});
+            }
+            
+            return points;
+        }
+        function generateEyes(centerX, centerY, faceSize) {
+            const points = [];
+            const eyeDistance = faceSize * 0.25;
+            const eyeSize = faceSize * 0.12;
+            const eyeY = centerY - faceSize * 0.1;
+            
+            // Randomize eye shapes slightly
+            const leftEyeStyle = Math.floor(Math.random() * 3); // 0=round, 1=almond, 2=wide
+            const rightEyeStyle = Math.floor(Math.random() * 3);
+            
+            // Left eye
+            const leftEyeX = centerX - eyeDistance;
+            
+            // Add a stylistic gap between face and eyes
+            points.push({x: leftEyeX - eyeSize, y: eyeY});
+            
+            // Draw left eye based on style
+            switch(leftEyeStyle) {
+                case 0: // Round eye
+                    drawEllipse(points, leftEyeX, eyeY, eyeSize, eyeSize * 0.6, 20);
+                    break;
+                case 1: // Almond eye
+                    drawAlmondEye(points, leftEyeX, eyeY, eyeSize, eyeSize * 0.5);
+                    break;
+                case 2: // Wide eye
+                    drawEllipse(points, leftEyeX, eyeY, eyeSize * 1.2, eyeSize * 0.5, 20);
+                    break;
+            }
+            
+            // Add randomized iris and pupil for left eye
+            const leftIrisSize = eyeSize * 0.5;
+            drawIris(points, leftEyeX, eyeY, leftIrisSize);
+            
+            // Connect to right eye with an elegant curve (like bridge of nose)
+            const noseY = eyeY + faceSize * 0.1;
+            points.push({x: centerX, y: noseY});
+            
+            // Right eye
+            const rightEyeX = centerX + eyeDistance;
+            
+            // Draw right eye based on style
+            switch(rightEyeStyle) {
+                case 0: // Round eye
+                    drawEllipse(points, rightEyeX, eyeY, eyeSize, eyeSize * 0.6, 20);
+                    break;
+                case 1: // Almond eye
+                    drawAlmondEye(points, rightEyeX, eyeY, eyeSize, eyeSize * 0.5);
+                    break;
+                case 2: // Wide eye
+                    drawEllipse(points, rightEyeX, eyeY, eyeSize * 1.2, eyeSize * 0.5, 20);
+                    break;
+            }
+            
+            // Add randomized iris and pupil for right eye
+            const rightIrisSize = eyeSize * 0.5;
+            drawIris(points, rightEyeX, eyeY, rightIrisSize);
+            
+            return points;
+        }
+        // Helper function to draw elliptical shape
+        function drawEllipse(points, centerX, centerY, radiusX, radiusY, segments) {
+            for (let i = 0; i <= segments; i++) {
+                const angle = (i / segments) * Math.PI * 2;
+                const x = centerX + Math.cos(angle) * radiusX;
+                const y = centerY + Math.sin(angle) * radiusY;
+                points.push({x, y});
+            }
+        }
+        
+        // Helper function to draw almond-shaped eye
+        function drawAlmondEye(points, centerX, centerY, width, height) {
+            const numPoints = 20;
+            
+            for (let i = 0; i <= numPoints; i++) {
+                const t = i / numPoints;
+                const angle = t * Math.PI * 2;
+                
+                // Parametric equation for almond shape
+                const x = centerX + Math.cos(angle) * width * (0.9 + Math.sin(angle) * 0.1);
+                const y = centerY + Math.sin(angle) * height * (1 - Math.cos(angle) * 0.3);
+                
+                points.push({x, y});
+            }
+        }
+        
+        // Helper function to draw iris and pupil
+        function drawIris(points, centerX, centerY, radius) {
+            const numPoints = 12;
+            
+            for (let i = 0; i <= numPoints; i++) {
+                const angle = (i / numPoints) * Math.PI * 2;
+                const x = centerX + Math.cos(angle) * radius;
+                const y = centerY + Math.sin(angle) * radius;
+                points.push({x, y});
+            }
+            
+            // Draw pupil
+            const pupilSize = radius * 0.5;
+            drawEllipse(points, centerX, centerY, pupilSize, pupilSize, 8);
+        }
+        function generateNose(centerX, centerY, faceSize) {
+            const points = [];
+            const noseLength = faceSize * 0.2;
+            const noseWidth = faceSize * 0.12;
+            
+            // Top of nose (bridge)
+            const noseTopY = centerY - faceSize * 0.1;
+            const noseBotY = noseTopY + noseLength;
+            
+            // Randomize nose style
+            const noseStyle = Math.floor(Math.random() * 3); // 0=straight, 1=button, 2=curved
+            
+            switch(noseStyle) {
+                case 0: // Straight nose
+                    // Bridge
+                    points.push({x: centerX, y: noseTopY});
+                    // Tip
+                    points.push({x: centerX, y: noseBotY});
+                    // Left nostril
+                    points.push({x: centerX - noseWidth/2, y: noseBotY});
+                    // Center
+                    points.push({x: centerX, y: noseBotY + noseWidth/4});
+                    // Right nostril
+                    points.push({x: centerX + noseWidth/2, y: noseBotY});
+                    break;
+                    
+                case 1: // Button nose
+                    // Bridge
+                    points.push({x: centerX, y: noseTopY});
+                    // Button nose shape
+                    drawEllipse(points, centerX, noseBotY - noseWidth/4, noseWidth/2, noseWidth/2, 10);
+                    break;
+                    
+                case 2: // Curved nose
+                    // Bridge with slight curve
+                    points.push({x: centerX, y: noseTopY});
+                    // Curve to tip
+                    points.push({x: centerX + noseWidth/4, y: noseTopY + noseLength * 0.6});
+                    points.push({x: centerX, y: noseBotY});
+                    // Left nostril 
+                    points.push({x: centerX - noseWidth/2, y: noseBotY + noseWidth/5});
+                    // Center
+                    points.push({x: centerX, y: noseBotY + noseWidth/3});
+                    // Right nostril
+                    points.push({x: centerX + noseWidth/2, y: noseBotY + noseWidth/5});
+                    break;
+            }
+            
+            return points;
+        }
+        function generateMouth(centerX, centerY, faceSize) {
+            const points = [];
+            const mouthWidth = faceSize * 0.4;
+            const mouthHeight = faceSize * 0.1;
+            const mouthY = centerY + faceSize * 0.25;
+            
+            // Randomize mouth style
+            const mouthStyle = Math.floor(Math.random() * 3); // 0=smile, 1=neutral, 2=slight curve
+            
+            // Start at left corner
+            const leftX = centerX - mouthWidth/2;
+            const rightX = centerX + mouthWidth/2;
+            
+            switch(mouthStyle) {
+                case 0: // Smile
+                    const numPoints = 15;
+                    
+                    // Draw smile curve
+                    for (let i = 0; i <= numPoints; i++) {
+                        const t = i / numPoints;
+                        const x = leftX + mouthWidth * t;
+                        const y = mouthY - Math.sin(Math.PI * t) * mouthHeight;
+                        points.push({x, y});
+                    }
+                    
+                    // Bottom lip (subtle)
+                    for (let i = numPoints; i >= 0; i--) {
+                        const t = i / numPoints;
+                        const x = leftX + mouthWidth * t;
+                        const y = mouthY + Math.sin(Math.PI * t) * mouthHeight * 0.3;
+                        points.push({x, y});
+                    }
+                    break;
+                    
+                case 1: // Neutral mouth
+                    // Top lip
+                    points.push({x: leftX, y: mouthY});
+                    points.push({x: centerX, y: mouthY - mouthHeight * 0.2});
+                    points.push({x: rightX, y: mouthY});
+                    
+                    // Bottom lip
+                    points.push({x: centerX, y: mouthY + mouthHeight * 0.3});
+                    points.push({x: leftX, y: mouthY});
+                    break;
+                    
+                case 2: // Slight curve
+                    const curve = mouthHeight * 0.5;
+                    
+                    // Top lip with subtle curve
+                    points.push({x: leftX, y: mouthY - curve * 0.2});
+                    points.push({x: centerX - mouthWidth * 0.2, y: mouthY - curve * 0.3});
+                    points.push({x: centerX, y: mouthY - curve * 0.4});
+                    points.push({x: centerX + mouthWidth * 0.2, y: mouthY - curve * 0.3});
+                    points.push({x: rightX, y: mouthY - curve * 0.2});
+                    
+                    // Bottom lip
+                    points.push({x: centerX + mouthWidth * 0.3, y: mouthY + curve * 0.2});
+                    points.push({x: centerX, y: mouthY + curve * 0.4});
+                    points.push({x: centerX - mouthWidth * 0.3, y: mouthY + curve * 0.2});
+                    points.push({x: leftX, y: mouthY - curve * 0.2});
+                    break;
+            }
+            
+            return points;
+        }
+        function generateHair(centerX, centerY, faceSize, facePoints) {
+            const points = [];
+            const hairStyle = Math.floor(Math.random() * 5); // Multiple hair styles
+            
+            // Get top of head from face outline
+            const topY = centerY - faceSize * 0.65;
+            const width = faceSize * 0.9;
+            
+            switch(hairStyle) {
+                case 0: // Short wavy hair
+                    for (let i = 0; i < 30; i++) {
+                        const t = i / 30;
+                        const angle = Math.PI * (1 + t);
+                        const waveFreq = 6 + Math.random() * 4;
+                        const waveAmp = faceSize * 0.08;
+                        
+                        const radius = width * 0.6 + Math.sin(t * waveFreq) * waveAmp;
+                        const x = centerX + Math.cos(angle) * radius;
+                        const y = topY + Math.sin(angle) * radius * 0.7;
+                        
+                        points.push({x, y});
+                    }
+                    break;
+                    
+                case 1: // Long flowing hair
+                    for (let i = 0; i < 40; i++) {
+                        const t = i / 40;
+                        const angle = Math.PI * (1 + t);
+                        
+                        let radius = width * 0.6;
+                        let x = centerX + Math.cos(angle) * radius;
+                        let y = topY + Math.sin(angle) * radius * 0.7;
+                        
+                        // Add flowing locks
+                        if ((t > 0.3 && t < 0.4) || (t > 0.6 && t < 0.7)) {
+                            // Create longer strands
+                            const strand = Math.sin(t * Math.PI * 10) * faceSize * 0.4;
+                            y += strand;
+                        }
+                        
+                        points.push({x, y});
+                    }
+                    break;
+                    
+                case 2: // Straight bob cut
+                    // Top of hair
+                    for (let i = 0; i < 20; i++) {
+                        const t = i / 20;
+                        const angle = Math.PI * (1 + t);
+                        const radius = width * 0.55;
+                        const x = centerX + Math.cos(angle) * radius;
+                        const y = topY + Math.sin(angle) * radius * 0.6;
+                        points.push({x, y});
+                    }
+                    
+                    // Add straight bob endings
+                    const bobLength = faceSize * 0.2;
+                    const leftEnd = points[0];
+                    const rightEnd = points[points.length - 1];
+                    
+                    points.push({x: rightEnd.x, y: rightEnd.y + bobLength});
+                    points.push({x: leftEnd.x, y: leftEnd.y + bobLength});
+                    points.push(leftEnd);
+                    break;
+                    
+                case 3: // Updo/bun
+                    // Top bun
+                    drawEllipse(points, centerX, topY - faceSize * 0.1, width * 0.3, width * 0.25, 20);
+                    break;
+                    
+                case 4: // Pixie cut
+                    // Shorter, tousled hair
+                    for (let i = 0; i < 25; i++) {
+                        const t = i / 25;
+                        const angle = Math.PI * (1 + t);
+                        const spikes = Math.sin(t * 20) * faceSize * 0.08;
+                        
+                        const radius = width * 0.5 + spikes;
+                        const x = centerX + Math.cos(angle) * radius;
+                        const y = topY + Math.sin(angle) * radius * 0.6;
+                        
+                        points.push({x, y});
+                    }
+                    break;
+            }
+            
+            return points;
+        }
+        function generateEyebrows(centerX, centerY, faceSize) {
+            const points = [];
+            const eyeDistance = faceSize * 0.25;
+            const eyebrowY = centerY - faceSize * 0.23;
+            const eyebrowLength = faceSize * 0.15;
+            
+            // Randomize eyebrow style
+            const eyebrowStyle = Math.floor(Math.random() * 3); // 0=arched, 1=straight, 2=angled
+            
+            // Left eyebrow
+            const leftEyebrowX = centerX - eyeDistance;
+            
+            switch(eyebrowStyle) {
+                case 0: // Arched eyebrows
+                    // Left eyebrow arc
+                    for (let i = 0; i <= 10; i++) {
+                        const t = i / 10;
+                        const x = leftEyebrowX - eyebrowLength/2 + eyebrowLength * t;
+                        const y = eyebrowY - Math.sin(Math.PI * t) * faceSize * 0.05;
+                        points.push({x, y});
+                    }
+                    
+                    // Connect to right eyebrow with a small gap
+                    const rightEyebrowX = centerX + eyeDistance;
+                    
+                    // Right eyebrow arc
+                    for (let i = 0; i <= 10; i++) {
+                        const t = i / 10;
+                        const x = rightEyebrowX - eyebrowLength/2 + eyebrowLength * t;
+                        const y = eyebrowY - Math.sin(Math.PI * t) * faceSize * 0.05;
+                        points.push({x, y});
+                    }
+                    break;
+                
+                case 1: // Straight eyebrows
+                    // Left straight eyebrow
+                    points.push({x: leftEyebrowX - eyebrowLength/2, y: eyebrowY});
+                    points.push({x: leftEyebrowX + eyebrowLength/2, y: eyebrowY});
+                    
+                    // Connect to right eyebrow
+                    const rightEyebrowX = centerX + eyeDistance;
+                    
+                    // Right straight eyebrow
+                    points.push({x: rightEyebrowX - eyebrowLength/2, y: eyebrowY});
+                    points.push({x: rightEyebrowX + eyebrowLength/2, y: eyebrowY});
+                    break;
+                
+                case 2: // Angled eyebrows
+                    // Left angled eyebrow
+                    points.push({x: leftEyebrowX - eyebrowLength/2, y: eyebrowY + faceSize * 0.02});
+                    points.push({x: leftEyebrowX + eyebrowLength/2, y: eyebrowY - faceSize * 0.02});
+                    
+                    // Connect to right eyebrow
+                    const rightEyebrowX = centerX + eyeDistance;
+                    
+                    // Right angled eyebrow
+                    points.push({x: rightEyebrowX - eyebrowLength/2, y: eyebrowY - faceSize * 0.02});
+                    points.push({x: rightEyebrowX + eyebrowLength/2, y: eyebrowY + faceSize * 0.02});
+                    break;
+            }
+            
+            return points;
+        }
+        // Generate a single continuous path for a stylized face
+        function generateFacePath() {
+            const faces = [];
+            const numFaces = 5 + Math.floor(Math.random() * 5); // Draw 5-9 faces
+            
+            // Calculate grid size to fit faces
+            const columns = Math.ceil(Math.sqrt(numFaces));
+            const rows = Math.ceil(numFaces / columns);
+            
+            const cellWidth = canvas.width / columns;
+            const cellHeight = canvas.height / rows;
+            const faceSize = Math.min(cellWidth, cellHeight) * 0.7;
+            
+            // Generate random faces on a grid
+            for (let i = 0; i < numFaces; i++) {
+                const row = Math.floor(i / columns);
+                const col = i % columns;
+                
+                // Calculate center position with some randomness
+                const centerX = col * cellWidth + cellWidth/2 + (Math.random() * 0.2 - 0.1) * cellWidth;
+                const centerY = row * cellHeight + cellHeight/2 + (Math.random() * 0.2 - 0.1) * cellHeight;
+                
+                // Create a face with all features
+                const facePoints = [];
+                
+                // Generate face components in a specific order to create one continuous line
+                const faceOutline = generateFaceOutline(centerX, centerY, faceSize);
+                const hair = generateHair(centerX, centerY, faceSize, faceOutline);
+                const eyebrows = generateEyebrows(centerX, centerY, faceSize);
+                const eyes = generateEyes(centerX, centerY, faceSize);
+                const nose = generateNose(centerX, centerY, faceSize);
+                const mouth = generateMouth(centerX, centerY, faceSize);
+                
+                // Combine all features into one continuous path
+                facePoints.push(...faceOutline);
+                facePoints.push(...hair);
+                facePoints.push(...eyebrows);
+                facePoints.push(...eyes);
+                facePoints.push(...nose);
+                facePoints.push(...mouth);
+                
+                faces.push(facePoints);
+            }
+            
+            // Flatten all faces into one continuous path
+            let allPoints = [];
+            for (let i = 0; i < faces.length; i++) {
+                if (i > 0) {
+                    // Connect faces with a smooth curve
+                    const prevFace = faces[i-1];
+                    const currentFace = faces[i];
+                    
+                    const lastPoint = prevFace[prevFace.length-1];
+                    const firstPoint = currentFace[0];
+                    
+                    // Add connector curve
+                    const connector = [];
+                    const midX = (lastPoint.x + firstPoint.x) / 2;
+                    const midY = (lastPoint.y + firstPoint.y) / 2;
+                    
+                    connector.push({x: midX, y: midY});
+                    allPoints.push(...connector);
+                }
+                
+                allPoints.push(...faces[i]);
+            }
+            
+            return allPoints;
+        }
+        // Drawing functions
         function drawArrow(x, y, angle) {
             ctx.save();
             ctx.translate(x, y);
@@ -453,73 +698,100 @@
             
             ctx.restore();
         }
-        // Animation loop for revealing the fractal
+        
+        function drawPath() {
+            // Draw the path that has been drawn so far
+            if (drawnPath.length < 2) return;
+            
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            // Use bezier curves for smoother drawing
+            let i = 0;
+            while (i < drawnPath.length - 1) {
+                const point = drawnPath[i];
+                const nextPoint = drawnPath[i + 1];
+                
+                // Get color based on progress through the drawing
+                const progress = i / drawnPath.length;
+                ctx.strokeStyle = getColor(progress);
+                
+                // Draw curved lines
+                ctx.beginPath();
+                
+                if (i === 0) {
+                    ctx.moveTo(point.x, point.y);
+                } else {
+                    // Use control points for smoother curves
+                    const prevPoint = drawnPath[i - 1];
+                    const cp1x = prevPoint.x + (point.x - prevPoint.x) * 0.5;
+                    const cp1y = prevPoint.y + (point.y - prevPoint.y) * 0.5;
+                    const cp2x = point.x + (nextPoint.x - point.x) * 0.5;
+                    const cp2y = point.y + (nextPoint.y - point.y) * 0.5;
+                    
+                    ctx.bezierCurveTo(
+                        cp1x, cp1y,
+                        cp2x, cp2y,
+                        nextPoint.x, nextPoint.y
+                    );
+                }
+                
+                ctx.stroke();
+                i++;
+            }
+        }
+        // Main animation loop
         function animate() {
             if (!isDrawing || isPaused) return;
             
-            if (currentPixel === 0) {
-                // Generate full fractal image at the start
-                const fractalImage = renderFullFractal();
-                
-                // Start drawing the fractal
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
-                // Draw the full image with low opacity
-                ctx.globalAlpha = 0.1;
-                ctx.drawImage(fractalImage, 0, 0);
-                ctx.globalAlpha = 1.0;
+            // If we have points to draw
+            if (pathPoints.length > 0) {
+                // Get the target point
+                if (currentPathIndex < pathPoints.length) {
+                    targetDrawPosition = pathPoints[currentPathIndex];
+                    
+                    // Calculate distance to target
+                    const dx = targetDrawPosition.x - currentDrawPosition.x;
+                    const dy = targetDrawPosition.y - currentDrawPosition.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // If we're close enough to the target, move to the next point
+                    if (distance < 2) {
+                        currentPathIndex++;
+                    } else {
+                        // Move toward the target (easing for smooth animation)
+                        const easingFactor = Math.min(drawSpeed * (60 / (1000 / 16)), 1);
+                        currentDrawPosition.x += dx * easingFactor;
+                        currentDrawPosition.y += dy * easingFactor;
+                        
+                        // Ensure we never go off screen
+                        const constrained = constrainToWindow(currentDrawPosition.x, currentDrawPosition.y);
+                        currentDrawPosition.x = constrained.x;
+                        currentDrawPosition.y = constrained.y;
+                        
+                        // Calculate angle for arrow
+                        arrowAngle = Math.atan2(dy, dx);
+                        
+                        // Add the current position to the drawn path
+                        drawnPath.push({ x: currentDrawPosition.x, y: currentDrawPosition.y });
+                    }
+                } else {
+                    // We've completed the drawing
+                    infoElement.textContent = `Completed! ${facesDrawn} faces drawn`;
+                }
             }
             
-            // Draw pixels in batches for smoother animation
-            const batchSize = Math.ceil(fractalData.length / 100);
-            const endPixel = Math.min(currentPixel + batchSize, fractalData.length);
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            for (let i = currentPixel; i < endPixel; i++) {
-                const pixel = fractalData[i];
-                
-                // Set current target
-                targetX = pixel.x;
-                targetY = pixel.y;
-                
-                // Calculate arrow position
-                const dx = targetX - currentX;
-                const dy = targetY - currentY;
-                arrowAngle = Math.atan2(dy, dx);
-                
-                // Move toward target
-                currentX += dx * drawSpeed;
-                currentY += dy * drawSpeed;
-                
-                // Draw pixel
-                ctx.fillStyle = pixel.color;
-                ctx.fillRect(pixel.x, pixel.y, 1, 1);
-            }
+            // Draw the path and the arrow
+            drawPath();
+            drawArrow(currentDrawPosition.x, currentDrawPosition.y, arrowAngle);
             
-            // Draw the arrow at current position
-            drawArrow(currentX, currentY, arrowAngle);
-            
-            // Update progress
-            currentPixel = endPixel;
-            
-            // Continue or finish
-            if (currentPixel < fractalData.length) {
-                animationFrameId = requestAnimationFrame(animate);
-            } else {
-                // Drawing complete
-                fractalInfo.textContent = `${getFractalName(fractalType)} (Complete)`;
-            }
+            // Continue the animation
+            animationFrameId = requestAnimationFrame(animate);
         }
-        // Get human-readable fractal name
-        function getFractalName(type) {
-            switch (type) {
-                case 'mandelbrot': return 'Mandelbrot Set';
-                case 'julia': return 'Julia Set';
-                case 'burningship': return 'Burning Ship Fractal';
-                case 'tricorn': return 'Tricorn Fractal';
-                default: return 'Fractal';
-            }
-        }
-        
         // Initialize the animation
         function initAnimation() {
             // Hide start button
@@ -528,49 +800,39 @@
                 startButton.style.display = 'none';
             }, 500);
             
-            // Show loading and info
-            loadingElement.style.display = 'block';
-            fractalInfo.textContent = `Calculating ${getFractalName(fractalType)}...`;
-            fractalInfo.style.display = 'block';
-            
-            // Show controls
+            // Show controls and info
             controls.style.display = 'block';
             restartContainer.style.display = 'block';
-            fractalSelector.style.display = 'block';
+            infoElement.style.display = 'block';
+            infoElement.textContent = "Drawing line art faces...";
             
-            // Generate fractal data in a separate thread to avoid blocking UI
-            setTimeout(() => {
-                try {
-                    // Reset state
-                    currentPixel = 0;
-                    isDrawing = true;
-                    isPaused = false;
+            // Reset animation state
+            isDrawing = true;
+            isPaused = false;
+            drawnPath = [];
+            
+            // Generate faces path
+            try {
+                pathPoints = generateFacePath();
+                facesDrawn = Math.floor(Math.random() * 5) + 5; // 5-9 faces
+                
+                // Set starting position to the first point
+                if (pathPoints.length > 0) {
+                    currentDrawPosition = { ...pathPoints[0] };
+                    drawnPath.push({ ...currentDrawPosition });
+                    currentPathIndex = 1;
                     
-                    // Generate new fractal data
-                    fractalData = generateFractalData();
-                    maxPixel = fractalData.length;
-                    
-                    // Set starting position
-                    if (fractalData.length > 0) {
-                        currentX = fractalData[0].x;
-                        currentY = fractalData[0].y;
-                    }
-                    // Update fractal info
-                    fractalInfo.textContent = `Drawing ${getFractalName(fractalType)}...`;
-                    
-                    // Hide loading
-                    loadingElement.style.display = 'none';
-                    
-                    // Start animation
+                    // Start the animation
                     animationFrameId = requestAnimationFrame(animate);
-                } catch (e) {
-                    console.error("Error initializing animation:", e);
-                    fractalInfo.textContent = `Error: ${e.message}`;
-                    loadingElement.style.display = 'none';
+                } else {
+                    console.error("Failed to generate path");
+                    infoElement.textContent = "Error generating path";
                 }
-            }, 100);
+            } catch (e) {
+                console.error("Error initializing animation:", e);
+                infoElement.textContent = "Error: " + e.message;
+            }
         }
-        
         // Event listeners
         startButton.addEventListener('click', () => {
             initAnimation();
@@ -578,7 +840,7 @@
         
         canvas.addEventListener('click', (e) => {
             // Only respond to canvas clicks if we haven't started yet
-            if (!isDrawing) {
+            if (!isDrawing && e.target === canvas) {
                 initAnimation();
             }
         });
@@ -602,85 +864,34 @@
             // Reset animation state
             isDrawing = false;
             isPaused = false;
+            
             // Update UI
             pauseButton.textContent = 'Pause';
             
             // Clear the canvas and restart
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            zoomLevel = 1; // Reset zoom
             initAnimation();
-        });
-        
-        fractalTypeSelect.addEventListener('change', (e) => {
-            fractalType = e.target.value;
-            
-            // If already drawing, restart with new fractal
-            if (isDrawing) {
-                // Cancel any ongoing animation
-                if (animationFrameId) {
-                    cancelAnimationFrame(animationFrameId);
-                }
-                
-                // Reset animation state
-                isDrawing = false;
-                isPaused = false;
-                zoomLevel = 1; // Reset zoom
-                
-                // Clear the canvas and restart
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                initAnimation();
-            }
         });
         
         saveJpgButton.addEventListener('click', () => {
             // Create a download link
             const link = document.createElement('a');
-            link.download = `${fractalType}-fractal.jpg`;
-            link.href = canvas.toDataURL('image/jpeg', 0.9);
+            link.download = 'face-line-art.jpg';
+            link.href = canvas.toDataURL('image/jpeg', 0.8);
             link.click();
         });
-        
-        zoomInButton.addEventListener('click', () => {
-            zoomLevel *= 2;
-            restartWithCurrentFractal();
-        });
-        
-        zoomOutButton.addEventListener('click', () => {
-            zoomLevel = Math.max(1, zoomLevel / 2);
-            restartWithCurrentFractal();
-        });
-        function restartWithCurrentFractal() {
-            // Cancel any ongoing animation
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-            }
-            
-            // Reset animation state but keep fractal type and zoom
-            isDrawing = false;
-            isPaused = false;
-            
-            // Clear the canvas and restart
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            initAnimation();
-        }
-        
         // Draw a welcome message on the canvas
         function drawWelcomeMessage() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
             ctx.font = '24px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('True Mathematical Fractal Explorer', canvas.width / 2, canvas.height / 2 - 40);
+            ctx.fillText('Fluid Face Line Art', canvas.width / 2, canvas.height / 2 - 40);
             
             ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
             ctx.font = '16px Arial';
-            ctx.fillText('Click the arrow to begin', canvas.width / 2, canvas.height / 2 + 40);
-            
-            ctx.fillText('Mandelbrot, Julia, Burning Ship, and Tricorn fractals', canvas.width / 2, canvas.height / 2 + 70);
+            ctx.fillText('Click the arrow to begin drawing beautiful line art faces', canvas.width / 2, canvas.height / 2 + 40);
         }
-        
-        // Initialize color palette
-        colorPalette = generateColorPalette(100);
         
         // Call welcome message on load
         drawWelcomeMessage();
