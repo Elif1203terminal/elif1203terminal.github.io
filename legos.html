@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Lego Emulator - Tron Style</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Orbitron', sans-serif;
+            overflow: hidden; /* Prevent scrollbars from appearing due to canvas */
+            background-color: #0a0a1e; /* Dark Tron-like background */
+            color: #00ffff; /* Cyan text */
+        }
+        #block-selector {
+            background-color: rgba(0, 15, 30, 0.8); /* Semi-transparent dark blue */
+            border-right: 2px solid #00ffff; /* Cyan border */
+            box-shadow: 0 0 15px #00ffff;
+        }
+        .block-button {
+            background-color: #0d2f4f; /* Darker blue */
+            border: 1px solid #00aaff; /* Lighter cyan border */
+            color: #00ffff;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 5px #00aaff inset, 0 0 8px #00aaff;
+        }
+        .block-button:hover {
+            background-color: #00aaff;
+            color: #000033;
+            box-shadow: 0 0 10px #00ffff inset, 0 0 15px #00ffff;
+            transform: scale(1.05);
+        }
+        .block-button.active {
+            background-color: #00ffff;
+            color: #000033;
+            box-shadow: 0 0 10px #00ffff inset, 0 0 20px #00ffff, 0 0 5px #ffffff;
+            border-color: #ffffff;
+        }
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .zoom-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .zoom-button {
+            background-color: #0d2f4f;
+            border: 1px solid #00aaff;
+            color: #00ffff;
+            width: 40px;
+            height: 40px;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 5px #00aaff inset, 0 0 8px #00aaff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+        }
+        .zoom-button:hover {
+            background-color: #00aaff;
+            color: #000033;
+            box-shadow: 0 0 10px #00ffff inset, 0 0 15px #00ffff;
+        }
+        .message-box {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 20, 40, 0.9);
+            color: #00ffff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 1px solid #00ffff;
+            box-shadow: 0 0 15px #00ffff;
+            z-index: 1000;
+            display: none; /* Hidden by default */
+            font-size: 16px;
+        }
+        .controls-info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(0, 20, 40, 0.9);
+            color: #00ffff;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #00ffff;
+            box-shadow: 0 0 15px #00ffff;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body class="flex h-screen">
+
+    <aside id="block-selector" class="w-1/5 h-full p-4 overflow-y-auto">
+        <h2 class="text-2xl font-bold mb-6 text-center text-[#00fefe] tracking-wider" style="text-shadow: 0 0 10px #00fefe;">BLOCKS</h2>
+        <div class="grid grid-cols-2 gap-3">
+            <button class="block-button p-3 rounded-lg text-sm" data-type="brick" data-size="1x1">1x1 Brick</button>
+            <button class="block-button p-3 rounded-lg text-sm" data-type="brick" data-size="2x1">2x1 Brick</button>
+            <button class="block-button p-3 rounded-lg text-sm" data-type="brick" data-size="2x2">2x2 Brick</button>
+            <button class="block-button p-3 rounded-lg text-sm" data-type="brick" data-size="4x2">4x2 Brick</button>
+            <button class="block-button p-3 rounded-lg text-sm" data-type="plate" data-size="2x2">2x2 Plate</button>
+            <button class="block-button p-3 rounded-lg text-sm" data-type="slope" data-size="2x1">2x1 Slope</button>
+            <button class="block-button p-3 rounded-lg text-sm text-yellow-400 border-yellow-400 hover:bg-yellow-400 hover:text-black" data-type="light" data-size="1x1">1x1 Light</button>
+            <button class="block-button p-3 rounded-lg text-sm text-blue-400 border-blue-400 hover:bg-blue-400 hover:text-black" data-type="water" data-size="1x1">Water Gen</button>
+        </div>
+    </aside>
+
+    <main id="canvas-container" class="w-4/5 h-full relative">
+        <canvas id="lego-canvas"></canvas>
+        <div class="zoom-controls">
+            <button id="zoom-in" class="zoom-button">+</button>
+            <button id="zoom-out" class="zoom-button">-</button>
+        </div>
+        <div id="message-box" class="message-box"></div>
+        <div class="controls-info">
+            <p>A/D: Rotate block</p>
+            <p>Mouse: Place & move blocks</p>
+            <p>Wheel: Zoom in/out</p>
+        </div>
+    </main>
+
+    <script>
+        // --- Constants and Configuration ---
+        const BRICK_HEIGHT = 0.96;
+        const BRICK_WIDTH = 0.8; // Also depth for square studs
+        const PLATE_HEIGHT = BRICK_HEIGHT / 3;
+        const STUD_HEIGHT = 0.2;
+        const STUD_RADIUS = 0.24;
+        const GRID_CELL_SIZE = BRICK_WIDTH; // Base unit for grid snapping
+        const STUD_OFFSET = 0.4; // Half of BRICK_WIDTH
+
+        // --- Global Variables ---
+        let scene, camera, renderer;
+        let physicsWorld;
+        const meshes = []; // To store Three.js meshes
+        const bodies = []; // To store Cannon.js bodies
+        let selectedBlockType = null;
+        let selectedBlockSize = null;
+        let currentRotation = 0; // Y-axis rotation for placing blocks
+        let ghostBlock = null; // Preview of the block to be placed
+        let raycaster, mouse;
+        let placementPlane; // Invisible plane for raycasting
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        // --- DOM Elements ---
+        const canvas = document.getElementById('lego-canvas');
+        const canvasContainer = document.getElementById('canvas-container');
+        const blockButtons = document.querySelectorAll('.block-button');
+        const zoomInButton = document.getElementById('zoom-in');
+        const zoomOutButton = document.getElementById('zoom-out');
+        const messageBox = document.getElementById('message-box');
+
+        // --- Initialization ---
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a1e); // Dark Tron background
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
+            camera.position.set(10, 15, 20); // Initial camera position
+            camera.lookAt(0, 0, 0);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+            renderer.shadowMap.enabled = true; // Enable shadows
+
+            // Raycaster for mouse interaction
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            
+            // Placement plane (invisible) for raycasting
+            placementPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404060, 2); // Soft ambient light
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0x00ffff, 1.5); // Cyan directional light
+            directionalLight.position.set(15, 20, 10);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 50;
+            directionalLight.shadow.camera.left = -20;
+            directionalLight.shadow.camera.right = 20;
+            directionalLight.shadow.camera.top = 20;
+            directionalLight.shadow.camera.bottom = -20;
+            scene.add(directionalLight);
+
+            const pointLight = new THREE.PointLight(0xff00ff, 1, 100); // Magenta point light for accents
+            pointLight.position.set(-10, 10, -10);
+            scene.add(pointLight);
+
+            // Physics World
+            physicsWorld = new CANNON.World();
+            physicsWorld.gravity.set(0, -9.82, 0); // Standard gravity
+            physicsWorld.broadphase = new CANNON.NaiveBroadphase();
+            physicsWorld.solver.iterations = 10;
+
+            // Ground Plane (Visual and Physical)
+            createGround();
+
+            // Grid Helper
+            const gridHelper = new THREE.GridHelper(100, 100, 0x00ffff, 0x005555); // Cyan grid
+            gridHelper.material.transparent = true;
+            gridHelper.material.opacity = 0.5;
+            scene.add(gridHelper);
+
+            // Event listeners
+            setupEventListeners();
+
+            // Initial render
+            animate();
+            showMessage("Welcome to Tron Lego! Select a block and move your mouse over the grid to see preview.", 5000);
+        }
+        // --- Materials ---
+        function createTronMaterial(color = 0x00ffff, emissiveColor = 0x003333, isGhost = false) {
+            // Tron-like material with optional ghost appearance
+            return new THREE.MeshStandardMaterial({
+                color: color,
+                emissive: emissiveColor, // Dark emissive core
+                roughness: 0.4,
+                metalness: 0.1,
+                transparent: true,
+                opacity: isGhost ? 0.5 : 0.9,
+                side: THREE.DoubleSide // Render both sides
+            });
+        }
+
+        function createBlockEdges(geometry, edgeColor = 0x00ffff, isGhost = false) {
+            const edges = new THREE.EdgesGeometry(geometry);
+            const lineMaterial = new THREE.LineBasicMaterial({
+                color: edgeColor,
+                linewidth: 2,
+                transparent: true,
+                opacity: isGhost ? 0.7 : 1.0
+            });
+            return new THREE.LineSegments(edges, lineMaterial);
+        }
+
+        // --- Block Creation ---
+        function createLegoBlock(type, size, position, rotationY = 0, isGhost = false) {
+            let geometry, physicalShape;
+            let dimensions = { w: 0, h: 0, d: 0 }; // width, height, depth in grid units
+
+            // Parse size dimensions
+            const sizeParts = size.split('x').map(Number);
+
+            switch (type) {
+                case 'brick':
+                    dimensions.w = sizeParts[0] * BRICK_WIDTH;
+                    dimensions.d = sizeParts[1] * BRICK_WIDTH;
+                    dimensions.h = BRICK_HEIGHT;
+                    geometry = new THREE.BoxGeometry(dimensions.w, dimensions.h, dimensions.d);
+                    physicalShape = new CANNON.Box(new CANNON.Vec3(dimensions.w / 2, dimensions.h / 2, dimensions.d / 2));
+                    break;
+                case 'plate':
+                    dimensions.w = sizeParts[0] * BRICK_WIDTH;
+                    dimensions.d = sizeParts[1] * BRICK_WIDTH;
+                    dimensions.h = PLATE_HEIGHT;
+                    geometry = new THREE.BoxGeometry(dimensions.w, dimensions.h, dimensions.d);
+                    physicalShape = new CANNON.Box(new CANNON.Vec3(dimensions.w / 2, dimensions.h / 2, dimensions.d / 2));
+                    break;
+                case 'slope':
+                    dimensions.w = sizeParts[0] * BRICK_WIDTH;
+                    dimensions.d = sizeParts[1] * BRICK_WIDTH;
+                    dimensions.h = BRICK_HEIGHT;
+                    
+                    // Create custom slope geometry
+                    const vertices = [
+                        // Bottom face
+                        -dimensions.w/2, -dimensions.h/2, -dimensions.d/2,
+                        dimensions.w/2, -dimensions.h/2, -dimensions.d/2,
+                        dimensions.w/2, -dimensions.h/2, dimensions.d/2,
+                        -dimensions.w/2, -dimensions.h/2, dimensions.d/2,
+                        
+                        // Top face (sloped)
+                        -dimensions.w/2, dimensions.h/2, -dimensions.d/2,
+                        dimensions.w/2, -dimensions.h/2, -dimensions.d/2,
+                        dimensions.w/2, -dimensions.h/2, dimensions.d/2,
+                        -dimensions.w/2, dimensions.h/2, dimensions.d/2
+                    ];
+                    
+                    const indices = [
+                        // Bottom
+                        0, 1, 2,
+                        0, 2, 3,
+                        
+                        // Sides
+                        0, 4, 1,
+                        1, 5, 2,
+                        2, 6, 3,
+                        3, 7, 0,
+                        
+                        // Top (sloped)
+                        4, 7, 6,
+                        4, 6, 5
+                    ];
+                    
+                    const slopeGeometry = new THREE.BufferGeometry();
+                    slopeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+                    slopeGeometry.setIndex(indices);
+                    slopeGeometry.computeVertexNormals();
+                    
+                    geometry = slopeGeometry;
+                    
+                    // Simplified physics for slope using box
+                    physicalShape = new CANNON.Box(new CANNON.Vec3(dimensions.w / 2, dimensions.h / 4, dimensions.d / 2));
+                    break;
+                case 'light':
+                    dimensions.w = sizeParts[0] * BRICK_WIDTH;
+                    dimensions.d = sizeParts[1] * BRICK_WIDTH;
+                    dimensions.h = BRICK_HEIGHT;
+                    geometry = new THREE.BoxGeometry(dimensions.w, dimensions.h, dimensions.d);
+                    physicalShape = new CANNON.Box(new CANNON.Vec3(dimensions.w / 2, dimensions.h / 2, dimensions.d / 2));
+                    break;
+                case 'water':
+                    dimensions.w = sizeParts[0] * BRICK_WIDTH;
+                    dimensions.d = sizeParts[1] * BRICK_WIDTH;
+                    dimensions.h = BRICK_HEIGHT;
+                    geometry = new THREE.BoxGeometry(dimensions.w, dimensions.h, dimensions.d);
+                    physicalShape = new CANNON.Box(new CANNON.Vec3(dimensions.w / 2, dimensions.h / 2, dimensions.d / 2));
+                    break;
+                default:
+                    console.warn("Unknown block type:", type);
+                    return null;
+            }
+            // Create mesh with Tron material
+            const materialColor = getMaterialColor(type);
+            const emissiveColor = type === 'light' ? 0xccaa00 : 0x003333;
+            const blockMaterial = createTronMaterial(materialColor, emissiveColor, isGhost);
+            const blockMesh = new THREE.Mesh(geometry, blockMaterial);
+
+            // Create edges
+            const edgeColor = type === 'light' ? 0xffff99 : 0x00ffff;
+            const edges = createBlockEdges(geometry, edgeColor, isGhost);
+            blockMesh.add(edges);
+
+            // Add studs (simplified, on top)
+            if (type !== 'slope') { // Don't add studs to slopes
+                const numStudsX = sizeParts[0];
+                const numStudsZ = sizeParts[1];
+                const studGeo = new THREE.CylinderGeometry(STUD_RADIUS, STUD_RADIUS, STUD_HEIGHT, 16);
+                const studMat = createTronMaterial(0x00dddd, 0x001111, isGhost);
+
+                for (let i = 0; i < numStudsX; i++) {
+                    for (let j = 0; j < numStudsZ; j++) {
+                        const studMesh = new THREE.Mesh(studGeo, studMat.clone());
+                        const studEdges = createBlockEdges(studGeo, 0x00ffff, isGhost);
+                        studMesh.add(studEdges);
+
+                        studMesh.position.set(
+                            (i - (numStudsX - 1) / 2) * BRICK_WIDTH,
+                            dimensions.h / 2 + STUD_HEIGHT / 2,
+                            (j - (numStudsZ - 1) / 2) * BRICK_WIDTH
+                        );
+                        studMesh.castShadow = true;
+                        studMesh.receiveShadow = true;
+                        blockMesh.add(studMesh);
+                    }
+                }
+            }
+
+            blockMesh.position.copy(position);
+            blockMesh.rotation.y = rotationY;
+            blockMesh.castShadow = isGhost ? false : true;
+            blockMesh.receiveShadow = isGhost ? false : true;
+            
+            // Store block properties for connection points
+            blockMesh.userData.blockType = type;
+            blockMesh.userData.blockSize = size;
+            blockMesh.userData.dimensions = dimensions;
+            blockMesh.userData.isGhost = isGhost;
+            
+            scene.add(blockMesh);
+            
+            // Only add physics for real blocks, not ghost previews
+            if (!isGhost) {
+                meshes.push(blockMesh);
+
+                // Physical body
+                const body = new CANNON.Body({
+                    mass: 1, // Fixed mass for better stability
+                    shape: physicalShape,
+                    position: new CANNON.Vec3(position.x, position.y, position.z),
+                    material: new CANNON.Material({ friction: 0.5, restitution: 0.1 })
+                });
+                body.quaternion.setFromEuler(0, rotationY, 0);
+                physicsWorld.addBody(body);
+                bodies.push(body);
+
+                // Link mesh and body
+                blockMesh.userData.physicsBody = body;
+                body.userData = { blockMesh: blockMesh };
+
+                if (type === 'light') {
+                    const blockLight = new THREE.PointLight(0xffffaa, 0.8, 5);
+                    blockLight.position.copy(position);
+                    blockMesh.add(blockLight);
+                    blockMesh.userData.light = blockLight;
+                } else if (type === 'water') {
+                    const waterMaterial = new THREE.MeshStandardMaterial({
+                        color: 0x0066ff,
+                        emissive: 0x001133,
+                        transparent: true,
+                        opacity: 0.7,
+                        roughness: 0.2,
+                        metalness: 0.8
+                    });
+                    
+                    // Water effect (simple animated inner cube)
+                    const waterEffectGeo = new THREE.BoxGeometry(dimensions.w * 0.8, dimensions.h * 0.8, dimensions.d * 0.8);
+                    const waterEffectMesh = new THREE.Mesh(waterEffectGeo, waterMaterial);
+                    blockMesh.add(waterEffectMesh);
+                    blockMesh.userData.waterEffect = waterEffectMesh;
+                }
+            }
+
+            return blockMesh;
+        }
+        
+        // Helper function to get material color based on block type
+        function getMaterialColor(type) {
+            switch(type) {
+                case 'light': return 0xffff00;
+                case 'water': return 0x0099ff;
+                case 'slope': return 0xff00aa;
+                default: return 0x00aaff;
+            }
+        }
+        function createGround() {
+            // Visual Ground
+            const groundGeometry = new THREE.PlaneGeometry(100, 100);
+            const groundMaterial = new THREE.MeshStandardMaterial({
+                color: 0x050515,
+                side: THREE.DoubleSide,
+                roughness: 0.8,
+                metalness: 0.2,
+                emissive: 0x000011
+            });
+            const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
+            groundMesh.rotation.x = -Math.PI / 2;
+            groundMesh.position.y = -0.05;
+            groundMesh.receiveShadow = true;
+            scene.add(groundMesh);
+
+            // Physical Ground
+            const groundShape = new CANNON.Plane();
+            const groundBody = new CANNON.Body({
+                mass: 0,
+                shape: groundShape,
+                material: new CANNON.Material({ friction: 0.4, restitution: 0.0 })
+            });
+            groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+            physicsWorld.addBody(groundBody);
+        }
+
+        // --- Ghost Block & Snapping Logic ---
+        function updateGhostBlock(event) {
+            // Remove previous ghost if it exists
+            if (ghostBlock) {
+                scene.remove(ghostBlock);
+                ghostBlock = null;
+            }
+
+            if (!selectedBlockType || !selectedBlockSize) return;
+
+            // Calculate mouse position in normalized device coordinates
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            // Update the raycaster
+            raycaster.setFromCamera(mouse, camera);
+
+            // Find intersections with existing blocks
+            const blockIntersections = raycaster.intersectObjects(meshes);
+            const intersectPoint = new THREE.Vector3();
+            let snappedPosition = new THREE.Vector3();
+            
+            if (blockIntersections.length > 0) {
+                // Calculate position to snap on top of existing block
+                const hitBlock = blockIntersections[0].object;
+                const hitPoint = blockIntersections[0].point;
+                const hitNormal = blockIntersections[0].face.normal.clone();
+                
+                // Transform normal to world space
+                hitNormal.transformDirection(hitBlock.matrixWorld);
+                
+                // Find placement based on which face was hit
+                // Determine height of the hit block
+                let hitBlockHeight = BRICK_HEIGHT;
+                if (hitBlock.userData.blockType === 'plate') {
+                    hitBlockHeight = PLATE_HEIGHT;
+                }
+                
+                // If top face was hit (normal pointing up)
+                if (hitNormal.y > 0.5) {
+                    // Snap to top of hit block
+                    const currentHeight = hitBlock.position.y + hitBlockHeight / 2;
+                    let newBlockHeight = BRICK_HEIGHT;
+                    if (selectedBlockType === 'plate') {
+                        newBlockHeight = PLATE_HEIGHT;
+                    }
+                    
+                    // Grid snap on top of block
+                    snappedPosition.x = Math.round(hitPoint.x / GRID_CELL_SIZE) * GRID_CELL_SIZE;
+                    snappedPosition.y = currentHeight + newBlockHeight / 2;
+                    snappedPosition.z = Math.round(hitPoint.z / GRID_CELL_SIZE) * GRID_CELL_SIZE;
+                } 
+                // Side faces (snap to side)
+                else {
+                    // Determine which side was hit
+                    const xNormal = Math.abs(hitNormal.x) > 0.5;
+                    const zNormal = Math.abs(hitNormal.z) > 0.5;
+                    
+                    // Copy the hit block's position
+                    snappedPosition.copy(hitBlock.position);
+                    
+                    // Adjust position based on hit normal direction
+                    if (xNormal) {
+                        const direction = Math.sign(hitNormal.x);
+                        const hitBlockWidth = hitBlock.userData.dimensions.w;
+                        let newBlockWidth = 0;
+                        
+                        // Parse the size of the new block to get width
+                        const newSizeParts = selectedBlockSize.split('x').map(Number);
+                        newBlockWidth = newSizeParts[0] * BRICK_WIDTH;
+                        
+                        snappedPosition.x += direction * (hitBlockWidth / 2 + newBlockWidth / 2);
+                    }
+                    else if (zNormal) {
+                        const direction = Math.sign(hitNormal.z);
+                        const hitBlockDepth = hitBlock.userData.dimensions.d;
+                        let newBlockDepth = 0;
+                        
+                        // Parse the size of the new block to get depth
+                        const newSizeParts = selectedBlockSize.split('x').map(Number);
+                        newBlockDepth = newSizeParts[1] * BRICK_WIDTH;
+                        
+                        snappedPosition.z += direction * (hitBlockDepth / 2 + newBlockDepth / 2);
+                    }
+                    
+                    // Match height if not snapping on top
+                    snappedPosition.y = hitBlock.position.y;
+                }
+            } 
+            else {
+                // If no block hit, try to intersect with the ground plane
+                raycaster.ray.intersectPlane(placementPlane, intersectPoint);
+                
+                if (intersectPoint) {
+                    // Snap to grid on ground
+                    snappedPosition.x = Math.round(intersectPoint.x / GRID_CELL_SIZE) * GRID_CELL_SIZE;
+                    snappedPosition.z = Math.round(intersectPoint.z / GRID_CELL_SIZE) * GRID_CELL_SIZE;
+                    
+                    // Set Y position based on block type
+                    if (selectedBlockType === 'brick' || selectedBlockType === 'light' || 
+                        selectedBlockType === 'water' || selectedBlockType === 'slope') {
+                        snappedPosition.y = BRICK_HEIGHT / 2;
+                    } else if (selectedBlockType === 'plate') {
+                        snappedPosition.y = PLATE_HEIGHT / 2;
+                    }
+                }
+            }
+            
+            // Create ghost block at snapped position
+            ghostBlock = createLegoBlock(selectedBlockType, selectedBlockSize, snappedPosition, currentRotation, true);
+        }
+        // --- Event Handlers ---
+        function setupEventListeners() {
+            // Window resize
+            window.addEventListener('resize', onWindowResize, false);
+
+            // Mouse controls for canvas
+            canvas.addEventListener('mousedown', onCanvasMouseDown, false);
+            canvas.addEventListener('mousemove', onCanvasMouseMove, false);
+            canvas.addEventListener('mouseup', onCanvasMouseUp, false);
+            canvas.addEventListener('wheel', onCanvasMouseWheel, false);
+            canvas.addEventListener('click', onCanvasClick, false);
+
+            // Keyboard controls
+            window.addEventListener('keydown', onKeyDown, false);
+
+            // Block selector buttons
+            blockButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    blockButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    selectedBlockType = button.dataset.type;
+                    selectedBlockSize = button.dataset.size;
+                    showMessage(`Selected: ${selectedBlockSize} ${selectedBlockType}. Use A/D to rotate.`, 3000);
+                });
+            });
+
+            // Zoom buttons
+            zoomInButton.addEventListener('click', () => zoom(0.8));
+            zoomOutButton.addEventListener('click', () => zoom(1.25));
+        }
+
+        function onCanvasMouseDown(event) {
+            if (event.button === 0) {
+                isDragging = true;
+                previousMousePosition = { x: event.clientX, y: event.clientY };
+            }
+        }
+
+        function onCanvasMouseMove(event) {
+            // Update ghost block position
+            if (selectedBlockType && selectedBlockSize) {
+                updateGhostBlock(event);
+            }
+
+            // Handle camera rotation if dragging
+            if (!isDragging || event.button !== 0) return;
+
+            const deltaMove = {
+                x: event.clientX - previousMousePosition.x,
+                y: event.clientY - previousMousePosition.y
+            };
+
+            // Rotate camera around origin
+            const angleX = deltaMove.y * 0.005;
+            const angleY = deltaMove.x * 0.005;
+
+            const spherical = new THREE.Spherical().setFromVector3(camera.position);
+
+            spherical.theta -= angleY;
+            spherical.phi -= angleX;
+            spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+
+            camera.position.setFromSpherical(spherical);
+            camera.lookAt(0, 0, 0);
+
+            previousMousePosition = { x: event.clientX, y: event.clientY };
+        }
+
+        function onCanvasMouseUp(event) {
+            if (event.button === 0) {
+                isDragging = false;
+            }
+        }
+
+        function onCanvasMouseWheel(event) {
+            event.preventDefault();
+            const zoomFactor = event.deltaY < 0 ? 0.8 : 1.25;
+            zoom(zoomFactor);
+        }
+
+        function zoom(factor) {
+            camera.position.multiplyScalar(factor);
+            const minZoom = 5;
+            const maxZoom = 100;
+            if (camera.position.length() < minZoom) camera.position.setLength(minZoom);
+            if (camera.position.length() > maxZoom) camera.position.setLength(maxZoom);
+            camera.lookAt(0, 0, 0);
+        }
+
+        function onCanvasClick(event) {
+            if (!selectedBlockType || !selectedBlockSize) {
+                showMessage("Please select a block type first!", 3000);
+                return;
+            }
+
+            // If there's a ghost block, replace it with a real block
+            if (ghostBlock) {
+                const position = ghostBlock.position.clone();
+                const rotation = ghostBlock.rotation.y;
+                
+                // Remove ghost
+                scene.remove(ghostBlock);
+                ghostBlock = null;
+                
+                // Create real block at same position
+                createLegoBlock(selectedBlockType, selectedBlockSize, position, rotation, false);
+                
+                // Play click sound (would be nice to add)
+                // playClickSound();
+                
+                // Update ghost block after placement
+                updateGhostBlock(event);
+            }
+        }
+
+        function onKeyDown(event) {
+            if (event.key === 'a' || event.key === 'A') {
+                // Rotate left
+                currentRotation -= Math.PI / 2;
+                if (currentRotation < 0) currentRotation += Math.PI * 2;
+                showMessage(`Block rotation: ${Math.round(currentRotation * 180 / Math.PI)}°`, 2000);
+                
+                // Update ghost block with new rotation
+                if (ghostBlock) {
+                    const ghostPos = ghostBlock.position.clone();
+                    scene.remove(ghostBlock);
+                    ghostBlock = createLegoBlock(selectedBlockType, selectedBlockSize, ghostPos, currentRotation, true);
+                }
+            }
+            else if (event.key === 'd' || event.key === 'D') {
+                // Rotate right
+                currentRotation += Math.PI / 2;
+                if (currentRotation >= Math.PI * 2) currentRotation = 0;
+                showMessage(`Block rotation: ${Math.round(currentRotation * 180 / Math.PI)}°`, 2000);
+                
+                // Update ghost block with new rotation
+                if (ghostBlock) {
+                    const ghostPos = ghostBlock.position.clone();
+                    scene.remove(ghostBlock);
+                    ghostBlock = createLegoBlock(selectedBlockType, selectedBlockSize, ghostPos, currentRotation, true);
+                }
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+        }
+        // --- Animation Loop ---
+        const clock = new THREE.Clock();
+        let lastCallTime = performance.now();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+           const currentTime = performance.now();
+           const dt = (currentTime - lastCallTime) / 1000.0; // Delta time in seconds
+           lastCallTime = currentTime;
+
+           // Step the physics world
+           if (physicsWorld) {
+               physicsWorld.step(1/60, dt, 3); // Fixed timestep, delta time, max subSteps
+           }
+
+           // Update meshes from physics bodies
+           for (let i = 0; i < meshes.length; i++) {
+               if (meshes[i].userData.physicsBody) {
+                   const body = meshes[i].userData.physicsBody;
+                   meshes[i].position.copy(body.position);
+                   meshes[i].quaternion.copy(body.quaternion);
+
+                   // Update light position if it's a light block
+                   if (meshes[i].userData.light) {
+                       meshes[i].userData.light.position.copy(body.position);
+                   }
+                   
+                   // Animate water effect if it's a water block
+                   if (meshes[i].userData.waterEffect) {
+                       meshes[i].userData.waterEffect.rotation.y += 0.01;
+                       meshes[i].userData.waterEffect.rotation.x = Math.sin(currentTime * 0.001) * 0.1;
+                       
+                       const scale = 0.8 + Math.sin(currentTime * 0.002) * 0.05;
+                       meshes[i].userData.waterEffect.scale.set(scale, scale, scale);
+                   }
+               }
+           }
+
+           renderer.render(scene, camera);
+       }
+
+       // --- Utility Functions ---
+       function showMessage(message, duration = 3000) {
+           messageBox.textContent = message;
+           messageBox.style.display = 'block';
+           setTimeout(() => {
+               messageBox.style.display = 'none';
+           }, duration);
+       }
+
+       // --- Start ---
+       // Ensure Three.js and Cannon.js are loaded before initializing
+       if (typeof THREE !== 'undefined' && typeof CANNON !== 'undefined') {
+           init();
+       } else {
+           console.error("Three.js or Cannon.js failed to load.");
+           showMessage("Error: Essential libraries failed to load. Please refresh.", 10000);
+       }
+   </script>
+</body>
+</html>
