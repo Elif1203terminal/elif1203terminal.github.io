@@ -3,24 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tron Tower Defense</title>
+    <title>Tron Gem Tower Defense</title>
     <style>
         :root {
             --neon-blue: #00f3ff;
             --neon-pink: #ff00e6;
             --neon-purple: #9d00ff;
+            --neon-green: #00ff7b;
             --dark-bg: #0a0a12;
             --grid-color: #184654;
         }
         
-        body, html {
+        * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
+        }
+        
+        body, html {
             background-color: var(--dark-bg);
             color: var(--neon-blue);
             font-family: 'Orbitron', sans-serif;
             overflow: hidden;
             height: 100%;
+            width: 100%;
         }
         
         #game-container {
@@ -59,16 +65,16 @@
         
         #game-canvas {
             flex-grow: 1;
-            background-color: var(--dark-bg);
             display: block;
+            background-color: var(--dark-bg);
         }
         
-        #tower-panel {
+        #side-panel {
             position: absolute;
             right: 0;
             top: 60px;
             bottom: 0;
-            width: 150px;
+            width: 200px;
             background-color: rgba(0, 0, 0, 0.7);
             border-left: 2px solid var(--neon-purple);
             box-shadow: 0 0 10px var(--neon-purple);
@@ -76,12 +82,35 @@
             padding: 10px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 15px;
             z-index: 5;
         }
         
-        .tower-option {
-            width: 100%;
+        .panel-section {
+            border-bottom: 1px solid var(--neon-blue);
+            padding-bottom: 10px;
+        }
+        
+        .panel-section:last-child {
+            border-bottom: none;
+        }
+        
+        .section-title {
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            color: var(--neon-pink);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 0 5px var(--neon-pink);
+        }
+        
+        .gem-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+        }
+        
+        .gem-option {
             aspect-ratio: 1;
             background-color: var(--dark-bg);
             border: 2px solid var(--neon-blue);
@@ -95,38 +124,64 @@
             overflow: hidden;
         }
         
-        .tower-option:hover {
+        .gem-option:hover {
             box-shadow: 0 0 15px var(--neon-blue);
             transform: scale(1.05);
         }
         
-        .tower-option::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(45deg, transparent 40%, rgba(0, 243, 255, 0.3) 40%, rgba(0, 243, 255, 0.3) 60%, transparent 60%);
-            filter: blur(5px);
-            opacity: 0;
-            transition: opacity 0.3s;
+        .gem-preview {
+            width: 70%;
+            height: 70%;
+            border-radius: 3px;
+            position: relative;
         }
         
-        .tower-option:hover::after {
-            opacity: 1;
+        .build-options {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
         
-        .tower-cost {
-            position: absolute;
-            bottom: 5px;
-            right: 5px;
+        .build-btn {
+            padding: 8px;
+            background-color: var(--dark-bg);
+            border: 2px solid var(--neon-blue);
+            color: var(--neon-blue);
+            cursor: pointer;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: bold;
             font-size: 0.8em;
-            color: var(--neon-pink);
+            transition: all 0.2s ease;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
         
-        .tower-icon {
-            font-size: 24px;
+        .build-btn:hover {
+            box-shadow: 0 0 10px var(--neon-blue);
+            background-color: rgba(0, 243, 255, 0.2);
+        }
+        
+        .start-btn {
+            border-color: var(--neon-green);
+            color: var(--neon-green);
+        }
+        
+        .start-btn:hover {
+            box-shadow: 0 0 10px var(--neon-green);
+            background-color: rgba(0, 255, 123, 0.2);
+        }
+        
+        #player-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            font-size: 0.8em;
+        }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
         }
         
         .game-button {
@@ -161,6 +216,7 @@
             align-items: center;
             z-index: 100;
         }
+        
         #start-menu {
             background-color: var(--dark-bg);
             border: 2px solid var(--neon-blue);
@@ -177,55 +233,12 @@
             color: var(--neon-blue);
             text-shadow: 0 0 10px var(--neon-blue);
             margin: 0;
+            text-align: center;
         }
         
         #start-game-btn {
             padding: 10px 30px;
             font-size: 1.2em;
-        }
-        
-        .game-over {
-            font-size: 3em;
-            color: var(--neon-pink);
-            text-shadow: 0 0 15px var(--neon-pink);
-        }
-        
-        /* Tower and enemy styles */
-        .tower {
-            stroke: var(--neon-blue);
-            stroke-width: 2;
-            fill: rgba(0, 243, 255, 0.2);
-        }
-        
-        .tower-range {
-            stroke: var(--neon-blue);
-            stroke-width: 1;
-            stroke-dasharray: 5, 5;
-            fill: rgba(0, 243, 255, 0.05);
-        }
-        
-        .enemy {
-            stroke: var(--neon-pink);
-            stroke-width: 2;
-            fill: rgba(255, 0, 230, 0.3);
-        }
-        
-        .projectile {
-            stroke: var(--neon-purple);
-            stroke-width: 2;
-            fill: var(--neon-purple);
-        }
-        
-        .grid-cell {
-            stroke: var(--grid-color);
-            stroke-width: 1;
-            fill: transparent;
-        }
-        
-        .path-cell {
-            stroke: var(--neon-blue);
-            stroke-width: 1;
-            fill: rgba(0, 243, 255, 0.1);
         }
         
         .wave-announcement {
@@ -242,6 +255,21 @@
             z-index: 20;
         }
         
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.9);
+            border: 1px solid var(--neon-blue);
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            max-width: 200px;
+            z-index: 100;
+            pointer-events: none;
+            box-shadow: 0 0 10px var(--neon-blue);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
         @keyframes fadeInOut {
             0% { opacity: 0; }
             30% { opacity: 1; }
@@ -249,34 +277,51 @@
             100% { opacity: 0; }
         }
         
-        @font-face {
-            font-family: 'Orbitron';
-            src: url('https://cdnjs.cloudflare.com/ajax/libs/orbitron/2.0.2/orbitron-all.min.css');
+        @keyframes glowPulse {
+            0% { filter: drop-shadow(0 0 3px var(--neon-blue)); }
+            50% { filter: drop-shadow(0 0 8px var(--neon-blue)); }
+            100% { filter: drop-shadow(0 0 3px var(--neon-blue)); }
         }
+        
+        .gem-combine-hint {
+            position: absolute;
+            background-color: rgba(0, 255, 123, 0.2);
+            border: 2px dashed var(--neon-green);
+            box-shadow: 0 0 10px var(--neon-green);
+            z-index: 5;
+            pointer-events: none;
+            animation: glowPulse 1.5s infinite;
+        }
+        
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
     </style>
 </head>
 <body>
     <div id="game-container">
         <div id="overlay">
             <div id="start-menu">
-                <h1 id="game-title">TRON TOWER DEFENSE</h1>
-                <button id="start-game-btn" class="game-button">START GAME</button>
+                <h1 id="game-title">TRON GEM TD</h1>
+                <button id="start-game-btn" class="game-button">INITIALIZE GRID</button>
             </div>
         </div>
         
         <div id="game-header">
             <div id="resources-container">
                 <div class="resource">
-                    <span>Credits:</span>
-                    <span id="credits" class="resource-value">100</span>
-                </div>
-                <div class="resource">
                     <span>Lives:</span>
                     <span id="lives" class="resource-value">20</span>
                 </div>
                 <div class="resource">
-                    <span>Wave:</span>
-                    <span id="wave" class="resource-value">0</span>
+                    <span>Gold:</span>
+                    <span id="gold" class="resource-value">100</span>
+                </div>
+                <div class="resource">
+                    <span>Level:</span>
+                    <span id="level" class="resource-value">1</span>
+                </div>
+                <div class="resource">
+                    <span>Score:</span>
+                    <span id="score" class="resource-value">0</span>
                 </div>
             </div>
             <button id="start-wave-btn" class="game-button">START WAVE</button>
@@ -284,143 +329,164 @@
         
         <canvas id="game-canvas"></canvas>
         
-        <div id="tower-panel">
-            <!-- Tower options will be added here dynamically -->
+        <div id="side-panel">
+            <div class="panel-section">
+                <div class="section-title">Player Stats</div>
+                <div id="player-stats">
+                    <div class="stat-row">
+                        <span>Maze Quality:</span>
+                        <span id="maze-quality">0%</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Special Chance:</span>
+                        <span id="special-chance">5%</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>Kills:</span>
+                        <span id="kill-count">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel-section">
+                <div class="section-title">Build</div>
+                <div class="build-options">
+                    <button id="build-maze" class="build-btn">Place Maze (10g)</button>
+                    <button id="build-gem" class="build-btn">Place Gem (15g)</button>
+                    <button id="next-wave" class="build-btn start-btn">Start Wave</button>
+                </div>
+            </div>
+            
+            <div class="panel-section">
+                <div class="section-title">Gem Inventory</div>
+                <div id="gem-inventory" class="gem-grid">
+                    <!-- Gems will be added here dynamically -->
+                </div>
+            </div>
+            
+            <div class="panel-section">
+                <div class="section-title">Recipes</div>
+                <div id="recipe-list">
+                    <!-- Recipes will be added here -->
+                </div>
+            </div>
         </div>
+        
+        <div id="tooltip" class="tooltip"></div>
     </div>
     <script>
-        // Game constants
-        const GRID_SIZE = 20; // Number of cells in both width and height
+        // Game Constants
+        const GRID_SIZE = 12; // Number of cells in the grid (12x12)
+        const MAX_LIVES = 20;
+        const STARTING_GOLD = 100;
+        
+        // Cell Types
         const CELL_TYPES = {
             EMPTY: 0,
-            WALL: 1,
-            PATH: 2,
+            MAZE: 1,
+            GEM: 2,
             TOWER: 3,
             SPAWN: 4,
-            END: 5
+            BASE: 5
         };
         
-        // Tower types
-        const TOWER_TYPES = [
-            {
-                id: 'basic',
-                name: 'Basic Tower',
-                icon: '⬢',
-                cost: 20,
-                damage: 10,
-                range: 3,
-                attackSpeed: 1, // Attacks per second
-                projectileSpeed: 5,
-                color: '#00f3ff'
+        // Gem Types (Basic Colors)
+        const GEMS = {
+            CHIPPED: {
+                RUBY: { id: 'chipped_ruby', name: 'Chipped Ruby', color: '#ff3333', damage: 10, range: 300, attackSpeed: 1.0, quality: 1 },
+                SAPPHIRE: { id: 'chipped_sapphire', name: 'Chipped Sapphire', color: '#3333ff', damage: 8, range: 350, attackSpeed: 1.1, quality: 1 },
+                EMERALD: { id: 'chipped_emerald', name: 'Chipped Emerald', color: '#33ff33', damage: 6, range: 400, attackSpeed: 1.3, quality: 1 },
+                AMETHYST: { id: 'chipped_amethyst', name: 'Chipped Amethyst', color: '#9933ff', damage: 15, range: 250, attackSpeed: 0.8, quality: 1 },
+                TOPAZ: { id: 'chipped_topaz', name: 'Chipped Topaz', color: '#ffff33', damage: 4, range: 450, attackSpeed: 1.5, quality: 1 },
+                OPAL: { id: 'chipped_opal', name: 'Chipped Opal', color: '#33ffff', damage: 12, range: 325, attackSpeed: 0.9, quality: 1 }
             },
-            {
-                id: 'rapid',
-                name: 'Rapid Tower',
-                icon: '⬡',
-                cost: 35,
-                damage: 5,
-                range: 2.5,
-                attackSpeed: 2,
-                projectileSpeed: 7,
-                color: '#00ff7b'
-            },
-            {
-                id: 'sniper',
-                name: 'Sniper Tower',
-                icon: '⬣',
-                cost: 50,
-                damage: 30,
-                range: 5,
-                attackSpeed: 0.5,
-                projectileSpeed: 10,
-                color: '#9d00ff'
-            },
-            {
-                id: 'splash',
-                name: 'Splash Tower',
-                icon: '⬟',
-                cost: 75,
-                damage: 15,
-                range: 2,
-                attackSpeed: 0.7,
-                projectileSpeed: 4,
-                splashRadius: 1,
-                color: '#ff00e6'
+            FLAWED: {
+                RUBY: { id: 'flawed_ruby', name: 'Flawed Ruby', color: '#ff3333', damage: 25, range: 320, attackSpeed: 1.0, quality: 2 },
+                SAPPHIRE: { id: 'flawed_sapphire', name: 'Flawed Sapphire', color: '#3333ff', damage: 20, range: 370, attackSpeed: 1.1, quality: 2 },
+                EMERALD: { id: 'flawed_emerald', name: 'Flawed Emerald', color: '#33ff33', damage: 15, range: 420, attackSpeed: 1.3, quality: 2 },
+                AMETHYST: { id: 'flawed_amethyst', name: 'Flawed Amethyst', color: '#9933ff', damage: 35, range: 270, attackSpeed: 0.8, quality: 2 },
+                TOPAZ: { id: 'flawed_topaz', name: 'Flawed Topaz', color: '#ffff33', damage: 10, range: 470, attackSpeed: 1.5, quality: 2 },
+                OPAL: { id: 'flawed_opal', name: 'Flawed Opal', color: '#33ffff', damage: 30, range: 345, attackSpeed: 0.9, quality: 2 }
             }
-        ];
-        // Enemy types
+        };
+        
+        // Special Gems (combine results)
+        const SPECIAL_GEMS = {
+            AQUAMARINE: { id: 'aquamarine', name: 'Aquamarine', color: '#66ffff', damage: 40, range: 400, attackSpeed: 1.2, quality: 3, recipe: ['chipped_sapphire', 'chipped_opal'] },
+            MALACHITE: { id: 'malachite', name: 'Malachite', color: '#33cc33', damage: 35, range: 450, attackSpeed: 1.4, quality: 3, recipe: ['chipped_emerald', 'chipped_sapphire'] },
+            GARNET: { id: 'garnet', name: 'Garnet', color: '#cc3333', damage: 50, range: 350, attackSpeed: 1.0, quality: 3, recipe: ['chipped_ruby', 'chipped_amethyst'] },
+            CITRINE: { id: 'citrine', name: 'Citrine', color: '#ffcc33', damage: 30, range: 500, attackSpeed: 1.6, quality: 3, recipe: ['chipped_topaz', 'chipped_ruby'] },
+            JADE: { id: 'jade', name: 'Jade', color: '#33cc66', damage: 45, range: 425, attackSpeed: 1.3, quality: 3, recipe: ['chipped_emerald', 'chipped_opal'] },
+            PINK_DIAMOND: { id: 'pink_diamond', name: 'Pink Diamond', color: '#ff66cc', damage: 60, range: 375, attackSpeed: 1.1, quality: 3, recipe: ['chipped_ruby', 'chipped_opal'] }
+        };
+        
+        // Tower Recipes (also combine results)
+        const TOWER_RECIPES = {
+            SILVER: { id: 'silver_tower', name: 'Silver Tower', color: '#cccccc', damage: 80, range: 450, attackSpeed: 1.4, quality: 4, recipe: ['aquamarine', 'malachite'] },
+            GOLD: { id: 'gold_tower', name: 'Gold Tower', color: '#ffcc00', damage: 120, range: 500, attackSpeed: 1.2, quality: 5, recipe: ['garnet', 'citrine'] },
+            URANIUM: { id: 'uranium_tower', name: 'Uranium Tower', color: '#66ff66', damage: 200, range: 550, attackSpeed: 1.0, quality: 6, recipe: ['jade', 'pink_diamond'] },
+            PLATINUM: { id: 'platinum_tower', name: 'Platinum Tower', color: '#e6e6e6', damage: 300, range: 600, attackSpeed: 0.8, quality: 7, recipe: ['silver_tower', 'gold_tower'] }
+        };
+        
+        // Enemy Types
         const ENEMY_TYPES = [
-            {
-                id: 'basic',
-                health: 50,
-                speed: 1,
-                size: 0.3,
-                reward: 5,
-                color: '#ff00e6'
-            },
-            {
-                id: 'fast',
-                health: 30,
-                speed: 2,
-                size: 0.25,
-                reward: 8,
-                color: '#ff5b00'
-            },
-            {
-                id: 'tank',
-                health: 150,
-                speed: 0.5,
-                size: 0.4,
-                reward: 15,
-                color: '#c300ff'
-            },
-            {
-                id: 'boss',
-                health: 500,
-                speed: 0.3,
-                size: 0.6,
-                reward: 50,
-                color: '#ff0000'
-            }
+            { id: 'normal', health: 50, speed: 80, size: 20, reward: 5, color: '#ff00e6' },
+            { id: 'fast', health: 30, speed: 120, size: 16, reward: 7, color: '#ff5b00' },
+            { id: 'tank', health: 200, speed: 60, size: 24, reward: 15, color: '#c300ff' },
+            { id: 'boss', health: 1000, speed: 50, size: 32, reward: 50, color: '#ff0000' }
         ];
         
         // Wave definitions
         const WAVES = [
-            { enemies: [{ type: 'basic', count: 10 }] },
-            { enemies: [{ type: 'basic', count: 15 }, { type: 'fast', count: 5 }] },
-            { enemies: [{ type: 'basic', count: 15 }, { type: 'fast', count: 10 }, { type: 'tank', count: 2 }] },
-            { enemies: [{ type: 'basic', count: 20 }, { type: 'fast', count: 15 }, { type: 'tank', count: 5 }] },
-            { enemies: [{ type: 'basic', count: 25 }, { type: 'fast', count: 20 }, { type: 'tank', count: 10 }, { type: 'boss', count: 1 }] },
-            { enemies: [{ type: 'basic', count: 30 }, { type: 'fast', count: 25 }, { type: 'tank', count: 15 }, { type: 'boss', count: 2 }] },
-            { enemies: [{ type: 'basic', count: 35 }, { type: 'fast', count: 30 }, { type: 'tank', count: 20 }, { type: 'boss', count: 3 }] },
-            { enemies: [{ type: 'basic', count: 40 }, { type: 'fast', count: 35 }, { type: 'tank', count: 25 }, { type: 'boss', count: 5 }] },
-            { enemies: [{ type: 'basic', count: 50 }, { type: 'fast', count: 40 }, { type: 'tank', count: 30 }, { type: 'boss', count: 8 }] },
-            { enemies: [{ type: 'basic', count: 60 }, { type: 'fast', count: 50 }, { type: 'tank', count: 40 }, { type: 'boss', count: 10 }] }
+            { enemies: [{ type: 'normal', count: 10 }] },
+            { enemies: [{ type: 'normal', count: 15 }, { type: 'fast', count: 5 }] },
+            { enemies: [{ type: 'normal', count: 15 }, { type: 'fast', count: 10 }, { type: 'tank', count: 2 }] },
+            { enemies: [{ type: 'normal', count: 20 }, { type: 'fast', count: 15 }, { type: 'tank', count: 5 }] },
+            { enemies: [{ type: 'normal', count: 25 }, { type: 'fast', count: 20 }, { type: 'tank', count: 10 }, { type: 'boss', count: 1 }] },
+            { enemies: [{ type: 'normal', count: 30 }, { type: 'fast', count: 25 }, { type: 'tank', count: 15 }, { type: 'boss', count: 2 }] },
+            { enemies: [{ type: 'normal', count: 35 }, { type: 'fast', count: 30 }, { type: 'tank', count: 20 }, { type: 'boss', count: 3 }] },
+            { enemies: [{ type: 'normal', count: 40 }, { type: 'fast', count: 35 }, { type: 'tank', count: 25 }, { type: 'boss', count: 5 }] },
+            { enemies: [{ type: 'normal', count: 50 }, { type: 'fast', count: 40 }, { type: 'tank', count: 30 }, { type: 'boss', count: 8 }] },
+            { enemies: [{ type: 'normal', count: 60 }, { type: 'fast', count: 50 }, { type: 'tank', count: 40 }, { type: 'boss', count: 10 }] }
         ];
-        // Game state
+        // Game State
         const gameState = {
             grid: [],
             towers: [],
+            gems: [],
             enemies: [],
             projectiles: [],
-            credits: 100,
-            lives: 20,
-            currentWave: 0,
+            gemInventory: [],
+            buildMode: null, // 'maze', 'gem', or null
+            selectedGem: null,
+            lives: MAX_LIVES,
+            gold: STARTING_GOLD,
+            level: 1,
+            score: 0,
+            mazeQuality: 0,
+            specialChance: 5, // 5% chance for special gem
+            killCount: 0,
             waveInProgress: false,
-            selectedTower: null,
             gameOver: false,
-            spawnPoint: null,
-            endPoint: null,
+            spawnPoint: { x: 0, y: 0 },
+            basePoint: { x: GRID_SIZE - 1, y: GRID_SIZE - 1 },
             path: [],
             cellSize: 0,
             canvas: null,
-            ctx: null
+            ctx: null,
+            tooltip: null,
+            lastFrameTime: 0,
+            hoverCell: null,
+            gemCombineHint: null,
+            pendingGemPlacement: null
         };
         
         // Initialize the game
         function initGame() {
+            // Get canvas and context
             gameState.canvas = document.getElementById('game-canvas');
             gameState.ctx = gameState.canvas.getContext('2d');
+            gameState.tooltip = document.getElementById('tooltip');
             
             // Set canvas dimensions
             resizeCanvas();
@@ -429,20 +495,29 @@
             // Initialize the grid
             initGrid();
             
-            // Generate the maze and path
-            generateMaze();
-            
-            // Add tower options to the panel
-            populateTowerPanel();
-            
             // Add event listeners
             gameState.canvas.addEventListener('click', handleCanvasClick);
-            document.getElementById('start-wave-btn').addEventListener('click', startWave);
+            gameState.canvas.addEventListener('mousemove', handleCanvasMouseMove);
+            gameState.canvas.addEventListener('mouseout', handleCanvasMouseOut);
+            
+            // Add button event listeners
             document.getElementById('start-game-btn').addEventListener('click', startGame);
+            document.getElementById('start-wave-btn').addEventListener('click', startWave);
+            document.getElementById('build-maze').addEventListener('click', () => setBuildMode('maze'));
+            document.getElementById('build-gem').addEventListener('click', () => setBuildMode('gem'));
+            document.getElementById('next-wave').addEventListener('click', startWave);
+            
+            // Fill gem inventory with some starter gems
+            populateStarterGems();
+            updateGemInventoryDisplay();
+            
+            // Update resource display
+            updateResourcesDisplay();
             
             // Start the game loop
             requestAnimationFrame(gameLoop);
         }
+        
         function resizeCanvas() {
             const container = document.getElementById('game-container');
             const header = document.getElementById('game-header');
@@ -451,8 +526,8 @@
             const containerWidth = container.offsetWidth;
             const containerHeight = container.offsetHeight - headerHeight;
             
-            // Account for the tower panel
-            const panelWidth = document.getElementById('tower-panel').offsetWidth;
+            // Account for the panel
+            const panelWidth = document.getElementById('side-panel').offsetWidth;
             
             // Calculate available space for the game grid
             const availableWidth = containerWidth - panelWidth;
@@ -470,7 +545,6 @@
             const leftMargin = (availableWidth - minDimension) / 2;
             gameState.canvas.style.marginLeft = `${leftMargin}px`;
         }
-        
         function initGrid() {
             gameState.grid = [];
             
@@ -481,104 +555,191 @@
                 }
                 gameState.grid.push(row);
             }
-        }
-        function generateMaze() {
+            
             // Set spawn point (top-left corner)
             gameState.spawnPoint = { x: 0, y: 0 };
             gameState.grid[0][0] = CELL_TYPES.SPAWN;
             
-            // Set end point (bottom-right corner)
-            gameState.endPoint = { x: GRID_SIZE - 1, y: GRID_SIZE - 1 };
-            gameState.grid[GRID_SIZE - 1][GRID_SIZE - 1] = CELL_TYPES.END;
-            
-            // Generate a simple path from spawn to end
-            generatePath();
+            // Set base point (bottom-right corner)
+            gameState.basePoint = { x: GRID_SIZE - 1, y: GRID_SIZE - 1 };
+            gameState.grid[GRID_SIZE - 1][GRID_SIZE - 1] = CELL_TYPES.BASE;
         }
         
-        function generatePath() {
-            // Create a simple winding path
-            gameState.path = [];
-            let currentPos = { ...gameState.spawnPoint };
-            gameState.path.push({ ...currentPos });
+        function populateStarterGems() {
+            // Clear inventory
+            gameState.gemInventory = [];
             
-            // Define the general direction
-            let goingDown = true;
-            let goingRight = true;
+            // Add some starting gems
+            const startingGems = [
+                Object.assign({}, GEMS.CHIPPED.RUBY),
+                Object.assign({}, GEMS.CHIPPED.SAPPHIRE),
+                Object.assign({}, GEMS.CHIPPED.EMERALD)
+            ];
             
-            while (!(currentPos.x === gameState.endPoint.x && currentPos.y === gameState.endPoint.y)) {
-                // Decide on horizontal or vertical movement
-                const moveHorizontal = Math.random() > 0.4;
-                
-                if (moveHorizontal) {
-                    // Check if we need to change direction
-                    if (currentPos.x <= 0) goingRight = true;
-                    else if (currentPos.x >= GRID_SIZE - 1) goingRight = false;
-                    
-                    // Move horizontally
-                    currentPos.x += goingRight ? 1 : -1;
-                    // Ensure within bounds
-                    currentPos.x = Math.max(0, Math.min(GRID_SIZE - 1, currentPos.x));
-                } else {
-                    // Check if we need to change direction
-                    if (currentPos.y <= 0) goingDown = true;
-                    else if (currentPos.y >= GRID_SIZE - 1) goingDown = false;
-                    
-                    // Move vertically
-                    currentPos.y += goingDown ? 1 : -1;
-                    // Ensure within bounds
-                    currentPos.y = Math.max(0, Math.min(GRID_SIZE - 1, currentPos.y));
-                }
-                
-                // Add the new position to the path
-                if (!gameState.path.some(p => p.x === currentPos.x && p.y === currentPos.y)) {
-                    gameState.path.push({ ...currentPos });
-                }
-                
-                // Force direction towards end if taking too long
-                if (gameState.path.length > GRID_SIZE * 2) {
-                    goingRight = currentPos.x < gameState.endPoint.x;
-                    goingDown = currentPos.y < gameState.endPoint.y;
-                }
-            }
+            gameState.gemInventory = startingGems;
+        }
+        
+        function updateGemInventoryDisplay() {
+            const inventoryEl = document.getElementById('gem-inventory');
+            inventoryEl.innerHTML = '';
             
-            // Mark path cells in the grid
-            for (const pos of gameState.path) {
-                if (gameState.grid[pos.y][pos.x] !== CELL_TYPES.SPAWN && 
-                    gameState.grid[pos.y][pos.x] !== CELL_TYPES.END) {
-                    gameState.grid[pos.y][pos.x] = CELL_TYPES.PATH;
-                }
+            // Add gems to inventory display
+            gameState.gemInventory.forEach((gem, index) => {
+                const gemEl = document.createElement('div');
+                gemEl.className = 'gem-option';
+                gemEl.dataset.gemIndex = index;
+                
+                const gemPreview = document.createElement('div');
+                gemPreview.className = 'gem-preview';
+                gemPreview.style.backgroundColor = gem.color;
+                gemPreview.style.boxShadow = `0 0 10px ${gem.color}`;
+                
+                gemEl.appendChild(gemPreview);
+                
+                // Add event listeners for gem selection
+                gemEl.addEventListener('click', () => selectInventoryGem(index));
+                gemEl.addEventListener('mouseover', (e) => showGemTooltip(e, gem));
+                gemEl.addEventListener('mouseout', hideTooltip);
+                
+                inventoryEl.appendChild(gemEl);
+            });
+            
+            // If inventory is empty, show message
+            if (gameState.gemInventory.length === 0) {
+                const emptyMsg = document.createElement('div');
+                emptyMsg.textContent = 'No gems in inventory';
+                emptyMsg.style.gridColumn = '1 / span 3';
+                emptyMsg.style.textAlign = 'center';
+                emptyMsg.style.padding = '10px';
+                emptyMsg.style.opacity = '0.7';
+                inventoryEl.appendChild(emptyMsg);
             }
         }
-        function populateTowerPanel() {
-            const panel = document.getElementById('tower-panel');
+        function selectInventoryGem(index) {
+            const gem = gameState.gemInventory[index];
             
-            // Clear existing content
-            panel.innerHTML = '';
+            // If we already have a selected gem, try to combine them
+            if (gameState.selectedGem !== null && gameState.selectedGem !== index) {
+                const gem1 = gameState.gemInventory[gameState.selectedGem];
+                const gem2 = gameState.gemInventory[index];
+                
+                // Try to combine gems
+                const combinedGem = combineGems(gem1, gem2);
+                
+                if (combinedGem) {
+                    // Replace the first gem with the combined gem
+                    gameState.gemInventory[gameState.selectedGem] = combinedGem;
+                    
+                    // Remove the second gem
+                    gameState.gemInventory.splice(index > gameState.selectedGem ? index - 1 : index, 1);
+                    
+                    // Deselect gem
+                    gameState.selectedGem = null;
+                    
+                    // Update inventory display
+                    updateGemInventoryDisplay();
+                    
+                    // Show success message
+                    showMessage(`Combined into ${combinedGem.name}!`, '#00ff7b');
+                } else {
+                    // Show error message
+                    showMessage('Cannot combine these gems', '#ff0000');
+                    gameState.selectedGem = null;
+                }
+            } else {
+                // Toggle selection
+                if (gameState.selectedGem === index) {
+                    gameState.selectedGem = null;
+                    
+                    // If we were in gem build mode, stay in it
+                    if (gameState.buildMode === 'gem') {
+                        gameState.pendingGemPlacement = null;
+                    }
+                } else {
+                    gameState.selectedGem = index;
+                    
+                    // If we select a gem, automatically go into gem placement mode
+                    setBuildMode('gem');
+                    gameState.pendingGemPlacement = gem;
+                }
+            }
             
-            // Add tower options
-            TOWER_TYPES.forEach(tower => {
-                const towerOption = document.createElement('div');
-                towerOption.className = 'tower-option';
-                towerOption.dataset.towerId = tower.id;
-                towerOption.innerHTML = `
-                    <span class="tower-icon" style="color: ${tower.color}">${tower.icon}</span>
-                    <span class="tower-cost">${tower.cost}</span>
-                `;
-                towerOption.addEventListener('click', () => selectTower(tower.id));
-                panel.appendChild(towerOption);
+            // Highlight selected gem in UI
+            const gemElements = document.querySelectorAll('.gem-option');
+            gemElements.forEach((el, i) => {
+                if (i === gameState.selectedGem) {
+                    el.style.borderColor = '#00ff7b';
+                    el.style.boxShadow = '0 0 15px #00ff7b';
+                } else {
+                    el.style.borderColor = '';
+                    el.style.boxShadow = '';
+                }
             });
         }
         
-        function selectTower(towerId) {
-            const towerType = TOWER_TYPES.find(t => t.id === towerId);
+        function combineGems(gem1, gem2) {
+            // Check special gem recipes
+            for (const gemKey in SPECIAL_GEMS) {
+                const recipe = SPECIAL_GEMS[gemKey].recipe;
+                if ((gem1.id === recipe[0] && gem2.id === recipe[1]) || 
+                    (gem1.id === recipe[1] && gem2.id === recipe[0])) {
+                    return Object.assign({}, SPECIAL_GEMS[gemKey]);
+                }
+            }
             
-            if (!towerType) return;
+            // Check tower recipes
+           for (const towerKey in TOWER_RECIPES) {
+               const recipe = TOWER_RECIPES[towerKey].recipe;
+               if ((gem1.id === recipe[0] && gem2.id === recipe[1]) || 
+                   (gem1.id === recipe[1] && gem2.id === recipe[0])) {
+                   return Object.assign({}, TOWER_RECIPES[towerKey]);
+               }
+           }
+           
+           // Check if we have two of the same basic gems that can be upgraded
+           if (gem1.id.startsWith('chipped_') && gem2.id.startsWith('chipped_')) {
+               const gem1Type = gem1.id.split('_')[1];
+               const gem2Type = gem2.id.split('_')[1];
+               
+               // If same type, upgrade to flawed
+               if (gem1Type === gem2Type && GEMS.FLAWED[gem1Type.toUpperCase()]) {
+                   return Object.assign({}, GEMS.FLAWED[gem1Type.toUpperCase()]);
+               }
+           }
+           
+           // No valid combination
+           return null;
+       }
+       function setBuildMode(mode) {
+            // Check if we have enough gold
+            if (mode === 'maze' && gameState.gold < 10) {
+                showMessage('Not enough gold to place maze', '#ff0000');
+                return;
+            } else if (mode === 'gem' && gameState.gold < 15 && !gameState.pendingGemPlacement) {
+                showMessage('Not enough gold to place gem', '#ff0000');
+                return;
+            }
             
-            gameState.selectedTower = towerType;
+            // Toggle build mode
+            if (gameState.buildMode === mode) {
+                gameState.buildMode = null;
+            } else {
+                gameState.buildMode = mode;
+            }
+            
+            // Update button styles
+            const mazeBtn = document.getElementById('build-maze');
+            const gemBtn = document.getElementById('build-gem');
+            
+            mazeBtn.style.borderColor = gameState.buildMode === 'maze' ? '#00ff7b' : '';
+            mazeBtn.style.boxShadow = gameState.buildMode === 'maze' ? '0 0 10px #00ff7b' : '';
+            
+            gemBtn.style.borderColor = gameState.buildMode === 'gem' ? '#00ff7b' : '';
+            gemBtn.style.boxShadow = gameState.buildMode === 'gem' ? '0 0 10px #00ff7b' : '';
         }
         
         function handleCanvasClick(event) {
-            if (gameState.gameOver) return;
+            if (gameState.gameOver || gameState.waveInProgress) return;
             
             // Get mouse position relative to canvas
             const rect = gameState.canvas.getBoundingClientRect();
@@ -592,63 +753,354 @@
             // Check if valid cell
             if (gridX < 0 || gridX >= GRID_SIZE || gridY < 0 || gridY >= GRID_SIZE) return;
             
-            // If we have a selected tower, try to place it
-            if (gameState.selectedTower) {
-                placeTower(gridX, gridY);
+            // Handle build mode
+            if (gameState.buildMode === 'maze') {
+                placeMaze(gridX, gridY);
+            } else if (gameState.buildMode === 'gem') {
+                placeGem(gridX, gridY);
+            } else {
+                // If no build mode, check if clicked on a placed gem to select it
+                checkGemSelection(gridX, gridY);
             }
         }
-        function placeTower(x, y) {
-            // Check if cell is available (empty and not on path)
-            if (gameState.grid[y][x] !== CELL_TYPES.EMPTY) return;
+        function placeMaze(x, y) {
+            // Check if cell is empty
+            if (gameState.grid[y][x] !== CELL_TYPES.EMPTY) {
+                showMessage('Cannot place maze here', '#ff0000');
+                return;
+            }
             
-            // Check if we have enough credits
-            if (gameState.credits < gameState.selectedTower.cost) return;
+            // Check if there's enough gold
+            if (gameState.gold < 10) {
+                showMessage('Not enough gold', '#ff0000');
+                return;
+            }
             
-            // Place the tower
-            gameState.grid[y][x] = CELL_TYPES.TOWER;
+            // Place maze piece
+            gameState.grid[y][x] = CELL_TYPES.MAZE;
             
-            // Create tower instance
-            const tower = {
-                ...gameState.selectedTower,
-                x: x,
-                y: y,
-                lastAttackTime: 0,
-                attackTarget: null
-            };
-            
-            // Add to towers array
-            gameState.towers.push(tower);
-            
-            // Deduct credits
-            gameState.credits -= gameState.selectedTower.cost;
+            // Deduct gold
+            gameState.gold -= 10;
             updateResourcesDisplay();
             
-            // Deselect tower
-            gameState.selectedTower = null;
+            // Recalculate path and maze quality
+            calculatePath();
+            calculateMazeQuality();
+        }
+        
+        function placeGem(x, y) {
+            // Check if cell has a maze piece but no gem
+            if (gameState.grid[y][x] !== CELL_TYPES.MAZE) {
+                showMessage('Can only place gems on maze pieces', '#ff0000');
+                return;
+            }
+            
+            // Check if there's already a gem or tower here
+            for (const gem of gameState.gems) {
+                if (gem.x === x && gem.y === y) {
+                    showMessage('There is already a gem here', '#ff0000');
+                    return;
+                }
+            }
+            
+            // If we have a pending gem placement (from inventory)
+            if (gameState.pendingGemPlacement) {
+                const gemData = gameState.pendingGemPlacement;
+                
+                // Create a new gem instance
+                const gem = {
+                    ...gemData,
+                    x: x,
+                    y: y,
+                    lastAttackTime: 0,
+                    target: null
+                };
+                
+                // Add to gems array
+                gameState.gems.push(gem);
+                
+                // Remove from inventory
+                if (gameState.selectedGem !== null) {
+                    gameState.gemInventory.splice(gameState.selectedGem, 1);
+                    gameState.selectedGem = null;
+                    updateGemInventoryDisplay();
+                }
+                
+                // Reset pending placement
+                gameState.pendingGemPlacement = null;
+                
+                // Check for gem combinations on the board
+                checkBoardGemCombinations(gem);
+            } else {
+                // If we're just placing a new random gem
+                
+                // Check if there's enough gold
+                if (gameState.gold < 15) {
+                    showMessage('Not enough gold', '#ff0000');
+                    return;
+                }
+                
+                // Generate a random gem
+                const gemType = getRandomGemType();
+                
+                // Create a new gem instance
+                const gem = {
+                    ...gemType,
+                    x: x,
+                    y: y,
+                    lastAttackTime: 0,
+                    target: null
+                };
+                
+                // Add to gems array
+                gameState.gems.push(gem);
+                
+                // Deduct gold
+                gameState.gold -= 15;
+                updateResourcesDisplay();
+                
+                // Check for gem combinations on the board
+                checkBoardGemCombinations(gem);
+            }
+            
+            // Exit build mode
+            gameState.buildMode = null;
+            setBuildMode(null);
+        }
+        function getRandomGemType() {
+            // Get a random basic gem type
+            const gemTypes = Object.keys(GEMS.CHIPPED);
+            const randomType = gemTypes[Math.floor(Math.random() * gemTypes.length)];
+            
+            // Return a copy of the gem type
+            return Object.assign({}, GEMS.CHIPPED[randomType]);
+        }
+        
+        function checkGemSelection(x, y) {
+            // Check if there's a gem at this position
+            for (const gem of gameState.gems) {
+                if (gem.x === x && gem.y === y) {
+                    // Show gem details
+                    showGemDetails(gem);
+                    return;
+                }
+            }
+        }
+        
+        function showGemDetails(gem) {
+            // Create a temporary tooltip in the center of the screen
+            const tooltip = document.createElement('div');
+            tooltip.className = 'tooltip';
+            tooltip.style.left = '50%';
+            tooltip.style.top = '50%';
+            tooltip.style.transform = 'translate(-50%, -50%)';
+            tooltip.style.maxWidth = '300px';
+            tooltip.style.padding = '15px';
+            tooltip.style.opacity = '1';
+            tooltip.style.pointerEvents = 'auto';
+            
+            // Add gem details
+            tooltip.innerHTML = `
+                <h3 style="color: ${gem.color}; margin-bottom: 10px;">${gem.name}</h3>
+                <div style="margin-bottom: 5px;">Damage: ${gem.damage}</div>
+                <div style="margin-bottom: 5px;">Range: ${gem.range}</div>
+                <div style="margin-bottom: 5px;">Attack Speed: ${gem.attackSpeed.toFixed(1)}/s</div>
+                <div style="margin-bottom: 5px;">Quality: ${gem.quality}</div>
+                <button id="collect-gem" style="
+                    background-color: var(--dark-bg);
+                    border: 1px solid var(--neon-blue);
+                    color: var(--neon-blue);
+                    padding: 5px 10px;
+                    margin-top: 10px;
+                    cursor: pointer;
+                ">Collect Gem</button>
+            `;
+            
+            // Add to game container
+            document.getElementById('game-container').appendChild(tooltip);
+            
+            // Add event listener to close tooltip
+            tooltip.addEventListener('click', (e) => {
+                if (e.target.id === 'collect-gem') {
+                    collectGem(gem);
+                }
+                tooltip.remove();
+            });
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (document.body.contains(tooltip)) {
+                    tooltip.remove();
+                }
+            }, 5000);
+        }
+        
+        function collectGem(gem) {
+            // Add gem to inventory
+            gameState.gemInventory.push(Object.assign({}, gem));
+            
+            // Remove gem from board
+            const index = gameState.gems.findIndex(g => g.x === gem.x && g.y === gem.y);
+            if (index !== -1) {
+                gameState.gems.splice(index, 1);
+            }
+            
+            // Update inventory display
+            updateGemInventoryDisplay();
+            
+            // Show message
+            showMessage(`Collected ${gem.name}`, '#00ff7b');
+        }
+        function checkBoardGemCombinations(newGem) {
+            // Check for adjacent gems that can be combined
+            const adjacentCells = [
+                { x: newGem.x - 1, y: newGem.y },
+                { x: newGem.x + 1, y: newGem.y },
+                { x: newGem.x, y: newGem.y - 1 },
+                { x: newGem.x, y: newGem.y + 1 }
+            ];
+            
+            // Filter out invalid cells
+            const validAdjacentCells = adjacentCells.filter(cell => 
+                cell.x >= 0 && cell.x < GRID_SIZE && cell.y >= 0 && cell.y < GRID_SIZE
+            );
+            
+            // Check each adjacent cell for gems
+            for (const cell of validAdjacentCells) {
+                // Find gem at this position
+                const adjacentGem = gameState.gems.find(gem => gem.x === cell.x && gem.y === cell.y);
+                
+                if (adjacentGem) {
+                    // Try to combine gems
+                    const combinedGem = combineGems(newGem, adjacentGem);
+                    
+                    if (combinedGem) {
+                        // Show combine hint
+                        showGemCombineHint(newGem, adjacentGem);
+                        return;
+                    }
+                }
+            }
+        }
+        
+        function showGemCombineHint(gem1, gem2) {
+            // Remove existing hint
+            removeGemCombineHint();
+            
+            // Calculate hint dimensions
+            const minX = Math.min(gem1.x, gem2.x);
+            const minY = Math.min(gem1.y, gem2.y);
+            const maxX = Math.max(gem1.x, gem2.x);
+            const maxY = Math.max(gem1.y, gem2.y);
+            
+            // Create hint element
+            const hint = document.createElement('div');
+            hint.className = 'gem-combine-hint';
+            
+            // Position hint
+            const left = minX * gameState.cellSize;
+            const top = minY * gameState.cellSize;
+            const width = (maxX - minX + 1) * gameState.cellSize;
+            const height = (maxY - minY + 1) * gameState.cellSize;
+            
+            hint.style.left = `${left}px`;
+            hint.style.top = `${top}px`;
+            hint.style.width = `${width}px`;
+            hint.style.height = `${height}px`;
+            
+            // Add to canvas container
+            gameState.canvas.parentElement.appendChild(hint);
+            
+            // Save reference to hint
+            gameState.gemCombineHint = hint;
+            
+            // Auto-remove after 3 seconds
+            setTimeout(removeGemCombineHint, 3000);
+        }
+        
+        function removeGemCombineHint() {
+            if (gameState.gemCombineHint) {
+                gameState.gemCombineHint.remove();
+                gameState.gemCombineHint = null;
+            }
+        }
+        function handleCanvasMouseMove(event) {
+            // Get mouse position relative to canvas
+            const rect = gameState.canvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+            
+            // Convert to grid coordinates
+            const gridX = Math.floor(mouseX / gameState.cellSize);
+            const gridY = Math.floor(mouseY / gameState.cellSize);
+            
+            // Update hover cell
+            gameState.hoverCell = { x: gridX, y: gridY };
+            
+            // Show tooltip for gems
+            for (const gem of gameState.gems) {
+                if (gem.x === gridX && gem.y === gridY) {
+                    showGemTooltip(event, gem);
+                    return;
+                }
+            }
+            
+            // Hide tooltip if not over a gem
+            hideTooltip();
+        }
+        
+        function handleCanvasMouseOut() {
+            gameState.hoverCell = null;
+            hideTooltip();
+        }
+        
+        function showGemTooltip(event, gem) {
+            const tooltip = gameState.tooltip;
+            
+            // Set tooltip content
+            tooltip.innerHTML = `
+                <div style="color: ${gem.color}; font-weight: bold; margin-bottom: 4px;">${gem.name}</div>
+                <div>DMG: ${gem.damage} | RNG: ${gem.range}</div>
+                <div>SPD: ${gem.attackSpeed.toFixed(1)}/s | Q: ${gem.quality}</div>
+            `;
+            
+            // Position tooltip
+            tooltip.style.left = `${event.clientX + 10}px`;
+            tooltip.style.top = `${event.clientY + 10}px`;
+            tooltip.style.opacity = '1';
+        }
+        
+        function hideTooltip() {
+            gameState.tooltip.style.opacity = '0';
         }
         
         function startGame() {
             // Hide the overlay
             document.getElementById('overlay').style.display = 'none';
+            
+            // Generate initial path
+            calculatePath();
+            
+            // Update resource display
+            updateResourcesDisplay();
         }
+        
         function startWave() {
             if (gameState.waveInProgress || gameState.gameOver) return;
             
-            gameState.currentWave++;
-            if (gameState.currentWave > WAVES.length) {
-                // Player has completed all waves
-                showMessage('YOU WIN!', '#00ff7b');
+            // Ensure there's a valid path
+            if (!gameState.path || gameState.path.length < 2) {
+                showMessage('No valid path to base - fix your maze', '#ff0000');
                 return;
             }
             
             gameState.waveInProgress = true;
-            updateResourcesDisplay();
             
             // Show wave announcement
-            showWaveAnnouncement();
+            showWaveAnnouncement(`WAVE ${gameState.level}`);
             
             // Get current wave definition
-            const wave = WAVES[gameState.currentWave - 1];
+            const wave = WAVES[Math.min(gameState.level - 1, WAVES.length - 1)];
             
             // Schedule enemy spawns
             let delay = 2000; // Initial delay
@@ -656,26 +1108,33 @@
             wave.enemies.forEach(enemyGroup => {
                 const enemyType = ENEMY_TYPES.find(t => t.id === enemyGroup.type);
                 
+                // Scale enemy health based on level
+                const healthMultiplier = 1 + (gameState.level - 1) * 0.2;
+                
                 for (let i = 0; i < enemyGroup.count; i++) {
                     setTimeout(() => {
                         if (gameState.gameOver) return;
-                        spawnEnemy(enemyType);
+                        
+                        // Create scaled enemy
+                        const scaledEnemy = { 
+                            ...enemyType,
+                            health: Math.floor(enemyType.health * healthMultiplier),
+                            maxHealth: Math.floor(enemyType.health * healthMultiplier)
+                        };
+                        
+                        spawnEnemy(scaledEnemy);
                     }, delay);
                     
-                    delay += 1000 / (enemyType.speed * 0.5);
+                    delay += 500;
                 }
             });
             
-            // Set timer for wave end
-            setTimeout(() => {
-                if (!gameState.gameOver) {
-                    gameState.waveInProgress = false;
-                    
-                    // Bonus credits for completing wave
-                    gameState.credits += 20 + gameState.currentWave * 5;
-                    updateResourcesDisplay();
-                }
-            }, delay + 5000);
+            // Update UI
+            document.getElementById('start-wave-btn').disabled = true;
+            document.getElementById('next-wave').disabled = true;
+            
+            // Set timer for wave end check
+            gameState.waveCheckInterval = setInterval(checkWaveEnd, 1000);
         }
         function spawnEnemy(enemyType) {
             // Create a new enemy
@@ -685,13 +1144,84 @@
                 y: gameState.spawnPoint.y,
                 currentHealth: enemyType.health,
                 maxHealth: enemyType.health,
-                pathIndex: 0
+                pathIndex: 0,
+                pathProgress: 0
             };
             
             // Add to enemies array
             gameState.enemies.push(enemy);
         }
         
+        function checkWaveEnd() {
+            // If no more enemies and none being spawned, wave is complete
+            if (gameState.enemies.length === 0 && !gameState.enemySpawnQueue) {
+                clearInterval(gameState.waveCheckInterval);
+                gameState.waveInProgress = false;
+                
+                // Increase level
+                gameState.level++;
+                
+                // Award gold for completing wave
+                const bonus = Math.floor(25 + gameState.level * 5);
+                gameState.gold += bonus;
+                
+                // Update UI
+                updateResourcesDisplay();
+                document.getElementById('start-wave-btn').disabled = false;
+                document.getElementById('next-wave').disabled = false;
+                
+                // Show message
+                showMessage(`Wave Complete! +${bonus} Gold`, '#00ff7b');
+            }
+        }
+        
+        function calculatePath() {
+            // Uses A* algorithm to find path from spawn to base
+            const astar = new AStar(
+                gameState.grid, 
+                gameState.spawnPoint,
+                gameState.basePoint
+            );
+            
+            const path = astar.findPath();
+            
+            if (path && path.length > 0) {
+                gameState.path = path;
+                return true;
+            } else {
+                // No valid path found
+                showMessage('No valid path to base - fix your maze', '#ff0000');
+                return false;
+            }
+        }
+        
+        function calculateMazeQuality() {
+            // Maze quality is based on path length
+            if (!gameState.path || gameState.path.length === 0) return 0;
+            
+            // Calculate direct distance
+            const directDistance = Math.sqrt(
+                Math.pow(gameState.basePoint.x - gameState.spawnPoint.x, 2) +
+                Math.pow(gameState.basePoint.y - gameState.spawnPoint.y, 2)
+            );
+            
+            // Calculate path length
+            const pathLength = gameState.path.length;
+            
+            // Quality is the ratio of path length to direct distance
+            const quality = Math.min(100, Math.floor((pathLength / directDistance) * 20));
+            
+            gameState.mazeQuality = quality;
+            
+            // Update special chance based on quality
+            gameState.specialChance = 5 + Math.floor(quality / 10);
+            
+            // Update UI
+            document.getElementById('maze-quality').textContent = `${quality}%`;
+            document.getElementById('special-chance').textContent = `${gameState.specialChance}%`;
+            
+            return quality;
+        }
         function updateEnemies(deltaTime) {
             for (let i = gameState.enemies.length - 1; i >= 0; i--) {
                 const enemy = gameState.enemies[i];
@@ -699,8 +1229,8 @@
                 // Move enemy along path
                 moveEnemyAlongPath(enemy, deltaTime);
                 
-                // Check if enemy reached the end
-                if (enemy.pathIndex >= gameState.path.length - 1) {
+                // Check if enemy reached the base
+                if (enemy.pathIndex >= gameState.path.length - 1 && enemy.pathProgress >= 1) {
                     // Remove enemy and reduce lives
                     gameState.enemies.splice(i, 1);
                     gameState.lives--;
@@ -716,96 +1246,93 @@
                 
                 // Check if enemy is dead
                 if (enemy.currentHealth <= 0) {
-                    // Remove enemy and give credits
+                    // Remove enemy and give gold
                     gameState.enemies.splice(i, 1);
-                    gameState.credits += enemy.reward;
+                    gameState.gold += enemy.reward;
+                    gameState.score += enemy.reward;
+                    gameState.killCount++;
                     updateResourcesDisplay();
                 }
             }
         }
+        
         function moveEnemyAlongPath(enemy, deltaTime) {
-            if (enemy.pathIndex >= gameState.path.length - 1) return;
+            if (!gameState.path || enemy.pathIndex >= gameState.path.length - 1) return;
             
-            // Get current and next positions
-            const currentPos = gameState.path[enemy.pathIndex];
-            const nextPos = gameState.path[enemy.pathIndex + 1];
+            // Calculate how far along the current path segment the enemy should move
+            const speed = enemy.speed * deltaTime / 1000; // Convert to cells per second
+            enemy.pathProgress += speed / 0.8; // Normalize by typical segment length
             
-            // Calculate direction
-            const dx = nextPos.x - currentPos.x;
-            const dy = nextPos.y - currentPos.y;
-            
-            // Calculate normal distance to move (cells per second)
-            const distanceToMove = enemy.speed * deltaTime;
-            
-            // Convert to normalized direction
-            const length = Math.sqrt(dx * dx + dy * dy);
-            const ndx = dx / length;
-            const ndy = dy / length;
-            
-            // Move enemy
-            enemy.x += ndx * distanceToMove;
-            enemy.y += ndy * distanceToMove;
-            
-            // Check if we've reached the next point
-            const distanceToNext = Math.sqrt(
-                Math.pow(nextPos.x - enemy.x, 2) + 
-                Math.pow(nextPos.y - enemy.y, 2)
-            );
-            
-            if (distanceToNext < 0.1) {
+            // If reached the next waypoint, move to the next segment
+            if (enemy.pathProgress >= 1) {
                 enemy.pathIndex++;
-                enemy.x = nextPos.x;
-                enemy.y = nextPos.y;
+                enemy.pathProgress = 0;
+                
+                // If reached the end of the path, stay at the last point
+                if (enemy.pathIndex >= gameState.path.length - 1) {
+                    const lastPoint = gameState.path[gameState.path.length - 1];
+                    enemy.x = lastPoint.x;
+                    enemy.y = lastPoint.y;
+                    return;
+                }
             }
+            
+            // Interpolate position between current and next waypoint
+            const currentWaypoint = gameState.path[enemy.pathIndex];
+            const nextWaypoint = gameState.path[enemy.pathIndex + 1];
+            
+            enemy.x = currentWaypoint.x + (nextWaypoint.x - currentWaypoint.x) * enemy.pathProgress;
+            enemy.y = currentWaypoint.y + (nextWaypoint.y - currentWaypoint.y) * enemy.pathProgress;
         }
-        function updateTowers(deltaTime) {
+        
+        function updateGems(deltaTime) {
             const currentTime = Date.now();
             
-            for (const tower of gameState.towers) {
-                // Calculate attack cooldown
-                const attackCooldown = 1000 / tower.attackSpeed;
+            for (const gem of gameState.gems) {
+                // Calculate attack cooldown in milliseconds
+                const attackCooldown = 1000 / gem.attackSpeed;
                 
-                // Check if tower can attack
-                if (currentTime - tower.lastAttackTime >= attackCooldown) {
+                // Check if gem can attack
+                if (currentTime - gem.lastAttackTime >= attackCooldown) {
                     // Find closest enemy in range
-                    let closestEnemy = null;
+                    let target = null;
                     let closestDistance = Infinity;
                     
                     for (const enemy of gameState.enemies) {
                         const distance = Math.sqrt(
-                            Math.pow((tower.x + 0.5) - enemy.x, 2) + 
-                            Math.pow((tower.y + 0.5) - enemy.y, 2)
-                        );
+                            Math.pow((gem.x + 0.5) - enemy.x, 2) + 
+                            Math.pow((gem.y + 0.5) - enemy.y, 2)
+                        ) * gameState.cellSize;
                         
-                        if (distance <= tower.range && distance < closestDistance) {
-                            closestEnemy = enemy;
+                        if (distance <= gem.range && distance < closestDistance) {
+                            target = enemy;
                             closestDistance = distance;
                         }
                     }
                     
                     // If enemy found, attack it
-                    if (closestEnemy) {
-                        tower.attackTarget = closestEnemy;
-                        tower.lastAttackTime = currentTime;
+                    if (target) {
+                        gem.target = target;
+                        gem.lastAttackTime = currentTime;
                         
                         // Create projectile
-                        createProjectile(tower, closestEnemy);
+                        createProjectile(gem, target);
                     } else {
-                        tower.attackTarget = null;
+                        gem.target = null;
                     }
                 }
             }
         }
-        function createProjectile(tower, target) {
+        function createProjectile(gem, target) {
             const projectile = {
-                x: tower.x + 0.5,
-                y: tower.y + 0.5,
+                x: gem.x + 0.5,
+                y: gem.y + 0.5,
                 targetEnemy: target,
-                speed: tower.projectileSpeed,
-                damage: tower.damage,
-                color: tower.color,
-                isSplash: tower.hasOwnProperty('splashRadius'),
-                splashRadius: tower.splashRadius || 0
+                speed: 500, // pixels per second
+                damage: gem.damage,
+                color: gem.color,
+                size: 6,
+                gem: gem
             };
             
             gameState.projectiles.push(projectile);
@@ -832,48 +1359,35 @@
                 const ndy = dy / distance;
                 
                 // Move projectile
-                const distanceToMove = projectile.speed * deltaTime;
-                projectile.x += ndx * distanceToMove;
-                projectile.y += ndy * distanceToMove;
+                const pixelsToMove = projectile.speed * deltaTime / 1000;
+                projectile.x += ndx * pixelsToMove;
+                projectile.y += ndy * pixelsToMove;
                 
                 // Check if projectile hit enemy
-                if (distance < target.size / 2 + 0.1) {
+                if (distance < 0.2) {
                     // Apply damage
-                    if (projectile.isSplash) {
-                        // Splash damage to nearby enemies
-                        for (const enemy of gameState.enemies) {
-                            const splashDistance = Math.sqrt(
-                                Math.pow(enemy.x - target.x, 2) + 
-                                Math.pow(enemy.y - target.y, 2)
-                            );
-                            
-                            if (splashDistance <= projectile.splashRadius) {
-                               // Apply reduced damage based on distance
-                               const damageMultiplier = 1 - (splashDistance / projectile.splashRadius);
-                               enemy.currentHealth -= projectile.damage * damageMultiplier;
-                           }
-                       }
-                   } else {
-                       // Direct damage to target
-                       target.currentHealth -= projectile.damage;
-                   }
-                   
-                   // Remove projectile
-                   gameState.projectiles.splice(i, 1);
-               }
-           }
-       }
-       function updateResourcesDisplay() {
-            document.getElementById('credits').textContent = gameState.credits;
-            document.getElementById('lives').textContent = gameState.lives;
-            document.getElementById('wave').textContent = gameState.currentWave;
+                    target.currentHealth -= projectile.damage;
+                    
+                    // Remove projectile
+                    gameState.projectiles.splice(i, 1);
+                }
+            }
         }
         
-        function showWaveAnnouncement() {
+        function updateResourcesDisplay() {
+            document.getElementById('lives').textContent = gameState.lives;
+            document.getElementById('gold').textContent = gameState.gold;
+            document.getElementById('level').textContent = gameState.level;
+            document.getElementById('score').textContent = gameState.score;
+            document.getElementById('kill-count').textContent = gameState.killCount;
+            document.getElementById('maze-quality').textContent = `${gameState.mazeQuality}%`;
+            document.getElementById('special-chance').textContent = `${gameState.specialChance}%`;
+        }
+        function showWaveAnnouncement(message) {
             // Create announcement element
             const announcement = document.createElement('div');
             announcement.className = 'wave-announcement';
-            announcement.textContent = `WAVE ${gameState.currentWave}`;
+            announcement.textContent = message;
             
             // Add to game container
             document.getElementById('game-container').appendChild(announcement);
@@ -885,9 +1399,40 @@
         }
         
         function showMessage(message, color) {
-            // Create overlay for message
+            // Create floating message element
+            const messageEl = document.createElement('div');
+            messageEl.textContent = message;
+            messageEl.style.cssText = `
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                color: ${color};
+                font-size: 1.5em;
+                text-shadow: 0 0 10px ${color};
+                animation: fadeInOut 2s ease-in-out;
+                pointer-events: none;
+                z-index: 100;
+            `;
+            
+            // Add to game container
+            document.getElementById('game-container').appendChild(messageEl);
+            
+            // Remove after animation completes
+            setTimeout(() => {
+                messageEl.remove();
+            }, 2000);
+        }
+        
+        function gameOver() {
+            gameState.gameOver = true;
+            
+            // Show game over message
+            showMessage('GAME OVER', '#ff00e6');
+            
+            // Create overlay with score and restart button
             const overlay = document.createElement('div');
-            overlay.id = 'message-overlay';
+            overlay.id = 'game-over-overlay';
             overlay.style.cssText = `
                 position: absolute;
                 top: 0;
@@ -896,102 +1441,267 @@
                 height: 100%;
                 background-color: rgba(10, 10, 18, 0.8);
                 display: flex;
+                flex-direction: column;
                 justify-content: center;
                 align-items: center;
                 z-index: 100;
             `;
             
-            // Create message element
-            const messageElement = document.createElement('div');
-            messageElement.style.cssText = `
-                font-size: 3em;
-                color: ${color};
-                text-shadow: 0 0 15px ${color};
-                text-align: center;
+            // Create content
+            overlay.innerHTML = `
+                <div class="game-over" style="color: #ff00e6; text-shadow: 0 0 15px #ff00e6; font-size: 3em; margin-bottom: 20px;">GAME OVER</div>
+                <div style="color: #00f3ff; font-size: 1.5em; margin-bottom: 10px;">FINAL SCORE: ${gameState.score}</div>
+                <div style="color: #00f3ff; font-size: 1.5em; margin-bottom: 30px;">WAVES COMPLETED: ${gameState.level - 1}</div>
+                <button id="restart-game-btn" class="game-button" style="padding: 10px 30px; font-size: 1.2em;">RESTART</button>
             `;
-            messageElement.textContent = message;
-            
-            // Add to overlay
-            overlay.appendChild(messageElement);
             
             // Add to game container
             document.getElementById('game-container').appendChild(overlay);
-        }
-        function gameOver() {
-            gameState.gameOver = true;
-            showMessage('GAME OVER', '#ff00e6');
+            
+            // Add restart button event listener
+            document.getElementById('restart-game-btn').addEventListener('click', restartGame);
         }
         
+        function restartGame() {
+            // Remove game over overlay
+            const overlay = document.getElementById('game-over-overlay');
+            if (overlay) {
+                overlay.remove();
+            }
+            
+            // Reset game state
+            gameState.gems = [];
+            gameState.enemies = [];
+            gameState.projectiles = [];
+            gameState.gemInventory = [];
+            gameState.lives = MAX_LIVES;
+            gameState.gold = STARTING_GOLD;
+            gameState.level = 1;
+            gameState.score = 0;
+            gameState.mazeQuality = 0;
+            gameState.specialChance = 5;
+            gameState.killCount = 0;
+            gameState.waveInProgress = false;
+            gameState.gameOver = false;
+            
+            // Reset grid
+            initGrid();
+            
+            // Fill gem inventory with starter gems
+            populateStarterGems();
+            updateGemInventoryDisplay();
+            
+            // Update resource display
+            updateResourcesDisplay();
+            
+            // Enable buttons
+            document.getElementById('start-wave-btn').disabled = false;
+            document.getElementById('next-wave').disabled = false;
+            
+            // Remove any active tooltips
+            hideTooltip();
+        }
         function drawGrid() {
             const { ctx, cellSize } = gameState;
             
-            // Draw grid cells
+            // Draw grid with cyberpunk effect
             for (let y = 0; y < GRID_SIZE; y++) {
                 for (let x = 0; x < GRID_SIZE; x++) {
                     const cellType = gameState.grid[y][x];
                     
+                    // Calculate cell position
+                    const posX = x * cellSize;
+                    const posY = y * cellSize;
+                    
                     // Draw cell based on type
-                    if (cellType === CELL_TYPES.EMPTY) {
-                        ctx.strokeStyle = '#184654';
-                        ctx.lineWidth = 1;
-                        ctx.strokeRect(x * cellSize, y * cellSize, cellSize, cellSize);
-                    } else if (cellType === CELL_TYPES.PATH || 
-                               cellType === CELL_TYPES.SPAWN || 
-                               cellType === CELL_TYPES.END) {
-                        // Path, spawn, and end cells
-                        ctx.fillStyle = 'rgba(0, 243, 255, 0.1)';
-                        ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
-                        ctx.strokeStyle = '#00f3ff';
-                        ctx.lineWidth = 1;
-                        ctx.strokeRect(x * cellSize, y * cellSize, cellSize, cellSize);
-                        
-                        // Add marker for spawn and end
-                        if (cellType === CELL_TYPES.SPAWN) {
-                            ctx.fillStyle = '#00ff7b';
-                            ctx.beginPath();
-                            ctx.arc(
-                                (x + 0.5) * cellSize, 
-                                (y + 0.5) * cellSize, 
-                                cellSize * 0.3, 
-                                0, 
-                                Math.PI * 2
-                            );
-                            ctx.fill();
-                        } else if (cellType === CELL_TYPES.END) {
-                            ctx.fillStyle = '#ff00e6';
-                            ctx.beginPath();
-                            ctx.arc(
-                                (x + 0.5) * cellSize, 
-                                (y + 0.5) * cellSize, 
-                                cellSize * 0.3, 
-                                0, 
-                                Math.PI * 2
-                            );
-                            ctx.fill();
-                        }
-                    }
-                }
+                    switch (cellType) {
+                        case CELL_TYPES.EMPTY:
+                            // Draw empty cell with grid lines
+                            ctx.strokeStyle = '#184654';
+                           ctx.lineWidth = 1;
+                           ctx.strokeRect(posX, posY, cellSize, cellSize);
+                           break;
+                       case CELL_TYPES.MAZE:
+                           // Draw maze piece
+                           ctx.fillStyle = 'rgba(0, 243, 255, 0.1)';
+                           ctx.fillRect(posX, posY, cellSize, cellSize);
+                           ctx.strokeStyle = '#00f3ff';
+                           ctx.lineWidth = 1;
+                           ctx.strokeRect(posX, posY, cellSize, cellSize);
+                           
+                           // Add some circuit patterns
+                           drawCircuitPattern(posX, posY, cellSize);
+                           break;
+                       case CELL_TYPES.SPAWN:
+                           // Draw spawn point
+                           ctx.fillStyle = 'rgba(0, 255, 123, 0.2)';
+                           ctx.fillRect(posX, posY, cellSize, cellSize);
+                           ctx.strokeStyle = '#00ff7b';
+                           ctx.lineWidth = 2;
+                           ctx.strokeRect(posX, posY, cellSize, cellSize);
+                           
+                           // Draw spawn icon
+                           ctx.fillStyle = '#00ff7b';
+                           ctx.beginPath();
+                           ctx.arc(posX + cellSize/2, posY + cellSize/2, cellSize * 0.3, 0, Math.PI * 2);
+                           ctx.fill();
+                           
+                           break;
+                       case CELL_TYPES.BASE:
+                           // Draw base point
+                           ctx.fillStyle = 'rgba(255, 0, 230, 0.2)';
+                           ctx.fillRect(posX, posY, cellSize, cellSize);
+                           ctx.strokeStyle = '#ff00e6';
+                           ctx.lineWidth = 2;
+                           ctx.strokeRect(posX, posY, cellSize, cellSize);
+                           
+                           // Draw base icon
+                           ctx.fillStyle = '#ff00e6';
+                           ctx.beginPath();
+                           ctx.moveTo(posX + cellSize * 0.2, posY + cellSize * 0.2);
+                           ctx.lineTo(posX + cellSize * 0.8, posY + cellSize * 0.2);
+                           ctx.lineTo(posX + cellSize * 0.8, posY + cellSize * 0.8);
+                           ctx.lineTo(posX + cellSize * 0.2, posY + cellSize * 0.8);
+                           ctx.closePath();
+                           ctx.fill();
+                           
+                           break;
+                   }
+                   
+                   // Highlight hovered cell in build mode
+                   if (gameState.buildMode && gameState.hoverCell && 
+                       gameState.hoverCell.x === x && gameState.hoverCell.y === y) {
+                       
+                       let isValid = false;
+                       if (gameState.buildMode === 'maze') {
+                           isValid = cellType === CELL_TYPES.EMPTY;
+                       } else if (gameState.buildMode === 'gem') {
+                           isValid = cellType === CELL_TYPES.MAZE;
+                           
+                           // Check if there's already a gem here
+                           for (const gem of gameState.gems) {
+                               if (gem.x === x && gem.y === y) {
+                                   isValid = false;
+                                   break;
+                               }
+                           }
+                       }
+                       
+                       // Draw highlight
+                       ctx.strokeStyle = isValid ? '#00ff7b' : '#ff0000';
+                       ctx.lineWidth = 2;
+                       ctx.setLineDash([5, 5]);
+                       ctx.strokeRect(posX, posY, cellSize, cellSize);
+                       ctx.setLineDash([]);
+                   }
+               }
+           }
+       }
+       function drawCircuitPattern(x, y, size) {
+            const { ctx } = gameState;
+            
+            // Draw circuit lines with cyberpunk effect
+            ctx.strokeStyle = 'rgba(0, 243, 255, 0.3)';
+            ctx.lineWidth = 1;
+            
+            // Randomize circuit pattern based on position
+            const seed = x * 100 + y;
+            const pattern = seed % 6;
+            
+            switch (pattern) {
+                case 0:
+                    // Horizontal line
+                    ctx.beginPath();
+                    ctx.moveTo(x + size * 0.2, y + size * 0.5);
+                    ctx.lineTo(x + size * 0.8, y + size * 0.5);
+                    ctx.stroke();
+                    break;
+                case 1:
+                    // Vertical line
+                    ctx.beginPath();
+                    ctx.moveTo(x + size * 0.5, y + size * 0.2);
+                    ctx.lineTo(x + size * 0.5, y + size * 0.8);
+                    ctx.stroke();
+                    break;
+                case 2:
+                    // Corner (top-left to bottom-right)
+                    ctx.beginPath();
+                    ctx.moveTo(x + size * 0.2, y + size * 0.5);
+                    ctx.lineTo(x + size * 0.5, y + size * 0.5);
+                    ctx.lineTo(x + size * 0.5, y + size * 0.8);
+                    ctx.stroke();
+                    break;
+                case 3:
+                    // Corner (top-right to bottom-left)
+                    ctx.beginPath();
+                    ctx.moveTo(x + size * 0.8, y + size * 0.5);
+                    ctx.lineTo(x + size * 0.5, y + size * 0.5);
+                    ctx.lineTo(x + size * 0.5, y + size * 0.8);
+                    ctx.stroke();
+                    break;
+                case 4:
+                    // Cross
+                    ctx.beginPath();
+                    ctx.moveTo(x + size * 0.2, y + size * 0.5);
+                    ctx.lineTo(x + size * 0.8, y + size * 0.5);
+                    ctx.moveTo(x + size * 0.5, y + size * 0.2);
+                    ctx.lineTo(x + size * 0.5, y + size * 0.8);
+                    ctx.stroke();
+                    break;
+                case 5:
+                    // Node
+                    ctx.beginPath();
+                    ctx.arc(x + size * 0.5, y + size * 0.5, size * 0.15, 0, Math.PI * 2);
+                    ctx.stroke();
+                    break;
             }
         }
-        function drawTowers() {
+        
+        function drawPath() {
+            const { ctx, cellSize, path } = gameState;
+            
+            if (!path || path.length < 2) return;
+            
+            // Draw path with cyberpunk effect
+            ctx.strokeStyle = 'rgba(0, 255, 123, 0.3)';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([5, 5]);
+            
+            ctx.beginPath();
+            ctx.moveTo(
+                path[0].x * cellSize + cellSize / 2,
+                path[0].y * cellSize + cellSize / 2
+            );
+            
+            for (let i = 1; i < path.length; i++) {
+                ctx.lineTo(
+                    path[i].x * cellSize + cellSize / 2,
+                    path[i].y * cellSize + cellSize / 2
+                );
+            }
+            
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        function drawGems() {
             const { ctx, cellSize } = gameState;
             
-            for (const tower of gameState.towers) {
-                // Draw tower
-                ctx.strokeStyle = tower.color;
-                ctx.lineWidth = 2;
-                ctx.fillStyle = hex2rgba(tower.color, 0.2);
+            for (const gem of gameState.gems) {
+                // Draw gem
+                ctx.fillStyle = gem.color;
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 1;
                 
-                // Draw hexagon shape
+                const centerX = gem.x * cellSize + cellSize / 2;
+                const centerY = gem.y * cellSize + cellSize / 2;
+                const size = cellSize * 0.4;
+                
+                // Draw gem shape (hexagon)
                 ctx.beginPath();
-                const centerX = (tower.x + 0.5) * cellSize;
-                const centerY = (tower.y + 0.5) * cellSize;
-                const radius = cellSize * 0.4;
-                
                 for (let i = 0; i < 6; i++) {
                     const angle = (Math.PI / 3) * i;
-                    const x = centerX + radius * Math.cos(angle);
-                    const y = centerY + radius * Math.sin(angle);
+                    const x = centerX + size * Math.cos(angle);
+                    const y = centerY + size * Math.sin(angle);
                     
                     if (i === 0) {
                         ctx.moveTo(x, y);
@@ -999,70 +1709,109 @@
                         ctx.lineTo(x, y);
                     }
                 }
-                
                 ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
                 
-                // Draw range indicator if this is the selected tower
-                if (gameState.selectedTower && 
-                    tower.id === gameState.selectedTower.id && 
-                    tower.x === gameState.selectedTowerX && 
-                    tower.y === gameState.selectedTowerY) {
-                    ctx.strokeStyle = tower.color;
+                // Add glow effect
+                ctx.save();
+                ctx.shadowColor = gem.color;
+                ctx.shadowBlur = 10;
+                ctx.strokeStyle = gem.color;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.restore();
+                
+                // Draw range indicator while hovering
+                if (gameState.hoverCell && 
+                    gameState.hoverCell.x === gem.x && 
+                    gameState.hoverCell.y === gem.y) {
+                    
+                    ctx.strokeStyle = gem.color;
                     ctx.lineWidth = 1;
                     ctx.setLineDash([5, 5]);
                     ctx.beginPath();
-                    ctx.arc(
-                        centerX, 
-                        centerY, 
-                        tower.range * cellSize, 
-                        0, 
-                        Math.PI * 2
-                    );
+                    ctx.arc(centerX, centerY, gem.range, 0, Math.PI * 2);
                     ctx.stroke();
                     ctx.setLineDash([]);
                 }
                 
-                // Draw attack line if tower is attacking
-                if (tower.attackTarget) {
-                    ctx.strokeStyle = tower.color;
+                // Draw attack line if gem is targeting an enemy
+                if (gem.target) {
+                    ctx.strokeStyle = gem.color;
                     ctx.lineWidth = 1;
                     ctx.beginPath();
                     ctx.moveTo(centerX, centerY);
                     ctx.lineTo(
-                        tower.attackTarget.x * cellSize, 
-                        tower.attackTarget.y * cellSize
+                        gem.target.x * cellSize,
+                        gem.target.y * cellSize
                     );
                     ctx.stroke();
                 }
+                
+                // Draw quality indicator
+                const qualityColors = [
+                    '#ffffff', // Not used, quality starts at 1
+                    '#ffffff', // Common (white)
+                    '#1eff00', // Uncommon (green)
+                    '#0070dd', // Rare (blue)
+                    '#a335ee', // Epic (purple)
+                    '#ff8000', // Legendary (orange)
+                    '#e6cc80', // Artifact (gold)
+                    '#ff0000'  // Ultimate (red)
+                ];
+                
+                const qualityColor = qualityColors[Math.min(gem.quality, qualityColors.length - 1)];
+                
+                // Draw small quality indicator
+                ctx.fillStyle = qualityColor;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY - size * 0.8, size * 0.15, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
+        
         function drawEnemies() {
             const { ctx, cellSize } = gameState;
             
             for (const enemy of gameState.enemies) {
                 // Draw enemy
-                ctx.strokeStyle = enemy.color;
-                ctx.lineWidth = 2;
-                ctx.fillStyle = hex2rgba(enemy.color, 0.3);
+                ctx.fillStyle = enemy.color;
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 1;
                 
                 const centerX = enemy.x * cellSize;
                 const centerY = enemy.y * cellSize;
-                const radius = cellSize * enemy.size;
+                const size = enemy.size * cellSize / 50; // Scale based on cell size
                 
-                // Draw enemy shape (circle)
+                // Draw enemy shape (circuit-like design)
                 ctx.beginPath();
-                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                ctx.arc(centerX, centerY, size, 0, Math.PI * 2);
                 ctx.fill();
+                ctx.stroke();
+                
+                // Add inner circuit detail
+                ctx.strokeStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, size * 0.7, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(centerX - size * 0.5, centerY);
+                ctx.lineTo(centerX + size * 0.5, centerY);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY - size * 0.5);
+                ctx.lineTo(centerX, centerY + size * 0.5);
                 ctx.stroke();
                 
                 // Draw health bar
                 const healthPercentage = enemy.currentHealth / enemy.maxHealth;
-                const healthBarWidth = radius * 2;
-                const healthBarHeight = radius * 0.3;
-                const healthBarX = centerX - radius;
-                const healthBarY = centerY - radius - healthBarHeight * 1.5;
+                const healthBarWidth = size * 2;
+                const healthBarHeight = size * 0.3;
+                const healthBarX = centerX - size;
+                const healthBarY = centerY - size - healthBarHeight * 1.5;
                 
                 // Background
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -1090,108 +1839,52 @@
             for (const projectile of gameState.projectiles) {
                 // Draw projectile
                 ctx.fillStyle = projectile.color;
-                ctx.strokeStyle = projectile.color;
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 1;
                 
-                const x = projectile.x * cellSize;
-                const y = projectile.y * cellSize;
+                const posX = projectile.x * cellSize;
+                const posY = projectile.y * cellSize;
+                const size = projectile.size;
                 
-                // Draw projectile shape (small circle with trail)
+                // Draw energy bolt effect
+                ctx.save();
+                ctx.shadowColor = projectile.color;
+                ctx.shadowBlur = 10;
+                
+                // Draw energy bolt
                 ctx.beginPath();
-                ctx.arc(x, y, cellSize * 0.1, 0, Math.PI * 2);
+                ctx.arc(posX, posY, size, 0, Math.PI * 2);
                 ctx.fill();
                 
-                // Draw trail
+                // Add trail effect
                 const target = projectile.targetEnemy;
-                const dx = target.x - projectile.x;
-                const dy = target.y - projectile.y;
-                const length = Math.sqrt(dx * dx + dy * dy);
-                const ndx = dx / length;
-                const ndy = dy / length;
+                if (target) {
+                    const dx = target.x - projectile.x;
+                    const dy = target.y - projectile.y;
+                    const length = Math.sqrt(dx * dx + dy * dy);
+                    const ndx = dx / length;
+                    const ndy = dy / length;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(posX, posY);
+                    ctx.lineTo(
+                        posX - ndx * size * 3, 
+                        posY - ndy * size * 3
+                    );
+                    ctx.strokeStyle = projectile.color;
+                    ctx.lineWidth = size / 2;
+                    ctx.stroke();
+                }
                 
-                ctx.beginPath();
-                ctx.moveTo(x, y);
-                ctx.lineTo(
-                    x - ndx * cellSize * 0.3, 
-                    y - ndy * cellSize * 0.3
-                );
-                ctx.stroke();
+                ctx.restore();
             }
         }
         
-        function drawPlacementPreview() {
-            if (!gameState.selectedTower) return;
-            
-            const { ctx, cellSize } = gameState;
-            
-            // Get mouse position
-            const rect = gameState.canvas.getBoundingClientRect();
-            const mouseX = event.clientX - rect.left;
-            const mouseY = event.clientY - rect.top;
-            
-            // Convert to grid coordinates
-            const gridX = Math.floor(mouseX / cellSize);
-            const gridY = Math.floor(mouseY / cellSize);
-            
-            // Check if valid position
-            if (gridX < 0 || gridX >= GRID_SIZE || gridY < 0 || gridY >= GRID_SIZE) return;
-            
-            // Check if cell is available
-            const isValidPlacement = gameState.grid[gridY][gridX] === CELL_TYPES.EMPTY;
-            
-            // Draw preview
-            ctx.globalAlpha = 0.5;
-            ctx.strokeStyle = isValidPlacement ? gameState.selectedTower.color : '#ff0000';
-            ctx.lineWidth = 2;
-            ctx.fillStyle = hex2rgba(
-                isValidPlacement ? gameState.selectedTower.color : '#ff0000', 
-                0.2
-            );
-            
-            // Draw hexagon shape
-            ctx.beginPath();
-            const centerX = (gridX + 0.5) * cellSize;
-            const centerY = (gridY + 0.5) * cellSize;
-            const radius = cellSize * 0.4;
-            
-            for (let i = 0; i < 6; i++) {
-                const angle = (Math.PI / 3) * i;
-                const x = centerX + radius * Math.cos(angle);
-                const y = centerY + radius * Math.sin(angle);
-                
-                if (i === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-            }
-            
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-            
-            // Draw range indicator
-            ctx.strokeStyle = isValidPlacement ? gameState.selectedTower.color : '#ff0000';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([5, 5]);
-            ctx.beginPath();
-            ctx.arc(
-                centerX, 
-                centerY, 
-                gameState.selectedTower.range * cellSize, 
-                0, 
-                Math.PI * 2
-            );
-            ctx.stroke();
-            ctx.setLineDash([]);
-            
-            ctx.globalAlpha = 1.0;
-        }
-        function drawCyberpunkEffect() {
+        function drawCyberpunkEffects() {
             const { ctx, canvas } = gameState;
             
             // Draw grid lines
-            ctx.strokeStyle = 'rgba(0, 243, 255, 0.1)';
+            ctx.strokeStyle = 'rgba(0, 243, 255, 0.05)';
             ctx.lineWidth = 1;
             
             // Horizontal lines
@@ -1221,49 +1914,166 @@
                 ctx.fillRect(x, y, width, height);
             }
         }
-        
-        function hex2rgba(hex, alpha) {
-            const r = parseInt(hex.slice(1, 3), 16);
-            const g = parseInt(hex.slice(3, 5), 16);
-            const b = parseInt(hex.slice(5, 7), 16);
-            
-            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        }
-        let lastUpdateTime = 0;
-        
         function gameLoop(timestamp) {
-            // Calculate delta time
-            const deltaTime = (timestamp - lastUpdateTime) / 1000;
-            lastUpdateTime = timestamp;
+            // Calculate delta time in seconds
+            const deltaTime = timestamp - gameState.lastFrameTime;
+            gameState.lastFrameTime = timestamp;
             
             // Clear canvas
             gameState.ctx.clearRect(0, 0, gameState.canvas.width, gameState.canvas.height);
             
             // Draw cyberpunk background effect
-            drawCyberpunkEffect();
+            drawCyberpunkEffects();
             
-            // Draw grid
+            // Draw game elements
             drawGrid();
+            drawPath();
+            drawGems();
             
-            // Update game entities
+            // Update game logic if not game over
             if (!gameState.gameOver) {
-                updateTowers(deltaTime);
-                updateEnemies(deltaTime);
+                updateGems(deltaTime);
                 updateProjectiles(deltaTime);
+                
+                if (gameState.waveInProgress) {
+                    updateEnemies(deltaTime);
+                }
             }
             
-            // Draw game entities
-            drawTowers();
+            // Draw remaining elements
             drawEnemies();
             drawProjectiles();
             
-            // Draw tower placement preview
-            if (gameState.selectedTower) {
-                drawPlacementPreview();
+            // Continue game loop
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // A* Pathfinding Algorithm
+        class AStar {
+            constructor(grid, start, end) {
+                this.grid = grid;
+                this.start = start;
+                this.end = end;
+                this.nodes = this.createNodes();
+                this.openList = [];
+                this.closedList = [];
             }
             
-            // Continue the game loop
-            requestAnimationFrame(gameLoop);
+            createNodes() {
+                const nodes = [];
+                
+                for (let y = 0; y < this.grid.length; y++) {
+                    const row = [];
+                    for (let x = 0; x < this.grid[y].length; x++) {
+                        row.push({
+                            x: x,
+                            y: y,
+                            f: 0, // total cost
+                            g: 0, // cost from start
+                            h: 0, // heuristic (estimated cost to end)
+                            parent: null,
+                            walkable: this.grid[y][x] !== CELL_TYPES.MAZE // Maze pieces block path
+                        });
+                    }
+                    nodes.push(row);
+                }
+                
+                // Make sure start and end are walkable
+                nodes[this.start.y][this.start.x].walkable = true;
+                nodes[this.end.y][this.end.x].walkable = true;
+                
+                return nodes;
+            }
+            
+            getHeuristic(node) {
+                // Manhattan distance
+                return Math.abs(node.x - this.end.x) + Math.abs(node.y - this.end.y);
+            }
+            
+            getNeighbors(node) {
+                const neighbors = [];
+                const directions = [
+                    { x: 0, y: -1 }, // Up
+                    { x: 1, y: 0 },  // Right
+                    { x: 0, y: 1 },  // Down
+                    { x: -1, y: 0 }  // Left
+                ];
+                
+                for (const dir of directions) {
+                    const x = node.x + dir.x;
+                    const y = node.y + dir.y;
+                    
+                    // Check if in bounds
+                    if (x >= 0 && x < this.nodes[0].length && y >= 0 && y < this.nodes.length) {
+                        neighbors.push(this.nodes[y][x]);
+                    }
+                }
+                
+                return neighbors;
+            }
+            
+            findPath() {
+                const startNode = this.nodes[this.start.y][this.start.x];
+                const endNode = this.nodes[this.end.y][this.end.x];
+                
+                // Add start node to open list
+                this.openList.push(startNode);
+                
+                while (this.openList.length > 0) {
+                    // Sort open list by f value
+                    this.openList.sort((a, b) => a.f - b.f);
+                    
+                    // Get node with lowest f value
+                    const currentNode = this.openList.shift();
+                    
+                    // Add to closed list
+                    this.closedList.push(currentNode);
+                    
+                    // Check if reached end
+                    if (currentNode.x === endNode.x && currentNode.y === endNode.y) {
+                        // Reconstruct path
+                        const path = [];
+                        let current = currentNode;
+                        
+                        while (current) {
+                            path.unshift({ x: current.x, y: current.y });
+                            current = current.parent;
+                        }
+                        
+                        return path;
+                    }
+                    
+                    // Check neighbors
+                    const neighbors = this.getNeighbors(currentNode);
+                    
+                    for (const neighbor of neighbors) {
+                        // Skip if in closed list or not walkable
+                        if (this.closedList.includes(neighbor) || !neighbor.walkable) {
+                            continue;
+                        }
+                        
+                        // Calculate g value
+                        const gScore = currentNode.g + 1;
+                        
+                        // Check if already in open list
+                        const inOpenList = this.openList.includes(neighbor);
+                        
+                        if (!inOpenList || gScore < neighbor.g) {
+                            neighbor.g = gScore;
+                            neighbor.h = this.getHeuristic(neighbor);
+                            neighbor.f = neighbor.g + neighbor.h;
+                            neighbor.parent = currentNode;
+                            
+                            if (!inOpenList) {
+                                this.openList.push(neighbor);
+                            }
+                        }
+                    }
+                }
+                
+                // No path found
+                return null;
+            }
         }
         
         // Initialize the game when the DOM is loaded
