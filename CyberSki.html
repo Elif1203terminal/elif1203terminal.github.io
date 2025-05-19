@@ -1,0 +1,1986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberSki - Cyberpunk SkiFree Clone</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background-color: #000;
+            color: #0f0;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: linear-gradient(to bottom, #000000, #000011);
+        }
+
+        .game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 30;
+            gap: 20px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+            color: #0f8;
+            text-shadow: 0 0 10px #0f8;
+            letter-spacing: 3px;
+            animation: glitch 2s infinite;
+        }
+
+        p {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #0cf;
+            text-shadow: 0 0 5px #0cf;
+        }
+
+        button {
+            background-color: transparent;
+            color: #0f8;
+            border: 2px solid #0f8;
+            padding: 10px 20px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 2px;
+            box-shadow: 0 0 10px #0f8;
+            margin: 10px 0;
+        }
+
+        button:hover {
+            background-color: rgba(0, 255, 136, 0.2);
+            color: #fff;
+            box-shadow: 0 0 20px #0f8;
+        }
+
+        .controls-info {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .controls-info p {
+            margin: 5px 0;
+            font-size: 16px;
+        }
+
+        .final-score {
+            font-size: 24px;
+            color: #f0f;
+            text-shadow: 0 0 10px #f0f;
+            margin: 10px 0;
+            animation: glitch 2s infinite;
+        }
+
+        .high-score {
+            font-size: 20px;
+            color: #0ff;
+            text-shadow: 0 0 8px #0ff;
+            margin-top: -10px;
+        }
+
+        /* Touch Controls Styles */
+        .touch-controls {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 20;
+            display: none; /* Hidden by default, shown when game starts on touch devices */
+        }
+
+        .touch-joystick-area {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 120px;
+            height: 120px;
+            background-color: rgba(0, 255, 136, 0.15);
+            border: 2px solid #0f8;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0.7;
+        }
+
+        .touch-joystick-handle {
+            width: 50px;
+            height: 50px;
+            background-color: #0f8;
+            border-radius: 50%;
+            opacity: 0.8;
+            box-shadow: 0 0 10px #0f8;
+        }
+
+        .touch-button {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background-color: rgba(255, 0, 255, 0.15);
+            border: 2px solid #f0f;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #f0f;
+            font-size: 14px;
+            text-shadow: 0 0 5px #f0f;
+            font-family: 'Orbitron', sans-serif;
+            cursor: pointer;
+            opacity: 0.7;
+        }
+
+        .touch-button.boost {
+            bottom: 120px;
+            right: 40px;
+            background-color: rgba(255, 0, 255, 0.15);
+            border-color: #f0f;
+            color: #f0f;
+        }
+
+        .touch-button.fire {
+            bottom: 20px;
+            right: 120px;
+            background-color: rgba(0, 255, 255, 0.15);
+            border-color: #0ff;
+            color: #0ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="startScreen" class="overlay">
+            <h1>CyberSki</h1>
+            <p>CYBERPUNK SKI ADVENTURE</p>
+            <button id="startButton">ENTER THE GRID</button>
+            <div class="controls-info">
+                <p>ARROW KEYS OR WASD TO MOVE</p>
+                <p>F KEY TO FIRE WEAPON</p>
+                <p>SPACE TO BOOST</p>
+                <p>ESC TO PAUSE</p>
+            </div>
+            <div class="high-score">HIGH SCORE: <span id="highScore">0</span></div>
+        </div>
+        <div id="gameOverScreen" class="overlay hidden">
+            <h1>SYSTEM FAILURE</h1>
+            <p>YOU HAVE BEEN TERMINATED</p>
+            <div class="final-score">FINAL SCORE: <span id="finalScore">0</span></div>
+            <div class="high-score">HIGH SCORE: <span id="gameOverHighScore">0</span></div>
+            <button id="restartButton">REBOOT SYSTEM</button>
+        </div>
+        <div id="pauseScreen" class="overlay hidden">
+            <h1>SYSTEM PAUSED</h1>
+            <button id="resumeButton">RESUME</button>
+            <button id="quitButton">QUIT</button>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Constants and configuration
+            const PLAYER_START_SPEED = 4;
+            const PLAYER_MAX_SPEED = 15;
+            const PLAYER_ACCELERATION = 0.01; // Increased for better feel
+            const PLAYER_HORIZONTAL_SPEED = 0.8; // Significantly increased for quicker turns
+            const PLAYER_ROTATION_SPEED = 0.0015; // Slightly increased for snappier visual rotation
+            const PLAYER_BOOST_MULTIPLIER = 2.5;
+            const PLAYER_BOOST_DURATION = 1200; // ms
+            const PLAYER_BOOST_COOLDOWN = 4000; // ms
+            const PLAYER_SIZE = 16;
+            const PLAYER_MAX_HEALTH = 100;
+            const PLAYER_DAMAGE_TAKEN = 25; // Damage per hit
+            const PLAYER_INVINCIBILITY_DURATION = 1000; // ms after taking damage
+
+            const OBSTACLE_SPAWN_FREQUENCY = 0.00005; // Drastically reduced for fewer obstacles
+            const OBSTSTACLE_CLEAR_ZONE_HEIGHT = 1500; // Larger initial clear zone
+            const TREE_RADIUS = 10;
+            const ROCK_RADIUS = 6;
+            const RAMP_RADIUS = 8;
+            const POWERUP_RADIUS = 12;
+
+            const GRID_SIZE = 80;
+            const GRID_COLOR = 'rgba(0, 255, 136, 0.1)';
+
+            const MAX_ENEMIES = 3; // Allow multiple enemies
+            const ENEMY_SPAWN_INTERVAL = 4000; // ms, interval for trying to spawn enemies (slightly longer)
+            const ENEMY_SPEED_MULTIPLIER = 0.8; // Enemies are slightly slower than player
+            const ENEMY_SIZE = 24;
+            const ENEMY_HEALTH = 75; // Enemies take 3 hits now (25 damage * 3 hits)
+            const ENEMY_DAMAGE = 30; // Damage player takes on collision
+
+            const WEAPON_COOLDOWN = 300; // ms, faster firing
+            const WEAPON_SPEED = 12;
+            const WEAPON_DAMAGE = 25; // 3 hits to kill an enemy (75 health)
+            const WEAPON_SIZE = 5;
+
+            const PARTICLE_LIFESPAN = 60;
+            const SCORE_MULTIPLIER = 0.1;
+            const DISTANCE_MULTIPLIER = 0.1;
+            const VISIBLE_AREA_PADDING = 200; // How much beyond screen to render
+
+            const TERRAIN_CHUNK_HEIGHT = 1000; // Generate terrain in chunks
+            const TERRAIN_SPAWN_AHEAD_DISTANCE = 2000; // How far ahead to generate terrain
+
+            // Game state variables
+            let canvas, ctx;
+            let gameRunning = false;
+            let gamePaused = false;
+            let score = 0;
+            let distance = 0;
+            let frameCount = 0;
+            let currentHighScore = 0;
+            
+            // Player state
+            let player = {
+                x: 0,
+                y: 0,
+                direction: Math.PI / 2, // Pointing downward initially (visual only for rotation)
+                speed: PLAYER_START_SPEED,
+                boosting: false,
+                boostCooldown: 0,
+                weaponCooldown: 0,
+                health: PLAYER_MAX_HEALTH,
+                size: PLAYER_SIZE,
+                color: '#0ff',
+                invincible: false,
+                invincibleTimer: 0
+            };
+            
+            // Camera position (follows player)
+            let camera = {
+                x: 0,
+                y: 0,
+                width: 0,
+                height: 0
+            };
+            
+            // Map state
+            let map = {
+                obstacles: [],
+                enemies: [],
+                projectiles: [],
+                particles: [],
+                visibleObstacles: [],
+                lastGeneratedY: 0, // Track how far down terrain has been generated
+                mapWidth: 4000 // Fixed width of the "infinite" map
+            };
+            
+            // Input state
+            let keys = {};
+            
+            // DOM elements
+            let elements = {
+                canvas: null,
+                startScreen: null,
+                gameOverScreen: null,
+                pauseScreen: null,
+                finalScore: null,
+                highScore: null, // For start screen
+                gameOverHighScore: null, // For game over screen
+                startButton: null,
+                restartButton: null,
+                resumeButton: null,
+                quitButton: null,
+                touchControls: null,
+                touchJoystickArea: null,
+                touchJoystickHandle: null,
+                touchBoostButton: null,
+                touchFireButton: null
+            };
+            
+            // Sounds
+            let audioContext = null;
+            let soundEffects = {};
+
+            // Enemy spawn timer
+            let enemySpawnTimer = 0;
+            
+            // Time tracking
+            let lastTime = 0;
+            let deltaTime = 0;
+            
+            // Initialize the game
+            function init() {
+                // Cache DOM elements
+                elements.canvas = document.getElementById('gameCanvas');
+                elements.startScreen = document.getElementById('startScreen');
+                elements.gameOverScreen = document.getElementById('gameOverScreen');
+                elements.pauseScreen = document.getElementById('pauseScreen');
+                elements.finalScore = document.getElementById('finalScore');
+                elements.highScore = document.getElementById('highScore');
+                elements.gameOverHighScore = document.getElementById('gameOverHighScore');
+                elements.startButton = document.getElementById('startButton');
+                elements.restartButton = document.getElementById('restartButton');
+                elements.resumeButton = document.getElementById('resumeButton');
+                elements.quitButton = document.getElementById('quitButton');
+                
+                // Set up canvas
+                canvas = elements.canvas;
+                ctx = canvas.getContext('2d');
+                resizeCanvas();
+                
+                // Set up event listeners
+                window.addEventListener('resize', resizeCanvas);
+                window.addEventListener('keydown', handleKeyDown);
+                window.addEventListener('keyup', handleKeyUp);
+                elements.startButton.addEventListener('click', startGame);
+                elements.restartButton.addEventListener('click', startGame);
+                elements.resumeButton.addEventListener('click', resumeGame);
+                elements.quitButton.addEventListener('click', quitGame);
+                document.addEventListener('visibilitychange', handleVisibilityChange);
+                
+                // Set up touch controls if on mobile
+                if ('ontouchstart' in window) {
+                    setupTouchControls();
+                }
+
+                // Load high score
+                currentHighScore = parseInt(localStorage.getItem('cyberSkiHighScore') || '0', 10);
+                elements.highScore.textContent = currentHighScore;
+                elements.gameOverHighScore.textContent = currentHighScore;
+                
+                // Initialize audio
+                initAudio();
+            }
+            
+            // Resize canvas to fill window
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                
+                // Update camera dimensions
+                camera.width = canvas.width;
+                camera.height = canvas.height;
+            }
+            
+            // Event handlers
+            function handleKeyDown(e) {
+                keys[e.key.toLowerCase()] = true;
+                
+                // Prevent default for common game keys to avoid page scrolling
+                if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'w', 'a', 's', 'd', 'f'].includes(e.key.toLowerCase())) {
+                    e.preventDefault();
+                }
+                
+                // ESC to pause
+                if (e.key === 'Escape' && gameRunning) {
+                    togglePause();
+                }
+            }
+            
+            function handleKeyUp(e) {
+                keys[e.key.toLowerCase()] = false;
+
+                // Handle boost activation on key UP for space
+                if (e.key === ' ' && gameRunning && !gamePaused && player.boostCooldown <= 0 && !player.boosting) {
+                    activateBoost();
+                }
+                // Handle weapon fire on key UP for F
+                if (e.key.toLowerCase() === 'f' && gameRunning && !gamePaused && player.weaponCooldown <= 0) {
+                    fireWeapon();
+                }
+            }
+            
+            function handleVisibilityChange() {
+                if (document.hidden && gameRunning && !gamePaused) {
+                    togglePause();
+                }
+            }
+            
+            // Mobile touch controls
+            function setupTouchControls() {
+                // Create virtual joystick and buttons container
+                elements.touchControls = document.createElement('div');
+                elements.touchControls.className = 'touch-controls';
+                elements.canvas.parentNode.appendChild(elements.touchControls);
+
+                // Create joystick area
+                elements.touchJoystickArea = document.createElement('div');
+                elements.touchJoystickArea.className = 'touch-joystick-area';
+                elements.touchJoystickHandle = document.createElement('div');
+                elements.touchJoystickHandle.className = 'touch-joystick-handle';
+                elements.touchJoystickArea.appendChild(elements.touchJoystickHandle);
+                elements.touchControls.appendChild(elements.touchJoystickArea);
+
+                // Create boost button
+                elements.touchBoostButton = document.createElement('div');
+                elements.touchBoostButton.className = 'touch-button boost';
+                elements.touchBoostButton.textContent = 'BOOST';
+                elements.touchControls.appendChild(elements.touchBoostButton);
+
+                // Create fire button
+                elements.touchFireButton = document.createElement('div');
+                elements.touchFireButton.className = 'touch-button fire';
+                elements.touchFireButton.textContent = 'FIRE';
+                elements.touchControls.appendChild(elements.touchFireButton);
+                
+                // Touch state variables
+                let touchJoystick = { active: false, startX: 0, startY: 0, currentX: 0, currentY: 0, identifier: null };
+                
+                // Track touch for joystick movement
+                elements.touchJoystickArea.addEventListener('touchstart', function(e) {
+                    e.preventDefault();
+                    if (!touchJoystick.active) { // Only track one joystick touch
+                        const touch = e.changedTouches[0];
+                        touchJoystick.active = true;
+                        touchJoystick.startX = touch.clientX;
+                        touchJoystick.startY = touch.clientY;
+                        touchJoystick.currentX = touch.clientX;
+                        touchJoystick.currentY = touch.clientY;
+                        touchJoystick.identifier = touch.identifier;
+                        updateJoystickHandlePosition();
+                    }
+                });
+                
+                elements.touchControls.addEventListener('touchmove', function(e) {
+                    e.preventDefault();
+                    for (let i = 0; i < e.changedTouches.length; i++) {
+                        let touch = e.changedTouches[i];
+                        if (touch.identifier === touchJoystick.identifier && touchJoystick.active) {
+                            touchJoystick.currentX = touch.clientX;
+                            touchJoystick.currentY = touch.clientY;
+                            updateJoystickHandlePosition();
+                        }
+                    }
+                });
+                
+                elements.touchControls.addEventListener('touchend', function(e) {
+                    e.preventDefault();
+                    for (let i = 0; i < e.changedTouches.length; i++) {
+                        let touch = e.changedTouches[i];
+                        if (touch.identifier === touchJoystick.identifier) {
+                            touchJoystick.active = false;
+                            touchJoystick.currentX = elements.touchJoystickArea.offsetLeft + elements.touchJoystickArea.offsetWidth / 2; // Reset handle position
+                            touchJoystick.currentY = elements.touchJoystickArea.offsetTop + elements.touchJoystickArea.offsetHeight / 2;
+                            updateJoystickHandlePosition();
+                            keys.arrowleft = keys.arrowright = false; // Release virtual keys
+                            touchJoystick.identifier = null;
+                        }
+                    }
+                });
+
+                // Button listeners
+                elements.touchBoostButton.addEventListener('touchstart', function(e) {
+                    e.preventDefault(); // Prevent default behavior like scrolling/zooming
+                    if (gameRunning && !gamePaused && player.boostCooldown <= 0 && !player.boosting) {
+                        activateBoost();
+                    }
+                });
+
+                elements.touchFireButton.addEventListener('touchstart', function(e) {
+                    e.preventDefault();
+                    if (gameRunning && !gamePaused && player.weaponCooldown <= 0) {
+                        fireWeapon();
+                    }
+                });
+
+                function updateJoystickHandlePosition() {
+                    const centerX = elements.touchJoystickArea.offsetLeft + elements.touchJoystickArea.offsetWidth / 2;
+                    const centerY = elements.touchJoystickArea.offsetTop + elements.touchJoystickArea.offsetHeight / 2;
+                    const maxDistance = elements.touchJoystickArea.offsetWidth / 2 - elements.touchJoystickHandle.offsetWidth / 2;
+
+                    let dx = touchJoystick.currentX - centerX;
+                    let dy = touchJoystick.currentY - centerY;
+                    
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance > maxDistance) {
+                        dx *= maxDistance / distance;
+                        dy *= maxDistance / distance;
+                    }
+
+                    elements.touchJoystickHandle.style.transform = `translate(${dx}px, ${dy}px)`;
+
+                    // Convert joystick input to virtual key presses
+                    // Thresholds are kept, but player horizontal speed is increased for overall effect
+                    keys.arrowleft = dx < -20;
+                    keys.arrowright = dx > 20;
+                    // For a skier, up/down usually controls speed, not direction
+                    keys.arrowup = dy < -20; // If you want vertical speed control
+                    keys.arrowdown = dy > 20; // If you want vertical speed control
+                }
+                
+                // Show touch controls when game starts
+                let originalStartGame = startGame;
+                startGame = function() {
+                    originalStartGame();
+                    elements.touchControls.style.display = 'block';
+                    // Ensure joystick handle is reset on start
+                    touchJoystick.active = false;
+                    // Reset handle position to center of its area
+                    touchJoystick.currentX = elements.touchJoystickArea.offsetLeft + elements.touchJoystickArea.offsetWidth / 2;
+                    touchJoystick.currentY = elements.touchJoystickArea.offsetTop + elements.touchJoystickArea.offsetHeight / 2;
+                    updateJoystickHandlePosition();
+                };
+                
+                // Hide touch controls when game ends
+                let originalQuitGame = quitGame;
+                quitGame = function() {
+                    originalQuitGame();
+                    elements.touchControls.style.display = 'none';
+                    // Ensure virtual keys are released
+                    keys.arrowup = keys.arrowdown = keys.arrowleft = keys.arrowright = false;
+                };
+            }
+            
+            // Start the game
+            function startGame() {
+                // Reset game state
+                gameRunning = true;
+                gamePaused = false;
+                score = 0;
+                distance = 0;
+                frameCount = 0;
+                enemySpawnTimer = 0;
+                
+                // Reset player
+                player = {
+                    x: map.mapWidth / 2,
+                    y: 100, // Start at a fixed Y position
+                    direction: Math.PI / 2, // Pointing downward (visual only)
+                    speed: PLAYER_START_SPEED,
+                    boosting: false,
+                    boostCooldown: 0,
+                    weaponCooldown: 0,
+                    health: PLAYER_MAX_HEALTH,
+                    size: PLAYER_SIZE,
+                    color: '#0ff',
+                    invincible: false,
+                    invincibleTimer: 0
+                };
+                
+                // Set camera to follow player initially
+                camera.x = player.x - camera.width / 2;
+                camera.y = player.y - camera.height / 3; // Place player in upper third
+
+                // Clear game objects
+                map.obstacles = [];
+                map.enemies = [];
+                map.projectiles = [];
+                map.particles = [];
+                map.lastGeneratedY = 0; // Reset last generated Y
+
+                // Generate initial terrain chunk (safe zone)
+                generateTerrainChunk(0, OBSTSTACLE_CLEAR_ZONE_HEIGHT); // Ensure a larger initial clear zone
+                map.lastGeneratedY = OBSTSTACLE_CLEAR_ZONE_HEIGHT;
+                // Generate a chunk immediately after the clear zone to ensure game starts
+                generateTerrainChunk(OBSTSTACLE_CLEAR_ZONE_HEIGHT, OBSTSTACLE_CLEAR_ZONE_HEIGHT + TERRAIN_CHUNK_HEIGHT);
+                map.lastGeneratedY = OBSTSTACLE_CLEAR_ZONE_HEIGHT + TERRAIN_CHUNK_HEIGHT;
+                
+                // Hide start screen
+                elements.startScreen.classList.add('hidden');
+                elements.gameOverScreen.classList.add('hidden');
+                elements.pauseScreen.classList.add('hidden');
+                
+                // Start game loop
+                lastTime = performance.now();
+                requestAnimationFrame(gameLoop);
+                
+                // Play start sound
+                playSound('button');
+            }
+            
+            // Generate a chunk of terrain
+            function generateTerrainChunk(startY, endY) {
+                const chunkHeight = endY - startY;
+                const area = map.mapWidth * chunkHeight;
+                const numObstacles = Math.floor(area * OBSTACLE_SPAWN_FREQUENCY);
+                
+                for (let i = 0; i < numObstacles; i++) {
+                    const typeRoll = Math.random();
+                    let type, radius, color;
+                    
+                    if (typeRoll < 0.7) {
+                        type = 'tree';
+                        radius = TREE_RADIUS;
+                        color = '#0f8';
+                    } else if (typeRoll < 0.9) {
+                        type = 'rock';
+                        radius = ROCK_RADIUS;
+                        color = '#447';
+                    } else if (typeRoll < 0.95) {
+                        type = 'ramp';
+                        radius = RAMP_RADIUS;
+                        color = '#0ff';
+                    } else {
+                        type = 'powerup';
+                        radius = POWERUP_RADIUS;
+                        color = '#f0f';
+                    }
+
+                    map.obstacles.push({
+                        type: type,
+                        x: Math.random() * map.mapWidth,
+                        y: startY + Math.random() * chunkHeight,
+                        radius: radius,
+                        color: color,
+                        active: true // For ramps/powerups, to ensure they only get collected once
+                    });
+                }
+            }
+            
+            // Game loop
+            function gameLoop(timestamp) {
+                if (!gameRunning) return;
+                
+                // Calculate delta time
+                deltaTime = timestamp - lastTime;
+                lastTime = timestamp;
+                
+                // Skip if paused
+                if (gamePaused) {
+                    requestAnimationFrame(gameLoop);
+                    return;
+                }
+                
+                // Limit delta time to prevent huge jumps
+                deltaTime = Math.min(deltaTime, 100);
+                
+                // Update all game objects
+                update(deltaTime / 16.67); // Normalize to ~60fps
+                
+                // Render the scene
+                render();
+                
+                // Continue the loop
+                requestAnimationFrame(gameLoop);
+                frameCount++;
+            }
+            
+            // Update game state
+            function update(delta) {
+                // Update player
+                updatePlayer(delta);
+                
+                // Update camera to follow player
+                updateCamera();
+                
+                // Manage terrain generation and cleanup
+                manageTerrain();
+
+                // Update projectiles
+                updateProjectiles(delta);
+                
+                // Update enemies
+                updateEnemies(delta);
+
+                // Spawn enemies
+                enemySpawnTimer += deltaTime;
+                if (enemySpawnTimer >= ENEMY_SPAWN_INTERVAL) {
+                    if (map.enemies.length < MAX_ENEMIES) {
+                        spawnEnemy();
+                    }
+                    enemySpawnTimer = 0;
+                }
+                
+                // Update particles
+                updateParticles(delta);
+                
+                // Check for collisions (player-obstacle, player-enemy, projectile-enemy)
+                checkCollisions();
+                
+                // Filter visible objects for rendering
+                updateVisibleObjects();
+                
+                // Update score and distance
+                distance += player.speed * delta * DISTANCE_MULTIPLIER;
+                score += player.speed * delta * SCORE_MULTIPLIER;
+
+                // Update player invincibility timer
+                if (player.invincibleTimer > 0) {
+                    player.invincibleTimer -= deltaTime;
+                    if (player.invincibleTimer <= 0) {
+                        player.invincible = false;
+                        player.invincibleTimer = 0;
+                    }
+                }
+            }
+            
+            // Update player position and state
+            function updatePlayer(delta) {
+                // Handle controls
+                // W or ArrowUp to go faster
+                if (keys.w || keys.arrowup) {
+                    player.speed = Math.min(player.speed + PLAYER_ACCELERATION * delta, PLAYER_MAX_SPEED);
+                }
+                // S or ArrowDown to slow down
+                if (keys.s || keys.arrowdown) {
+                    player.speed = Math.max(player.speed - PLAYER_ACCELERATION * delta * 2, PLAYER_START_SPEED / 2);
+                }
+
+                // A or ArrowLeft to move left and rotate
+                if (keys.a || keys.arrowleft) {
+                    player.x -= PLAYER_HORIZONTAL_SPEED * delta;
+                    player.direction = Math.PI / 2 - (player.speed / PLAYER_MAX_SPEED) * PLAYER_ROTATION_SPEED * Math.PI; // Tilt left
+                } 
+                // D or ArrowRight to move right and rotate
+                else if (keys.d || keys.arrowright) {
+                    player.x += PLAYER_HORIZONTAL_SPEED * delta;
+                    player.direction = Math.PI / 2 + (player.speed / PLAYER_MAX_SPEED) * PLAYER_ROTATION_SPEED * Math.PI; // Tilt right
+                } else {
+                    // Reset direction to straight down if no horizontal movement
+                    // Smoothly reset direction for better feel
+                    const resetSpeed = 0.05 * delta;
+                    if (player.direction > Math.PI / 2) {
+                        player.direction = Math.max(Math.PI / 2, player.direction - resetSpeed);
+                    } else if (player.direction < Math.PI / 2) {
+                        player.direction = Math.min(Math.PI / 2, player.direction + resetSpeed);
+                    }
+                }
+                
+                // Apply boost
+                let currentSpeed = player.speed;
+                if (player.boosting) {
+                    currentSpeed *= PLAYER_BOOST_MULTIPLIER;
+                }
+                
+                // Move player downwards (always)
+                player.y += currentSpeed * delta;
+                
+                // Constrain player to map width boundaries
+                player.x = Math.max(player.size, Math.min(map.mapWidth - player.size, player.x));
+                
+                // Update cooldowns (using deltaTime directly now)
+                if (player.boostCooldown > 0) {
+                    player.boostCooldown -= deltaTime;
+                }
+                if (player.weaponCooldown > 0) {
+                    player.weaponCooldown -= deltaTime;
+                }
+                
+                // Create trail particles
+                if (frameCount % 2 === 0) {
+                    createTrailParticle();
+                }
+            }
+            
+            // Update camera position to follow player
+            function updateCamera() {
+                // Camera follows player with some padding, player stays in upper third
+                camera.x = player.x - camera.width / 2;
+                camera.y = player.y - camera.height / 3;
+                
+                // Ensure camera stays within map width bounds
+                camera.x = Math.max(0, Math.min(map.mapWidth - camera.width, camera.x));
+            }
+
+            // Manage terrain generation and cleanup
+            function manageTerrain() {
+                // Generate new terrain if player is far enough down
+                const playerAheadThreshold = camera.y + camera.height + TERRAIN_SPAWN_AHEAD_DISTANCE;
+                if (playerAheadThreshold > map.lastGeneratedY) {
+                    const newChunkStartY = map.lastGeneratedY;
+                    const newChunkEndY = map.lastGeneratedY + TERRAIN_CHUNK_HEIGHT;
+                    generateTerrainChunk(newChunkStartY, newChunkEndY);
+                    map.lastGeneratedY = newChunkEndY;
+                }
+
+                // Remove objects that are far off-screen behind the camera to optimize performance
+                const cleanupThreshold = camera.y - VISIBLE_AREA_PADDING * 2; // Further back for cleanup
+                map.obstacles = map.obstacles.filter(obstacle => 
+                    obstacle.y > cleanupThreshold
+                );
+                map.enemies = map.enemies.filter(enemy => 
+                    enemy.y > cleanupThreshold
+                );
+                map.projectiles = map.projectiles.filter(projectile => 
+                    projectile.y > cleanupThreshold &&
+                    projectile.y < camera.y + camera.height + VISIBLE_AREA_PADDING
+                );
+                map.particles = map.particles.filter(particle => 
+                    particle.y > cleanupThreshold &&
+                    particle.y < camera.y + camera.height + VISIBLE_AREA_PADDING
+                );
+            }
+            
+            // Update projectiles
+            function updateProjectiles(delta) {
+                for (let i = map.projectiles.length - 1; i >= 0; i--) {
+                    const projectile = map.projectiles[i];
+                    
+                    // Move projectile
+                    projectile.x += projectile.vx * delta;
+                    projectile.y += projectile.vy * delta;
+                    
+                    // Remove if out of map width bounds, or too far ahead/behind
+                    if (projectile.x < -projectile.size || projectile.x > map.mapWidth + projectile.size || 
+                        projectile.y < player.y - camera.height || projectile.y > player.y + camera.height * 2) {
+                        map.projectiles.splice(i, 1);
+                        continue; // Skip collision check for removed projectile
+                    }
+                    
+                    // Check for collision with enemies
+                    for (let j = map.enemies.length - 1; j >= 0; j--) {
+                        const enemy = map.enemies[j];
+                        const dx = projectile.x - enemy.x;
+                        const dy = projectile.y - enemy.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < enemy.size + projectile.size) {
+                            // Damage enemy
+                            enemy.health -= WEAPON_DAMAGE;
+                            
+                            // Remove projectile
+                            map.projectiles.splice(i, 1);
+                            
+                            // Create hit effect
+                            createHitEffect(projectile.x, projectile.y);
+                            
+                            // Check if enemy is defeated
+                            if (enemy.health <= 0) {
+                                // Create explosion
+                                createExplosion(enemy.x, enemy.y);
+                                
+                                // Remove enemy
+                                map.enemies.splice(j, 1);
+                                
+                                // Add score
+                                score += 1000;
+                                
+                                // Play sound
+                                playSound('enemyDeath');
+                            } else {
+                                playSound('hit'); // Sound for hitting enemy
+                            }
+                            
+                            break; // Only hit one enemy per projectile
+                        }
+                    }
+                }
+            }
+            
+            // Update enemies
+            function updateEnemies(delta) {
+                for (const enemy of map.enemies) {
+                    // Calculate direction to player
+                    const dx = player.x - enemy.x;
+                    const dy = player.y - enemy.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Only chase if within range (and not too far behind)
+                    if (distance < camera.height * 0.8 && enemy.y < player.y + camera.height * 0.5) { 
+                        const angle = Math.atan2(dy, dx);
+                        
+                        // Gradually turn towards player
+                        const angleDiff = normalizeAngle(angle - enemy.direction);
+                        enemy.direction += angleDiff * 0.05 * delta; // Smoother turning
+                        
+                        // Move enemy
+                        const enemySpeed = player.speed * ENEMY_SPEED_MULTIPLIER;
+                        enemy.x += Math.cos(enemy.direction) * enemySpeed * delta;
+                        enemy.y += Math.sin(enemy.direction) * enemySpeed * delta;
+                        
+                        // Constrain enemy to map width boundaries
+                        enemy.x = Math.max(enemy.size, Math.min(map.mapWidth - enemy.size, enemy.x));
+
+                        // Create enemy trail
+                        if (frameCount % 4 === 0) {
+                            createEnemyTrailParticle(enemy);
+                        }
+                    }
+                }
+            }
+            
+            // Normalize angle to [-PI, PI]
+            function normalizeAngle(angle) {
+                while (angle > Math.PI) angle -= 2 * Math.PI;
+                while (angle < -Math.PI) angle += 2 * Math.PI;
+                return angle;
+            }
+            
+            // Spawn enemy
+            function spawnEnemy() {
+                // Spawn ahead of the player, within viewable range but slightly off-screen
+                const spawnDistanceY = camera.height * 0.7; // Spawn significantly ahead
+                const spawnX = Math.random() * map.mapWidth; // Random X across the map width
+                
+                const enemy = {
+                    x: spawnX,
+                    y: player.y + spawnDistanceY,
+                    direction: Math.PI / 2, // Initially pointing downward
+                    size: ENEMY_SIZE,
+                    speed: player.speed * ENEMY_SPEED_MULTIPLIER,
+                    health: ENEMY_HEALTH,
+                    color: '#f0f'
+                };
+                
+                map.enemies.push(enemy);
+                
+                // Play sound
+                playSound('enemySpawn');
+            }
+            
+            // Update particles
+            function updateParticles(delta) {
+                for (let i = map.particles.length - 1; i >= 0; i--) {
+                    const particle = map.particles[i];
+                    
+                    // Move particle
+                    if (particle.vx !== undefined) {
+                        particle.x += particle.vx * delta;
+                        particle.y += particle.vy * delta;
+                    }
+                    
+                    // Reduce life
+                    particle.life -= delta;
+                    
+                    // Remove if expired
+                    if (particle.life <= 0) {
+                        map.particles.splice(i, 1);
+                    }
+                }
+            }
+            
+            // Create a trail particle behind the player
+            function createTrailParticle() {
+                // Calculate position behind player, slightly varied
+                const angle = player.direction - Math.PI; // Opposite direction of visual angle
+                const distanceOffset = player.size / 2 + Math.random() * player.size/4;
+                
+                const particle = {
+                    x: player.x + Math.cos(angle) * distanceOffset + (Math.random() - 0.5) * 5,
+                    y: player.y + Math.sin(angle) * distanceOffset + (Math.random() - 0.5) * 5,
+                    size: Math.random() * 3 + 2,
+                    color: player.boosting ? 'rgba(255, 0, 255)' : 'rgba(0, 255, 136)',
+                    life: Math.random() * 20 + 20 // Longer lifespan for smoother trails
+                };
+                
+                map.particles.push(particle);
+            }
+            
+            // Create enemy trail particle
+            function createEnemyTrailParticle(enemy) {
+                // Calculate position behind enemy
+                const angle = enemy.direction - Math.PI; // Opposite direction
+                const distance = enemy.size / 2;
+                
+                const particle = {
+                    x: enemy.x + Math.cos(angle) * distance,
+                    y: enemy.y + Math.sin(angle) * distance,
+                    size: Math.random() * 3 + 2,
+                    color: 'rgba(255, 0, 255)',
+                    life: 20
+                };
+                map.particles.push(particle);
+            }
+        
+            // Create explosion effect
+            function createExplosion(x, y) {
+                for (let i = 0; i < 30; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 3 + 1;
+                    
+                    const particle = {
+                        x: x,
+                        y: y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        size: Math.random() * 5 + 3,
+                        color: Math.random() < 0.5 ? 'rgba(255, 0, 255)' : 'rgba(0, 255, 255)',
+                        life: Math.random() * 30 + 20
+                    };
+                    
+                    map.particles.push(particle);
+                }
+            }
+            
+            // Create hit effect for projectile impact
+            function createHitEffect(x, y) {
+                for (let i = 0; i < 8; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 2 + 1;
+                    
+                    const particle = {
+                        x: x,
+                        y: y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        size: Math.random() * 3 + 2,
+                        color: 'rgba(0, 255, 255)',
+                        life: Math.random() * 10 + 10
+                    };
+                    
+                    map.particles.push(particle);
+                }
+            }
+            
+            // Activate boost
+            function activateBoost() {
+                player.boosting = true;
+                player.boostCooldown = PLAYER_BOOST_COOLDOWN;
+                
+                // Create boost effect
+                for (let i = 0; i < 20; i++) {
+                    const angle = player.direction - Math.PI + (Math.random() - 0.5) * 1;
+                    const speed = Math.random() * 3 + 2;
+                    
+                    const particle = {
+                        x: player.x,
+                        y: player.y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        size: Math.random() * 4 + 3,
+                        color: 'rgba(255, 0, 255)',
+                        life: Math.random() * 15 + 15
+                    };
+                    
+                    map.particles.push(particle);
+                }
+                
+                // Disable boost after duration
+                setTimeout(() => {
+                    player.boosting = false;
+                }, PLAYER_BOOST_DURATION);
+                
+                // Play sound
+                playSound('boost');
+            }
+            
+            // Fire weapon
+            function fireWeapon() {
+                // Set cooldown
+                player.weaponCooldown = WEAPON_COOLDOWN;
+                
+                // Create projectile
+                const projectile = {
+                    x: player.x + Math.cos(player.direction) * player.size,
+                    y: player.y + Math.sin(player.direction) * player.size,
+                    vx: Math.cos(player.direction) * WEAPON_SPEED,
+                    vy: Math.sin(player.direction) * WEAPON_SPEED,
+                    size: WEAPON_SIZE,
+                    color: '#0ff'
+                };
+                
+                map.projectiles.push(projectile);
+                
+                // Play sound
+                playSound('fire');
+            }
+            
+            // Filter visible objects for better performance
+            function updateVisibleObjects() {
+                // Calculate visible area with padding
+                const visibleLeft = camera.x - VISIBLE_AREA_PADDING;
+                const visibleRight = camera.x + camera.width + VISIBLE_AREA_PADDING;
+                const visibleTop = camera.y - VISIBLE_AREA_PADDING;
+                const visibleBottom = camera.y + camera.height + VISIBLE_AREA_PADDING;
+                
+                // Filter visible obstacles
+                map.visibleObstacles = map.obstacles.filter(obstacle => 
+                    obstacle.y + obstacle.radius > visibleTop && obstacle.y - obstacle.radius < visibleBottom && 
+                    obstacle.x + obstacle.radius > visibleLeft && obstacle.x - obstacle.radius < visibleRight
+                );
+            }
+
+            // Function to handle player taking damage
+            function takeDamage(amount) {
+                if (player.invincible) return;
+
+                player.health -= amount;
+                playSound('playerHit'); // New sound for player taking damage
+                player.invincible = true;
+                player.invincibleTimer = PLAYER_INVINCIBILITY_DURATION; // 1 second invincibility after hit
+
+                // Create hit particles around player
+                for (let i = 0; i < 10; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 2 + 1;
+                    const particle = {
+                        x: player.x + (Math.random() - 0.5) * player.size,
+                        y: player.y + (Math.random() - 0.5) * player.size,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        size: Math.random() * 4 + 2,
+                        color: 'rgba(255, 0, 0)', // Red for damage
+                        life: Math.random() * 20 + 10
+                    };
+                    map.particles.push(particle);
+                }
+
+                if (player.health <= 0) {
+                    player.health = 0; // Ensure health doesn't go below 0
+                    gameOver();
+                }
+            }
+            
+            // Check for collisions
+            function checkCollisions() {
+                // Player-obstacle collisions
+                // Iterate through visible obstacles only for collision checks
+                for (const obstacle of map.visibleObstacles) {
+                    const dx = player.x - obstacle.x;
+                    const dy = player.y - obstacle.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Collision detected
+                    if (distance < player.size + obstacle.radius) {
+                        // Handle different obstacle types
+                        switch (obstacle.type) {
+                            case 'ramp':
+                                if (obstacle.active) { // Only collect if active
+                                    // Ramps give speed boost
+                                    player.speed += 2;
+                                    setTimeout(() => {
+                                        if (gameRunning) {
+                                            player.speed = Math.max(player.speed - 2, PLAYER_START_SPEED);
+                                        }
+                                    }, 3000);
+                                    
+                                    // Mark as inactive (so it's not collected again)
+                                    obstacle.active = false;
+                                    
+                                    // Add score
+                                    score += 100;
+                                    
+                                    // Create effect
+                                    createExplosion(obstacle.x, obstacle.y);
+                                    
+                                    // Play sound
+                                    playSound('ramp');
+                                }
+                                break;
+                                
+                            case 'powerup':
+                                if (obstacle.active) { // Only collect if active
+                                    // Reset boost cooldown
+                                    player.boostCooldown = 0;
+                                    
+                                    // Mark as inactive
+                                    obstacle.active = false;
+                                    
+                                    // Add score
+                                    score += 200;
+                                    
+                                    // Create effect
+                                    createExplosion(obstacle.x, obstacle.y);
+                                    
+                                    // Play sound
+                                    playSound('powerup');
+                                }
+                                break;
+                                
+                            case 'tree':
+                            case 'rock':
+                                takeDamage(PLAYER_DAMAGE_TAKEN); // Player takes damage
+                                // Knock back player slightly
+                                player.x -= dx * 0.1;
+                                player.y -= dy * 0.1;
+                                player.speed = Math.max(player.speed * 0.8, PLAYER_START_SPEED / 2); // Slow down on hit
+                                break;
+                        }
+                    }
+                }
+                
+                // Player-enemy collisions
+                for (const enemy of map.enemies) {
+                    const dx = player.x - enemy.x;
+                    const dy = player.y - enemy.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < player.size + enemy.size) {
+                        // Player takes damage from enemy collision
+                        takeDamage(ENEMY_DAMAGE);
+                        // Knock back both
+                        player.x -= dx * 0.2;
+                        player.y -= dy * 0.2;
+                        enemy.x += dx * 0.1;
+                        enemy.y += dy * 0.1;
+                        player.speed = Math.max(player.speed * 0.7, PLAYER_START_SPEED / 2); // Slow down on hit
+                    }
+                }
+            }
+            
+            // Game over
+            function gameOver() {
+                // Create explosion effect
+                createExplosion(player.x, player.y);
+                
+                // Play sound
+                playSound('gameOver');
+                
+                // Stop the game
+                gameRunning = false;
+                
+                // Update high score
+                if (score > currentHighScore) {
+                    currentHighScore = Math.floor(score);
+                    localStorage.setItem('cyberSkiHighScore', currentHighScore.toString());
+                }
+
+                // Show game over screen
+                elements.gameOverScreen.classList.remove('hidden');
+                elements.finalScore.textContent = Math.floor(score);
+                elements.gameOverHighScore.textContent = currentHighScore;
+            }
+            
+            // Toggle pause
+            function togglePause() {
+                gamePaused = !gamePaused;
+                
+                if (gamePaused) {
+                    elements.pauseScreen.classList.remove('hidden');
+                    playSound('button');
+                } else {
+                    elements.pauseScreen.classList.add('hidden');
+                    playSound('button');
+                    
+                    // Reset time to avoid huge delta on resume
+                    lastTime = performance.now();
+                }
+            }
+            
+            // Resume the game
+            function resumeGame() {
+                gamePaused = false;
+                elements.pauseScreen.classList.add('hidden');
+                playSound('button');
+                
+                // Reset time to avoid huge delta on resume
+                lastTime = performance.now();
+            }
+            
+            // Quit the game
+            function quitGame() {
+                gameRunning = false;
+                gamePaused = false;
+                elements.pauseScreen.classList.add('hidden');
+                elements.startScreen.classList.remove('hidden');
+                elements.highScore.textContent = currentHighScore; // Update high score on start screen
+                playSound('button');
+            }
+            
+            // Render the game
+            function render() {
+                // Clear the canvas
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw grid
+                drawGrid();
+                
+                // Draw obstacles
+                drawObstacles();
+                
+                // Draw player (with invincibility flicker)
+                if (player.invincible && (frameCount % 10 < 5)) {
+                    // Skip drawing to create flicker effect during invincibility
+                } else {
+                    drawPlayer();
+                }
+                
+                // Draw enemies
+                drawEnemies();
+                
+                // Draw projectiles
+                drawProjectiles();
+                
+                // Draw particles
+                drawParticles();
+                
+                // Draw HUD
+                drawHUD();
+                
+                // Draw scanner line effect
+                drawScannerLine();
+                
+                // Draw vignette effect
+                drawVignette();
+            }
+            
+            // Draw grid
+            function drawGrid() {
+                // Calculate grid offset based on camera position
+                const offsetX = -camera.x % GRID_SIZE;
+                const offsetY = -camera.y % GRID_SIZE;
+                
+                // Draw vertical lines
+                for (let x = offsetX; x < canvas.width; x += GRID_SIZE) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, canvas.height);
+                    ctx.strokeStyle = GRID_COLOR;
+                    ctx.stroke();
+                }
+                
+                // Draw horizontal lines
+                for (let y = offsetY; y < canvas.height; y += GRID_SIZE) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(canvas.width, y);
+                    ctx.strokeStyle = GRID_COLOR;
+                    ctx.stroke();
+                }
+            }
+            
+            // Draw obstacles
+            function drawObstacles() {
+                for (const obstacle of map.visibleObstacles) {
+                    // Convert world coordinates to screen coordinates
+                    const screenX = obstacle.x - camera.x;
+                    const screenY = obstacle.y - camera.y;
+                    
+                    // Draw obstacle based on type
+                    switch (obstacle.type) {
+                        case 'tree':
+                            drawTree(screenX, screenY, obstacle.radius);
+                            break;
+                        case 'rock':
+                            drawRock(screenX, screenY, obstacle.radius);
+                            break;
+                        case 'ramp':
+                            drawRamp(screenX, screenY, obstacle.radius, obstacle.active);
+                            break;
+                        case 'powerup':
+                            drawPowerup(screenX, screenY, obstacle.radius, obstacle.active);
+                            break;
+                    }
+                }
+            }
+            
+            // Draw tree (with minor variations)
+            function drawTree(x, y, radius) {
+                // Tree trunk
+                ctx.fillStyle = '#f0f';
+                ctx.beginPath();
+                ctx.rect(x - radius/4, y - radius, radius/2, radius);
+                ctx.fill();
+                ctx.strokeStyle = '#0ff';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                // Tree top (slightly randomized shape)
+                ctx.fillStyle = '#0f8';
+                ctx.beginPath();
+                ctx.moveTo(x, y - radius * 2 - Math.random() * 3);
+                ctx.lineTo(x - radius - Math.random() * 2, y - radius + Math.random() * 2);
+                ctx.lineTo(x - radius/2, y - radius);
+                ctx.lineTo(x - radius + Math.random() * 2, y - radius/2 - Math.random() * 3);
+                ctx.lineTo(x - radius/2, y - radius/2);
+                ctx.lineTo(x, y - radius);
+                ctx.lineTo(x + radius/2, y - radius/2);
+                ctx.lineTo(x + radius, y - radius/2 - Math.random() * 3);
+                ctx.lineTo(x + radius/2, y - radius);
+                ctx.lineTo(x + radius + Math.random() * 2, y - radius + Math.random() * 2);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = '#f0f';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                // Glow effect
+                ctx.shadowColor = '#0f8';
+                ctx.shadowBlur = 5;
+                ctx.beginPath();
+                ctx.arc(x, y - radius, radius, 0, Math.PI * 2);
+                ctx.strokeStyle = '#0f8';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+            
+            // Draw rock (with minor variations)
+            function drawRock(x, y, radius) {
+                ctx.fillStyle = '#447';
+                ctx.beginPath();
+                ctx.moveTo(x, y - radius);
+                ctx.lineTo(x - radius, y - radius/2 + Math.random() * 2);
+                ctx.lineTo(x - radius/2 + Math.random() * 2, y);
+                ctx.lineTo(x + radius/2 - Math.random() * 2, y);
+                ctx.lineTo(x + radius, y - radius/2 + Math.random() * 2);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.strokeStyle = '#0ff';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                // Glow effect
+                ctx.shadowColor = '#0ff';
+                ctx.shadowBlur = 5;
+                ctx.beginPath();
+                ctx.arc(x, y - radius/2, radius, 0, Math.PI * 2);
+                ctx.strokeStyle = '#0ff';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+            
+            // Draw ramp (fades when collected)
+            function drawRamp(x, y, radius, active) {
+                ctx.save();
+                ctx.globalAlpha = active ? 1 : 0.3; // Fade if collected
+
+                ctx.fillStyle = '#0ff';
+                ctx.beginPath();
+                ctx.moveTo(x, y - radius);
+                ctx.lineTo(x - radius, y);
+                ctx.lineTo(x + radius, y);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.strokeStyle = '#f0f';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                // Glow effect
+                ctx.shadowColor = '#0ff';
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.arc(x, y - radius/2, radius, 0, Math.PI * 2);
+                ctx.strokeStyle = '#0ff';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                ctx.restore();
+            }
+            
+            // Draw powerup (fades when collected)
+            function drawPowerup(x, y, radius, active) {
+                ctx.save();
+                ctx.globalAlpha = active ? 1 : 0.3; // Fade if collected
+
+                ctx.fillStyle = '#f0f';
+                
+                // Pulsating size for effect
+                const pulseAmount = Math.sin(frameCount * 0.1) * 2;
+                const currentRadius = radius + pulseAmount;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, currentRadius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.strokeStyle = '#0ff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Draw lightning bolt inside
+                ctx.fillStyle = '#0ff';
+                ctx.beginPath();
+                ctx.moveTo(x, y - radius/2);
+                ctx.lineTo(x + radius/3, y);
+                ctx.lineTo(x, y + radius/3);
+                ctx.lineTo(x, y + radius/2);
+                ctx.lineTo(x - radius/3, y);
+                ctx.lineTo(x, y - radius/3);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Glow effect
+                ctx.shadowColor = '#f0f';
+                ctx.shadowBlur = 15;
+                ctx.beginPath();
+                ctx.arc(x, y, currentRadius, 0, Math.PI * 2);
+                ctx.strokeStyle = '#f0f';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                ctx.restore();
+            }
+            
+            // Draw player
+            function drawPlayer() {
+                // Convert world coordinates to screen coordinates
+                const screenX = player.x - camera.x;
+                const screenY = player.y - camera.y;
+                
+                // Save context for rotation
+                ctx.save();
+                ctx.translate(screenX, screenY);
+                ctx.rotate(player.direction);
+                
+                // Draw player body
+                ctx.fillStyle = player.color;
+                ctx.beginPath();
+                ctx.moveTo(0, -player.size);
+                ctx.lineTo(-player.size / 2, player.size / 2);
+                ctx.lineTo(player.size / 2, player.size / 2);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Draw outline
+                ctx.strokeStyle = '#f0f';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                // Draw skis
+                ctx.fillStyle = '#0f8';
+                ctx.fillRect(-player.size, player.size / 2, player.size / 2, player.size / 8);
+                ctx.fillRect(player.size / 2, player.size / 2, player.size / 2, player.size / 8);
+                
+                // Draw boost effect if boosting
+                if (player.boosting) {
+                    ctx.fillStyle = '#f0f';
+                    ctx.beginPath();
+                    ctx.moveTo(-player.size / 4, player.size / 2);
+                    ctx.lineTo(player.size / 4, player.size / 2);
+                    ctx.lineTo(0, player.size * 2);
+                    ctx.closePath();
+                    ctx.fill();
+                    
+                    // Glow effect
+                    ctx.shadowColor = '#f0f';
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.moveTo(-player.size / 4, player.size / 2);
+                    ctx.lineTo(player.size / 4, player.size / 2);
+                    ctx.lineTo(0, player.size * 2);
+                    ctx.closePath();
+                    ctx.strokeStyle = '#f0f';
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+                }
+                
+                // Restore context
+                ctx.restore();
+                
+                // Add glow effect
+                ctx.shadowColor = player.color;
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, player.size, 0, Math.PI * 2);
+                ctx.strokeStyle = player.color;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+            
+            // Draw enemies
+            function drawEnemies() {
+                for (const enemy of map.enemies) {
+                    // Skip if not in view (optimization, also done by filtering in updateVisibleObjects)
+                    const screenX = enemy.x - camera.x;
+                    const screenY = enemy.y - camera.y;
+
+                    if (screenX + enemy.size < 0 || screenX - enemy.size > canvas.width ||
+                        screenY + enemy.size < 0 || screenY - enemy.size > canvas.height) {
+                        continue;
+                    }
+                    
+                    // Save context for rotation
+                    ctx.save();
+                    ctx.translate(screenX, screenY);
+                    ctx.rotate(enemy.direction);
+                    
+                    // Draw enemy body
+                    ctx.fillStyle = enemy.color;
+                    ctx.beginPath();
+                    ctx.rect(-enemy.size / 2, -enemy.size / 2, enemy.size, enemy.size);
+                    ctx.fill();
+                    
+                    // Draw outline
+                    ctx.strokeStyle = '#0ff';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    
+                    // Draw visor
+                    ctx.fillStyle = '#0f8';
+                    ctx.beginPath();
+                    ctx.rect(-enemy.size / 3, -enemy.size / 3, enemy.size * 2/3, enemy.size / 6);
+                    ctx.fill();
+                    
+                    // Draw arms
+                    ctx.fillStyle = enemy.color;
+                    ctx.fillRect(-enemy.size * 0.8, -enemy.size / 4, enemy.size / 4, enemy.size / 2);
+                    ctx.fillRect(enemy.size * 0.55, -enemy.size / 4, enemy.size / 4, enemy.size / 2);
+                    
+                    // Draw weapon
+                    ctx.fillStyle = '#0ff';
+                    ctx.fillRect(enemy.size * 0.7, enemy.size / 4, enemy.size / 2, enemy.size / 10);
+                    
+                    // Restore context
+                    ctx.restore();
+                    
+                    // Draw health bar
+                    const healthBarWidth = enemy.size * 2;
+                    const healthBarHeight = 4;
+                    const healthPercent = enemy.health / ENEMY_HEALTH;
+                    
+                    ctx.fillStyle = 'rgba(255, 0, 255, 0.5)';
+                    ctx.fillRect(screenX - healthBarWidth / 2, screenY - enemy.size - 10, healthBarWidth, healthBarHeight);
+                    
+                    ctx.fillStyle = '#f0f';
+                    ctx.fillRect(screenX - healthBarWidth / 2, screenY - enemy.size - 10, healthBarWidth * healthPercent, healthBarHeight);
+                    
+                    // Add glow effect
+                    ctx.shadowColor = enemy.color;
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY, enemy.size, 0, Math.PI * 2);
+                    ctx.strokeStyle = enemy.color;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+                }
+            }
+            
+            // Draw projectiles
+            function drawProjectiles() {
+                for (const projectile of map.projectiles) {
+                    // Skip if not in view (optimization)
+                    const screenX = projectile.x - camera.x;
+                    const screenY = projectile.y - camera.y;
+
+                    if (screenX + projectile.size < 0 || screenX - projectile.size > canvas.width ||
+                        screenY + projectile.size < 0 || screenY - projectile.size > canvas.height) {
+                        continue;
+                    }
+                    
+                    // Draw projectile
+                    ctx.fillStyle = projectile.color;
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY, projectile.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Add glow effect
+                    ctx.shadowColor = projectile.color;
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY, projectile.size * 1.5, 0, Math.PI * 2);
+                    ctx.strokeStyle = projectile.color;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+                }
+            }
+            
+            // Draw particles
+            function drawParticles() {
+                for (const particle of map.particles) {
+                    // Skip if not in view (optimization)
+                    const screenX = particle.x - camera.x;
+                    const screenY = particle.y - camera.y;
+
+                    if (screenX + particle.size < 0 || screenX - particle.size > canvas.width ||
+                        screenY + particle.size < 0 || screenY - particle.size > canvas.height) {
+                        continue;
+                    }
+                    
+                    // Calculate opacity based on life
+                    const opacity = particle.life / PARTICLE_LIFESPAN;
+                    
+                    // Draw particle
+                    ctx.fillStyle = particle.color.replace(')', `, ${opacity})`).replace('rgb', 'rgba');
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY, particle.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            
+            // Draw HUD
+            function drawHUD() {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(10, 10, 200, 110); // Increased height for health
+                ctx.strokeStyle = '#0f8';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(10, 10, 200, 110);
+                
+                ctx.font = '16px Orbitron';
+                ctx.fillStyle = '#0f8';
+                ctx.fillText(`SCORE: ${Math.floor(score)}`, 20, 35);
+                ctx.fillText(`DISTANCE: ${Math.floor(distance)}m`, 20, 60);
+                ctx.fillText(`SPEED: ${Math.floor(player.speed * 10)}km/h`, 20, 85);
+                
+                // Draw Health Bar
+                const healthBarWidth = 180;
+                const healthBarHeight = 15;
+                const healthPercent = player.health / PLAYER_MAX_HEALTH;
+                
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.5)'; // Background for health bar
+                ctx.fillRect(20, 100, healthBarWidth, healthBarHeight);
+                
+                ctx.fillStyle = '#0f8'; // Health fill color
+                ctx.fillRect(20, 100, healthBarWidth * healthPercent, healthBarHeight);
+                
+                ctx.strokeStyle = '#0ff'; // Health bar border
+                ctx.lineWidth = 1;
+                ctx.strokeRect(20, 100, healthBarWidth, healthBarHeight);
+
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px Orbitron';
+                ctx.fillText('HEALTH', 25, 111);
+                ctx.fillText(`${player.health}/${PLAYER_MAX_HEALTH}`, 20 + healthBarWidth - 50, 111);
+            
+                // Draw cooldown indicators
+                const boostCooldownWidth = 150;
+                const weaponCooldownWidth = 150;
+                
+                // Boost cooldown
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(canvas.width - boostCooldownWidth - 20, 10, boostCooldownWidth, 20);
+                ctx.strokeStyle = '#f0f';
+                ctx.strokeRect(canvas.width - boostCooldownWidth - 20, 10, boostCooldownWidth, 20);
+                
+                if (player.boostCooldown > 0) {
+                    const cooldownPercent = 1 - (player.boostCooldown / PLAYER_BOOST_COOLDOWN);
+                    ctx.fillStyle = 'rgba(255, 0, 255, 0.5)';
+                    ctx.fillRect(canvas.width - boostCooldownWidth - 20, 10, boostCooldownWidth * cooldownPercent, 20);
+                } else {
+                    ctx.fillStyle = '#f0f';
+                    ctx.fillRect(canvas.width - boostCooldownWidth - 20, 10, boostCooldownWidth, 20);
+                }
+                
+                ctx.fillStyle = '#fff';
+                ctx.fillText('BOOST', canvas.width - boostCooldownWidth + 50, 25);
+                
+                // Weapon cooldown
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(canvas.width - weaponCooldownWidth - 20, 40, weaponCooldownWidth, 20);
+                ctx.strokeStyle = '#0ff';
+                ctx.strokeRect(canvas.width - weaponCooldownWidth - 20, 40, weaponCooldownWidth, 20);
+                
+                if (player.weaponCooldown > 0) {
+                    const cooldownPercent = 1 - (player.weaponCooldown / WEAPON_COOLDOWN);
+                    ctx.fillStyle = 'rgba(0, 255, 255, 0.5)';
+                    ctx.fillRect(canvas.width - weaponCooldownWidth - 20, 40, weaponCooldownWidth * cooldownPercent, 20);
+                } else {
+                    ctx.fillStyle = '#0ff';
+                    ctx.fillRect(canvas.width - weaponCooldownWidth - 20, 40, weaponCooldownWidth, 20);
+                }
+                
+                ctx.fillStyle = '#fff';
+                ctx.fillText('WEAPON', canvas.width - weaponCooldownWidth + 50, 55);
+                
+                // Minimap
+                const minimapSize = 150;
+                const minimapScale = minimapSize / map.mapWidth; // Scale based on fixed map width
+                
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(canvas.width - minimapSize - 10, canvas.height - minimapSize - 10, minimapSize, minimapSize);
+                ctx.strokeStyle = '#0f8';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(canvas.width - minimapSize - 10, canvas.height - minimapSize - 10, minimapSize, minimapSize);
+                
+                // Draw player on minimap
+                const playerMinimapX = (player.x * minimapScale);
+                // Map the player's Y position within the minimap's dynamic view
+                const minimapPlayerY = ((player.y - camera.y + minimapSize/2) * minimapScale) % minimapSize; 
+                
+                ctx.fillStyle = '#0ff';
+                ctx.beginPath();
+                ctx.arc(canvas.width - minimapSize - 10 + playerMinimapX, canvas.height - minimapSize - 10 + minimapPlayerY, 3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw visible enemies on minimap
+                for (const enemy of map.enemies) {
+                    const enemyMinimapX = (enemy.x * minimapScale);
+                    const minimapEnemyY = ((enemy.y - camera.y + minimapSize/2) * minimapScale) % minimapSize; 
+                    
+                    ctx.fillStyle = '#f0f';
+                    ctx.beginPath();
+                    ctx.arc(canvas.width - minimapSize - 10 + enemyMinimapX, canvas.height - minimapSize - 10 + minimapEnemyY, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Draw obstacles on minimap (small dots)
+                for (const obstacle of map.visibleObstacles) {
+                    const obstacleMinimapX = (obstacle.x * minimapScale);
+                    const minimapObstacleY = ((obstacle.y - camera.y + minimapSize/2) * minimapScale) % minimapSize;
+                    
+                    ctx.fillStyle = obstacle.color;
+                    ctx.beginPath();
+                    ctx.arc(canvas.width - minimapSize - 10 + obstacleMinimapX, canvas.height - minimapSize - 10 + minimapObstacleY, 1, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            
+            // Draw scanner line effect
+            function drawScannerLine() {
+                // Calculate scanner position based on time
+                const scannerPos = (frameCount * 0.8 % canvas.height); // Smoother, slower scan
+                
+                ctx.fillStyle = 'rgba(0, 255, 136, 0.1)';
+                ctx.fillRect(0, scannerPos, canvas.width, 4);
+            }
+            
+            // Draw vignette effect
+            function drawVignette() {
+                const gradient = ctx.createRadialGradient(
+                    canvas.width / 2, canvas.height / 2, canvas.height / 3,
+                    canvas.width / 2, canvas.height / 2, canvas.height
+                );
+                
+                gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+                gradient.addColorStop(1, 'rgba(0, 0, 0, 0.7)');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Add scan lines
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+                for (let y = 0; y < canvas.height; y += 4) {
+                    ctx.fillRect(0, y, canvas.width, 1);
+                }
+                
+                // Add subtle cyberpunk grid overlay
+                if (frameCount % 10 === 0) {
+                    ctx.fillStyle = 'rgba(0, 255, 136, 0.01)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+            
+            // Audio functions
+            function initAudio() {
+                try {
+                    // Create audio context
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    
+                    // Define sound effects
+                    soundEffects = {
+                        button: {
+                            type: 'sine',
+                            frequency: [800, 1200],
+                            duration: 0.1,
+                            gain: 0.2
+                        },
+                        boost: {
+                            type: 'square',
+                            frequency: [400, 800],
+                            duration: 0.3,
+                            gain: 0.2
+                        },
+                        fire: {
+                            type: 'sawtooth',
+                            frequency: [600, 800],
+                            duration: 0.1, // Shorter for rapid fire
+                            gain: 0.15
+                        },
+                        hit: { // For projectile hitting enemy
+                            type: 'square',
+                            frequency: [300, 150],
+                            duration: 0.1,
+                            gain: 0.1
+                        },
+                        playerHit: { // For player taking damage
+                            type: 'triangle',
+                            frequency: [100, 50],
+                            duration: 0.2,
+                            gain: 0.3
+                        },
+                        enemySpawn: {
+                            type: 'sine',
+                            frequency: [100, 300],
+                            duration: 0.5,
+                            gain: 0.3
+                        },
+                        enemyDeath: {
+                            type: 'sawtooth',
+                            frequency: [300, 50],
+                            duration: 0.5,
+                            gain: 0.3
+                        },
+                        gameOver: {
+                            type: 'sawtooth',
+                            frequency: [400, 100],
+                            duration: 1,
+                            gain: 0.3
+                        },
+                        powerup: {
+                            type: 'sine',
+                            frequency: [600, 1200],
+                            duration: 0.3,
+                            gain: 0.25
+                        },
+                        ramp: {
+                            type: 'square',
+                            frequency: [200, 600],
+                            duration: 0.3,
+                            gain: 0.2
+                        }
+                    };
+                } catch (error) {
+                    console.error('Audio initialization failed:', error);
+                }
+            }
+            function playSound(soundName) {
+                try {
+                    if (!audioContext || audioContext.state === 'suspended') {
+                        // Attempt to resume audio context on first user interaction
+                        if (audioContext && audioContext.state === 'suspended') {
+                            audioContext.resume().then(() => {
+                                console.log('AudioContext resumed!');
+                                // Try playing the sound again after resuming
+                                playSound(soundName); 
+                            });
+                        }
+                        return;
+                    }
+                    
+                    const sound = soundEffects[soundName];
+                    if (!sound) return;
+                    
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    
+                    oscillator.type = sound.type;
+                    oscillator.frequency.setValueAtTime(sound.frequency[0], audioContext.currentTime);
+                    oscillator.frequency.exponentialRampToValueAtTime(
+                        sound.frequency[1], 
+                        audioContext.currentTime + sound.duration
+                    );
+                    
+                    gainNode.gain.setValueAtTime(sound.gain, audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(
+                        0.01, // Ramp down to near zero
+                        audioContext.currentTime + sound.duration
+                    );
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    oscillator.start();
+                    oscillator.stop(audioContext.currentTime + sound.duration);
+                } catch (error) {
+                    console.error('Sound playback failed:', error);
+                }
+            }
+            
+            // Initialize the game
+            init();
+        });
+    </script>
+</body>
+</html>
