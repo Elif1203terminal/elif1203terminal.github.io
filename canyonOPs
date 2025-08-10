@@ -1,0 +1,423 @@
+r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CanyonNet // ParkOps — Grand Canyon Employee Social</title>
+<meta name="description" content="Grand Canyon employee/resident social UI. Park-ops theme with topo lines. Live weather & alerts. Mobile-first." />
+<style>
+/* =====================================================
+   PARKOPS THEME — earth palette + topo lines + signage
+   ===================================================== */
+:root{
+  /* Palette inspired by canyon strata and park signage (no trademark usage) */
+  --sky: #e9f4ff;
+  --sage: #7aa17b;
+  --juniper: #2f4f3a;
+  --sand: #e6d7c3;
+  --canyon: #a04b2a;
+  --canyon-deep:#6d2e1a;
+  --basalt:#1f2523;
+  --paper:#f8f6f1;
+
+  --bg:#f5f3ed;              /* daylight */
+  --bg-2:#ece8df;
+  --fg:#1b2320;
+  --muted:#4c6359;
+  --term:#ffffff;
+  --border: rgba(0,0,0,.12);
+  --accent1:#2f4f3a;         /* juniper */
+  --accent2:#a04b2a;         /* canyon */
+  --accent3:#3b6ba5;         /* sky */
+  --ok:#2f9e44; --warn:#b08900; --err:#c92a2a;
+
+  --elev: rgba(45,63,53,.06); /* topo line color */
+  --glow: 0 0 0 transparent; /* minimal glow in daylight */
+}
+
+[data-theme="night"]{
+  --bg:#101413;
+  --bg-2:#0e1412;
+  --fg:#e9f4ef;
+  --muted:#a8b5ae;
+  --term:#0f1413;
+  --border: rgba(255,255,255,.12);
+  --accent1:#9ad9b4; --accent2:#ff9c6f; --accent3:#8cc2ff;
+  --elev: rgba(200,220,210,.06);
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; color:var(--fg);
+  font: 15.5px/1.6 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
+  background: linear-gradient(180deg, var(--bg), var(--bg-2));
+  overflow-x:hidden;
+}
+
+/* Topographic line field (SVG pattern) */
+body::before{
+  content:""; position:fixed; inset:0; pointer-events:none; opacity:.45;
+  background-image: url('data:image/svg+xml;utf8,\
+  <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"320\" height=\"320\" viewBox=\"0 0 320 320\">\
+    <defs><filter id=\"s\" x=\"-20%\" y=\"-20%\" width=\"140%\" height=\"140%\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.006\" numOctaves=\"3\" seed=\"7\"/><feColorMatrix type=\"saturate\" values=\"0\"/></filter></defs>\
+    <rect width=\"100%\" height=\"100%\" fill=\"none\"/>\
+    <g filter=\"url(%23s)\" opacity=\"0.7\">\
+      <path d=\"M0 40 C80 60, 240 20, 320 40\" fill=\"none\" stroke=\"%23a3b2ac\" stroke-width=\"0.8\" opacity=\"0.35\"/>\
+      <path d=\"M0 80 C80 100, 240 60, 320 80\" fill=\"none\" stroke=\"%23a3b2ac\" stroke-width=\"0.8\" opacity=\"0.35\"/>\
+      <path d=\"M0 120 C80 140, 240 100, 320 120\" fill=\"none\" stroke=\"%23a3b2ac\" stroke-width=\"0.8\" opacity=\"0.35\"/>\
+      <path d=\"M0 160 C80 180, 240 140, 320 160\" fill=\"none\" stroke=\"%23a3b2ac\" stroke-width=\"0.8\" opacity=\"0.35\"/>\
+      <path d=\"M0 200 C80 220, 240 180, 320 200\" fill=\"none\" stroke=\"%23a3b2ac\" stroke-width=\"0.8\" opacity=\"0.35\"/>\
+      <path d=\"M0 240 C80 260, 240 220, 320 240\" fill=\"none\" stroke=\"%23a3b2ac\" stroke-width=\"0.8\" opacity=\"0.35\"/>\
+      <path d=\"M0 280 C80 300, 240 260, 320 280\" fill=\"none\" stroke=\"%23a3b2ac\" stroke-width=\"0.8\" opacity=\"0.35\"/>\
+    </g>\
+  </svg>');
+  background-size: 360px 360px;
+}
+
+/* Sun capsule (subtle) */
+.sun{ position:fixed; width:140px; height:140px; border-radius:50%; right:6vw; top:6vh; background:radial-gradient(circle at 30% 30%, #fff8, #fff0), radial-gradient(circle at 60% 70%, var(--sky), transparent 60%); opacity:.55; pointer-events:none; }
+
+/* NAV — park signage look */
+.nav{ position:fixed; inset:0 0 auto 0; height:60px; display:flex; align-items:center; gap:12px; padding:0 16px; z-index:50; border-bottom:1px solid var(--border); background: color-mix(in oklab, var(--bg-2) 88%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.brand{ display:flex; align-items:center; gap:12px; font-weight:900; letter-spacing:.04em; color:var(--accent1) }
+.brand .marker{ width:18px; height:18px; border-radius:4px; background:linear-gradient(135deg, var(--canyon), var(--canyon-deep)); box-shadow: inset 0 0 0 2px rgba(0,0,0,.08) }
+.tabs{ display:flex; gap:6px; margin-left:10px }
+.tab{ border:1px solid var(--border); background:linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.65)); color:var(--fg); border-radius:10px; padding:8px 10px; font-weight:700; cursor:pointer }
+[data-theme="night"] .tab{ background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); }
+.tab[aria-current="page"]{ outline:2px solid color-mix(in oklab, var(--accent3) 45%, transparent) }
+.spacer{flex:1}
+.btn{ appearance:none; border:1px solid var(--border); background:linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.6)); color:var(--fg); border-radius:12px; padding:8px 12px; font-weight:800; cursor:pointer }
+[data-theme="night"] .btn{ background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); color:var(--fg) }
+.btn:hover{ border-color: color-mix(in oklab, var(--accent1) 45%, var(--border)) }
+
+/* LAYOUT */
+.main{ display:grid; grid-template-columns: 1fr; gap:16px; padding: 80px 16px 84px; max-width:1120px; margin:0 auto; position:relative; z-index:1 }
+@media (min-width:980px){ .main{ grid-template-columns: 300px 1fr 320px } }
+
+/* PANELS */
+.panel{ border:1px solid var(--border); border-radius:14px; background: var(--term); box-shadow: 0 10px 36px rgba(0,0,0,.08) }
+.panel header{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--border); font-weight:900; letter-spacing:.04em; color:var(--accent2) }
+.panel .body{ padding:12px 14px }
+.badge{ display:inline-flex; align-items:center; gap:8px; font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid var(--border); background:color-mix(in oklab, var(--sand) 40%, transparent) }
+[data-theme="night"] .badge{ background:rgba(255,255,255,.04) }
+.spark{ width:10px; height:10px; border-radius:50%; background: radial-gradient(circle at 30% 30%, var(--accent1), var(--accent3)); }
+
+/* COMPOSER */
+.composer{ display:grid; gap:10px }
+.composer textarea{ width:100%; min-height:86px; resize:vertical; border:1px solid var(--border); background:color-mix(in oklab, var(--paper) 70%, transparent); color:var(--fg); padding:10px 12px; border-radius:12px; outline: none; }
+.composer .row{ display:flex; gap:10px; align-items:center; justify-content:space-between }
+.pill{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid var(--border); border-radius:999px; background:color-mix(in oklab, var(--sand) 40%, transparent); font-size:12px }
+[data-theme="night"] .pill{ background:rgba(255,255,255,.04) }
+
+/* FEED */
+.post{ display:grid; grid-template-columns: 44px 1fr; gap:12px; padding:12px 14px; border-top:1px dashed var(--border) }
+.avi{ width:44px; height:44px; border-radius:8px; background:linear-gradient(180deg, var(--sage), var(--juniper)); }
+.handle{ font-weight:900 }
+.meta{ color:var(--muted); font-size:12px }
+.post .text{ white-space:pre-wrap; word-break:break-word }
+.post .media{ margin-top:10px; border:1px solid var(--border); border-radius:12px; overflow:hidden }
+.actions{ display:flex; gap:10px; margin-top:8px }
+.icon-btn{ border:1px solid var(--border); background:color-mix(in oklab, var(--paper) 60%, transparent); color:var(--fg); border-radius:10px; padding:6px 8px; font-weight:800; cursor:pointer }
+[data-theme="night"] .icon-btn{ background:rgba(255,255,255,.04) }
+
+/* SIDEBAR WIDGETS */
+.widget{ padding:12px 14px }
+.kv{ display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px dashed var(--border); font-size:13px }
+.tag{ display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid var(--border); background:color-mix(in oklab, var(--sand) 40%, transparent) }
+.small{ font-size:12px; color:var(--muted); }
+
+/* Command palette */
+.palette{ position:fixed; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.25); backdrop-filter:blur(8px); z-index:80; opacity:0; pointer-events:none; transition:opacity .15s ease }
+.palette.open{ opacity:1; pointer-events:auto }
+.palette .panel{ width:min(780px, 92vw) }
+.palette input{ width:100%; padding:16px; border:0; outline:0; background:var(--term); color:var(--fg) }
+.result{ padding:12px 16px; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; cursor:pointer }
+
+/* Reveal */
+.reveal{ opacity:0; transform:translateY(10px) scale(.985); filter:blur(2px); transition:opacity .45s ease, transform .45s ease, filter .45s ease }
+.reveal.in{ opacity:1; transform:translateY(0) scale(1); filter:blur(0) }
+
+/* Footer + fabs */
+footer{ text-align:center; color:var(--muted); padding:34px 12px 80px }
+.fabs{ position:fixed; right:14px; bottom:14px; display:grid; gap:10px; z-index:70 }
+.fab{ border:1px solid var(--border); background:linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.6)); color:var(--fg); border-radius:999px; padding:12px 14px; font-weight:800 }
+[data-theme="night"] .fab{ background:linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.04)); color:var(--fg) }
+.kbd{ display:inline-block; border:1px solid var(--border); border-radius:6px; padding:2px 6px; margin:0 4px; font-size:12px; background:color-mix(in oklab, var(--paper) 60%, transparent) }
+[data-theme="night"] .kbd{ background:rgba(255,255,255,.04) }
+
+/* Reduce motion */
+@media (prefers-reduced-motion: reduce){ *{animation:none!important; transition:none!important} }
+</style>
+</head>
+<body>
+<div class="sun" aria-hidden></div>
+
+<nav class="nav" role="navigation" aria-label="Primary">
+  <div class="brand"><span class="marker"></span><span>CANYON.NET / ParkOps</span></div>
+  <div class="tabs" role="tablist">
+    <button class="tab" aria-current="page">Home</button>
+    <button class="tab">Explore</button>
+    <button class="tab">Crews</button>
+    <button class="tab">Marketplace</button>
+    <button class="tab">Shifts</button>
+  </div>
+  <div class="spacer"></div>
+  <button id="btnTheme" class="btn" title="Toggle Day/Night (T)">Day/Night</button>
+  <button id="btnPalette" class="btn" title="Command Palette (Ctrl/⌘+K)">⌘K</button>
+</nav>
+
+<main class="main" id="app">
+  <!-- LEFT SIDEBAR -->
+  <aside class="panel reveal" aria-label="Left Sidebar">
+    <header><span class="badge"><span class="spark"></span> DASH</span> Canyon Console</header>
+    <div class="body">
+      <div class="kv"><span>Session</span><strong>Placeholder</strong></div>
+      <div class="kv"><span>Role</span><strong>Placeholder</strong></div>
+      <div class="kv"><span>Company</span><strong>Placeholder</strong></div>
+      <div class="kv"><span>Area</span><strong>South Rim (Placeholder)</strong></div>
+      <div class="kv"><span>Status</span><strong class="tag">Placeholder</strong></div>
+      <div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:8px">
+        <span class="tag">Xanterra</span>
+        <span class="tag">Delaware North</span>
+        <span class="tag">NPS</span>
+        <span class="tag">Forever Resorts</span>
+        <span class="tag">Hualapai</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- FEED COLUMN -->
+  <section class="reveal">
+    <!-- Composer -->
+    <article class="panel" aria-label="Composer">
+      <header><span class="badge"><span class="spark"></span> POST</span> Share with the Canyon</header>
+      <div class="body composer">
+        <textarea placeholder="Placeholder — What's happening on your rim, trail, or shift?"></textarea>
+        <div class="row">
+          <div style="display:flex; gap:8px; flex-wrap:wrap">
+            <span class="pill">Add Photo</span>
+            <span class="pill">Add Video</span>
+            <span class="pill">Check-in</span>
+            <span class="pill">Shift Swap</span>
+          </div>
+          <button class="btn">Post</button>
+        </div>
+      </div>
+    </article>
+
+    <!-- Feed -->
+    <article class="panel" aria-label="Timeline">
+      <header><span class="badge"><span class="spark"></span> FEED</span> South Rim — Live</header>
+      <div class="post" aria-live="polite">
+        <div class="avi" aria-hidden></div>
+        <div>
+          <div class="handle">@HelloWorld <span class="meta">· Placeholder</span></div>
+          <div class="text">Placeholder — First post. Replace with live content pulled from API later.</div>
+          <div class="actions">
+            <button class="icon-btn">Like</button>
+            <button class="icon-btn">Repost</button>
+            <button class="icon-btn">Reply</button>
+            <button class="icon-btn">Share</button>
+          </div>
+        </div>
+      </div>
+      <div class="post">
+        <div class="avi" aria-hidden></div>
+        <div>
+          <div class="handle">@OpsNote <span class="meta">· Hello World</span></div>
+          <div class="text">Hello World — Night shuttle paused at Bright Angel for 10 min. Replace with shuttle API later.</div>
+          <div class="media" style="aspect-ratio:16/9; background:linear-gradient(180deg, var(--canyon), transparent)"></div>
+          <div class="actions">
+            <button class="icon-btn">Like</button><button class="icon-btn">Repost</button><button class="icon-btn">Reply</button><button class="icon-btn">Share</button>
+          </div>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <!-- RIGHT SIDEBAR -->
+  <aside class="panel reveal" aria-label="Right Sidebar">
+    <header><span class="badge"><span class="spark"></span> WIDGETS</span> Ops & Conditions</header>
+    <div class="widget">
+      <div class="tag">NWS Alerts</div>
+      <div id="alertsList" class="small">Loading alerts…</div>
+    </div>
+    <div class="widget">
+      <div class="tag">Weather</div>
+      <div class="kv"><span>South Rim</span><strong id="wxSouth">…</strong></div>
+      <div class="kv"><span>Phantom Ranch</span><strong id="wxPhantom">…</strong></div>
+      <div class="small" id="wxUpdated"></div>
+    </div>
+    <div class="widget">
+      <div class="tag">Shuttle</div>
+      <div class="kv"><span>Status</span><strong id="shuttleStatus">Placeholder</strong></div>
+      <div class="small" id="shuttleNote">Tip: set window.SHUTTLE_STATUS_URL to your JSON feed to auto-update.</div>
+    </div>
+    <div class="widget">
+      <div class="tag">Jobs & Swaps</div>
+      <div class="kv"><span>Shift Swap</span><strong>Placeholder</strong></div>
+      <div class="kv"><span>Hiring</span><strong>Placeholder</strong></div>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  CanyonNet — ParkOps build • Placeholders: content, routes, auth. Toggle <span class="kbd">T</span> for Day/Night, <span class="kbd">⌘/Ctrl+K</span> for palette.
+</footer>
+
+<!-- Mobile FABs -->
+<div class="fabs">
+  <button class="fab" id="fabTheme">Day/Night</button>
+  <button class="fab" id="fabPalette">⌘K</button>
+</div>
+
+<!-- Command Palette -->
+<div class="palette" id="palette" aria-hidden>
+  <div class="panel">
+    <header>
+      <span>Command Palette</span>
+      <span class="spacer"></span>
+      <span class="kbd">Esc</span>
+    </header>
+    <input id="palInput" placeholder="Type: night, day, go home, go explore, etc." aria-label="Command" />
+    <div class="body" id="palResults"></div>
+  </div>
+</div>
+
+<script>
+/* ===== Configurable hooks ===== */
+// Optional: set this to a JSON endpoint you control that returns { status: "text", updated: "ISO string" }
+window.SHUTTLE_STATUS_URL = ""; // e.g., "https://example.com/grand-canyon/shuttle.json"
+
+/* ===== Theme toggle: Day/Night ===== */
+const root = document.documentElement;
+function setTheme(next){ if(next==='night'){ root.setAttribute('data-theme','night'); } else { root.removeAttribute('data-theme'); } localStorage.setItem('parkops_theme', next); }
+const saved = localStorage.getItem('parkops_theme'); if(saved) setTheme(saved);
+function toggleTheme(){ setTheme(root.getAttribute('data-theme')==='night' ? 'day' : 'night'); }
+
+document.getElementById('btnTheme').onclick = toggleTheme;
+document.getElementById('fabTheme').onclick = toggleTheme;
+addEventListener('keydown', e=>{ if(e.key.toLowerCase()==='t' && !e.metaKey && !e.ctrlKey) toggleTheme(); });
+
+/* ===== Reveal on scroll ===== */
+const revs = document.querySelectorAll('.reveal');
+const io = new IntersectionObserver((ents)=>ents.forEach(en=>{ if(en.isIntersecting) en.target.classList.add('in'); }), {threshold:.2});
+revs.forEach(el=>io.observe(el));
+
+/* ===== Simple mock feed pulse ===== */
+setInterval(()=>{
+  const metaEls = document.querySelectorAll('.post .meta');
+  metaEls.forEach((el,i)=> el.textContent = 'Placeholder · ' + new Date().toLocaleTimeString());
+}, 6000);
+
+/* ===== Command palette ===== */
+const palette = document.getElementById('palette');
+const palInput = document.getElementById('palInput');
+const palResults = document.getElementById('palResults');
+
+document.getElementById('btnPalette').onclick = openPalette;
+document.getElementById('fabPalette').onclick = openPalette;
+addEventListener('keydown', e=>{ if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); openPalette(); } if(e.key==='Escape') closePalette(); });
+
+function openPalette(){ palette.classList.add('open'); palInput.value=''; render(['Toggle Night','Toggle Day','Go: Home','Go: Explore','Go: Crews','Go: Marketplace','Go: Shifts']); palInput.focus(); }
+function closePalette(){ palette.classList.remove('open'); }
+function render(items){ palResults.innerHTML = items.map(t=>`<div class="result">${t}<span class="kbd">Enter</span></div>`).join(''); }
+
+palResults.addEventListener('click', ev=>{ const el = ev.target.closest('.result'); if(!el) return; runCmd(el.textContent.trim()); });
+palInput.addEventListener('input', ()=>{ const q = palInput.value.toLowerCase(); const base = ['Toggle Night','Toggle Day','Go: Home','Go: Explore','Go: Crews','Go: Marketplace','Go: Shifts']; const f = base.filter(x=>x.toLowerCase().includes(q)); render(f.length?f:['No matches']); });
+palInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ const top = palResults.querySelector('.result'); if(top) runCmd(top.textContent.trim()); }});
+
+function runCmd(full){ closePalette();
+  const s = full.toLowerCase();
+  if(s.includes('toggle night')) setTheme('night');
+  else if(s.includes('toggle day')) setTheme('day');
+  else if(full.startsWith('Go:')) alert('Placeholder — navigate to ' + full.replace('Go: ','') + ' route.');
+}
+
+/* ===== Live Data Wiring ===== */
+/** Weather: Open-Meteo (no API key, CORS-friendly) **/
+// South Rim (Grand Canyon Village) approx: 36.0544, -112.1401
+// Phantom Ranch approx: 36.0986, -112.0969
+async function loadWeather(){
+  try{
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Phoenix';
+    const endpoints = [
+      { id: 'wxSouth', lat: 36.0544, lon: -112.1401 },
+      { id: 'wxPhantom', lat: 36.0986, lon: -112.0969 }
+    ];
+    for(const p of endpoints){
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current=temperature_2m,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&timezone=${encodeURIComponent(tz)}`;
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('Weather fetch failed: ' + res.status);
+      const j = await res.json();
+      const t = Math.round(j.current.temperature_2m);
+      const w = Math.round(j.current.wind_speed_10m);
+      const hi = Math.round(j.daily.temperature_2m_max[0]);
+      const lo = Math.round(j.daily.temperature_2m_min[0]);
+      document.getElementById(p.id).textContent = `${t}° (H ${hi}° / L ${lo}°) · Wind ${w}`;
+      document.getElementById('wxUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    }
+  }catch(err){
+    document.getElementById('wxSouth').textContent = 'Unavailable';
+    document.getElementById('wxPhantom').textContent = 'Unavailable';
+    document.getElementById('wxUpdated').textContent = 'Weather error: ' + err.message;
+  }
+}
+
+/** Alerts: NWS API via alerts for a point (no key) **/
+async function loadAlerts(){
+  const alertsEl = document.getElementById('alertsList');
+  try{
+    const lat = 36.0544, lon = -112.1401; // South Rim
+    const url = `https://api.weather.gov/alerts/active?point=${lat},${lon}`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/geo+json' }});
+    if(!res.ok) throw new Error('NWS alerts fetch failed: ' + res.status);
+    const j = await res.json();
+    const feats = (j.features || []).slice(0,5);
+    if(!feats.length){ alertsEl.textContent = 'No active alerts.'; return; }
+    alertsEl.innerHTML = feats.map(f=>{
+      const title = f.properties && f.properties.headline ? f.properties.headline : 'Alert';
+      const ends = f.properties && f.properties.ends ? new Date(f.properties.ends).toLocaleString() : '';
+      return `<div class="kv"><span>${title}</span><strong class="small">${ends}</strong></div>`;
+    }).join('');
+  }catch(err){
+    alertsEl.textContent = 'Alerts error: ' + err.message + ' (NWS)';
+  }
+}
+
+/** Shuttle: Pluggable endpoint (JSON) **/
+async function loadShuttle(){
+  const el = document.getElementById('shuttleStatus');
+  const note = document.getElementById('shuttleNote');
+  try{
+    if(window.SHUTTLE_STATUS_URL){
+      const res = await fetch(window.SHUTTLE_STATUS_URL, { cache: 'no-store' });
+      if(!res.ok) throw new Error('Shuttle fetch failed: ' + res.status);
+      const j = await res.json(); // { status, updated }
+      el.textContent = j.status || 'Unknown';
+      note.textContent = j.updated ? ('Updated ' + new Date(j.updated).toLocaleTimeString()) : 'Live';
+    }else{
+      el.textContent = 'No feed configured';
+      note.textContent = 'Set window.SHUTTLE_STATUS_URL to your feed that returns {status, updated}';
+    }
+  }catch(err){
+    el.textContent = 'Unavailable';
+    note.textContent = 'Shuttle error: ' + err.message;
+  }
+}
+
+/* Initial load + refresh cadence */
+function refreshAll(){
+  loadWeather();
+  loadAlerts();
+  loadShuttle();
+}
+refreshAll();
+setInterval(loadWeather, 10*60*1000);  // every 10 min
+setInterval(loadAlerts, 15*60*1000);   // every 15 min
+setInterval(loadShuttle, 60*1000);     // every 1 min
+</script>
+</body>
+</html>
+"""
