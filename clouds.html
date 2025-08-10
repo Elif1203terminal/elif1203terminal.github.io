@@ -1,0 +1,438 @@
+r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hyperglass — Single‑File Showcase</title>
+  <meta name="description" content="A mind‑blowing, single‑file, modern webpage demonstrating advanced UI/UX interactions, animations, and WebGL without external dependencies." />
+  <style>
+    :root {
+      --bg: #0b0f18;
+      --bg-2: #0f1524;
+      --fg: #e6edf3;
+      --muted: #96a2b4;
+      --brand: #5ef2c9;
+      --brand-2: #8aa6ff;
+      --accent: #ff71e8;
+      --card: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.12);
+      --glow: 0 0 40px rgba(94,242,201,.35), 0 0 80px rgba(138,166,255,.20);
+    }
+    [data-theme="light"] {
+      --bg: #f6f7fb;
+      --bg-2: #e9ecf7;
+      --fg: #0f1420;
+      --muted: #405064;
+      --brand: #2563eb;
+      --brand-2: #06b6d4;
+      --accent: #ef4444;
+      --card: rgba(0,0,0,0.04);
+      --border: rgba(0,0,0,0.12);
+      --glow: 0 0 40px rgba(37,99,235,.25), 0 0 80px rgba(6,182,212,.15);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font: 16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: var(--fg);
+      background: radial-gradient(1200px 800px at 10% -10%, #182033 0, transparent 60%),
+                  radial-gradient(1000px 700px at 110% 10%, #221a34 0, transparent 60%),
+                  var(--bg);
+      overflow-x: hidden;
+      accent-color: var(--brand);
+    }
+    html { scroll-behavior: smooth; }
+    ::selection { background: color-mix(in oklab, var(--brand) 40%, transparent); }
+    .nav {
+      position: fixed; inset: 0 0 auto 0; height: 64px; display: flex; align-items: center;
+      padding: 0 20px; z-index: 30; backdrop-filter: blur(8px);
+      background: linear-gradient(to bottom, color-mix(in oklab, var(--bg) 80%, transparent), transparent);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav .brand { font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .nav .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:8px; background: conic-gradient(from 0deg, var(--brand), var(--brand-2), var(--accent), var(--brand)); box-shadow: var(--glow); }
+    .nav .spacer { flex: 1; }
+    .nav button {
+      appearance: none; border: 1px solid var(--border); background: var(--card);
+      color: var(--fg); border-radius: 12px; padding: 10px 14px; margin-left: 10px; cursor: pointer;
+      transition: transform .15s ease, background .2s ease, border-color .2s;
+      backdrop-filter: blur(6px);
+    }
+    .nav button:hover { transform: translateY(-1px); border-color: color-mix(in oklab, var(--brand) 50%, var(--border)); }
+    .hero { position: relative; min-height: 100dvh; display: grid; place-items: center; text-align: center; padding: 96px 20px 60px; }
+    canvas#plasma { position: absolute; inset: 0; width: 100%; height: 100%; display:block; z-index: 0; }
+    .hero-inner { position: relative; z-index: 1; max-width: 1000px; }
+    .title { font-size: clamp(40px, 8vw, 100px); line-height: .95; font-weight: 900; letter-spacing: -0.02em; margin: 0;
+      background: linear-gradient(90deg, var(--brand), var(--brand-2) 35%, var(--accent) 70%, var(--brand));
+      -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 12px 30px rgba(0,0,0,.35)); }
+    .subtitle { color: var(--muted); font-size: clamp(16px, 2.2vw, 24px); margin: 18px auto 28px; max-width: 720px; }
+    .cta-row { display: inline-flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .btn {
+      --ring: 0 0 0 0 rgba(255,255,255,0);
+      position: relative; overflow: hidden; border-radius: 14px; padding: 14px 18px; border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)); color: var(--fg);
+      text-decoration: none; font-weight: 600; letter-spacing:.2px; box-shadow: var(--ring);
+      transition: box-shadow .2s ease, transform .15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 12px 50px rgba(0,0,0,.25), 0 0 0 6px color-mix(in oklab, var(--brand) 20%, transparent); }
+    .btn.primary { background: linear-gradient(90deg, color-mix(in oklab, var(--brand) 75%, transparent), color-mix(in oklab, var(--brand-2) 75%, transparent)); border-color: transparent; color: #051016; }
+    section { padding: 90px 20px; position: relative; }
+    .section-inner { max-width: 1200px; margin: 0 auto; }
+    .sec-title { font-size: clamp(22px, 3vw, 36px); margin: 0 0 20px; letter-spacing: .2px; }
+    .sec-sub { color: var(--muted); margin: 0 0 30px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 18px 18px 20px; transform-style: preserve-3d; perspective: 800px; overflow: hidden;
+      transition: transform .15s ease, border-color .2s ease;
+      backdrop-filter: blur(8px);
+    }
+    .card:hover { border-color: color-mix(in oklab, var(--brand) 50%, var(--border)); }
+    .card h3 { margin: 6px 0 6px; }
+    .pill { display:inline-flex; align-items:center; gap:8px; font-size:12px; padding:6px 10px; border-radius:999px; background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06)); border: 1px solid var(--border); }
+    .spark { width:10px; height:10px; border-radius:50%; background: radial-gradient(circle at 30% 30%, var(--brand), var(--brand-2)); box-shadow: var(--glow); }
+    .gallery { display:grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+    .tile { grid-column: span 4; min-height: 220px; border-radius: 22px; border:1px solid var(--border); overflow:hidden; position:relative; background: linear-gradient(120deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); backdrop-filter: blur(6px); }
+    .tile .layer { position:absolute; inset:-10%; background: conic-gradient(from 0deg, color-mix(in oklab, var(--brand) 60%, transparent), color-mix(in oklab, var(--brand-2) 60%, transparent), color-mix(in oklab, var(--accent) 50%, transparent), color-mix(in oklab, var(--brand) 60%, transparent)); filter: blur(24px); mix-blend-mode: plus-lighter; transform: translateZ(0); }
+    .tile .label { position:absolute; left:16px; bottom:12px; font-weight:700; text-shadow: 0 6px 16px rgba(0,0,0,.4); }
+    @media (max-width: 900px){ .tile { grid-column: span 6; } }
+    @media (max-width: 640px){ .tile { grid-column: span 12; } }
+    footer { text-align:center; color: var(--muted); padding: 60px 20px 80px; border-top:1px solid var(--border); background: linear-gradient(to top, color-mix(in oklab, var(--bg-2) 60%, transparent), transparent); }
+    .palette { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.35); backdrop-filter: blur(6px); z-index: 50; opacity:0; pointer-events:none; transition: opacity .2s ease; }
+    .palette.open { opacity:1; pointer-events: auto; }
+    .palette .panel { width: min(780px, 92vw); border-radius: 16px; border:1px solid var(--border); overflow:hidden; background: var(--bg-2); box-shadow: var(--glow); }
+    .palette header { display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--border); font-weight:700; }
+    .palette input { width: 100%; padding: 16px; border:0; outline:0; background: var(--bg); color: var(--fg); font-size:16px; }
+    .palette .results { max-height: 50vh; overflow:auto; }
+    .palette .result { padding: 12px 16px; border-top:1px solid var(--border); display:flex; justify-content: space-between; align-items:center; cursor:pointer; }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 12px; border:1px solid var(--border); background: var(--card); padding:2px 6px; border-radius:6px; }
+    @media (prefers-reduced-motion: no-preference) {
+      .trail { position: fixed; width: 10px; height: 10px; border-radius:50%; pointer-events:none; mix-blend-mode: screen; background: radial-gradient(circle at 30% 30%, var(--brand), transparent 70%); filter: blur(2px); opacity:.8; z-index:60; }
+    }
+    .reveal { opacity: 0; transform: translateY(12px) scale(.98); filter: blur(2px); transition: opacity .6s ease, transform .6s ease, filter .6s ease; }
+    .reveal.in { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+    .tip { position: relative; }
+    .tip:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); white-space: nowrap; background: var(--fg); color: var(--bg); padding: 6px 8px; border-radius: 8px; font-size: 12px; box-shadow: 0 10px 20px rgba(0,0,0,.2); }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+    /* Mobile FABs */
+    .fabs { position: fixed; right: 14px; bottom: 14px; display: grid; gap: 10px; z-index: 70; }
+    .fab { border: 1px solid var(--border); background: var(--card); color: var(--fg); border-radius: 999px; padding: 12px 14px; font-weight: 700; box-shadow: var(--glow); }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="dot" aria-hidden></div>
+    <div class="brand">HYPERGLASS</div>
+    <div class="spacer"></div>
+    <button id="theme" class="tip" data-tip="Toggle theme (T)">Theme</button>
+    <button id="paletteBtn" class="tip" data-tip="Command palette (⌘/Ctrl + K)">⌘K</button>
+  </nav>
+
+  <header class="hero" id="top" aria-label="Hero">
+    <canvas id="plasma" aria-hidden></canvas>
+    <div class="hero-inner reveal">
+      <h1 class="title">A Single File. <span style="white-space:nowrap">Infinite Flex.</span></h1>
+      <p class="subtitle">No frameworks. No assets. Just modern CSS, vanilla JS, and a GLSL shader—designed to impress now and ready to swap content later.</p>
+      <div class="cta-row">
+        <a class="btn primary" href="#features">See Features</a>
+        <a class="btn" href="#gallery">Scroll Magic</a>
+      </div>
+    </div>
+  </header>
+
+  <section id="features" class="reveal">
+    <div class="section-inner">
+      <h2 class="sec-title">Showpiece Features</h2>
+      <p class="sec-sub">Everything here is self‑contained. Use it as a template and drop in your content later.</p>
+      <div class="grid">
+        <article class="card tip" data-tip="3D hover tilt with JS">
+          <span class="pill"><span class="spark"></span> Interaction</span>
+          <h3>3D Tilt Cards</h3>
+          <p>Subtle perspective based on cursor position. Accessible, battery‑friendly, and respects reduced‑motion.</p>
+        </article>
+        <article class="card tip" data-tip="WebGL fragment shader">
+          <span class="pill"><span class="spark"></span> Visuals</span>
+          <h3>GLSL Plasma Canvas</h3>
+          <p>Lightweight fragment shader paints an infinite gradient field. Auto‑resizes, falls back gracefully.</p>
+        </article>
+        <article class="card tip" data-tip="Cmd/Ctrl+K">
+          <span class="pill"><span class="spark"></span> UX</span>
+          <h3>Command Palette</h3>
+          <p>Keyboard‑first. Jump to sections, toggle theme, or trigger fun modes. Extensible with your own actions.</p>
+        </article>
+        <article class="card tip" data-tip="Konami = Hyperdrive">
+          <span class="pill"><span class="spark"></span> Easter Egg</span>
+          <h3>Hyperdrive Mode</h3>
+          <p>Enter ↑↑↓↓←→←→BA and watch the background warp. Because delight matters.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="gallery" class="reveal">
+    <div class="section-inner">
+      <h2 class="sec-title">Kinetic Gallery</h2>
+      <p class="sec-sub">Parallax glow tiles with additive blending. These are pure CSS/JS layers—swap labels with your topics.</p>
+      <div class="gallery" id="gal">
+        <div class="tile"><div class="layer"></div><div class="label">Aurora</div></div>
+        <div class="tile"><div class="layer"></div><div class="label">Vector</div></div>
+        <div class="tile"><div class="layer"></div><div class="label">Spectral</div></div>
+        <div class="tile"><div class="layer"></div><div class="label">Gossamer</div></div>
+        <div class="tile"><div class="layer"></div><div class="label">Plasma</div></div>
+        <div class="tile"><div class="layer"></div><div class="label">Prism</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="cta" class="reveal">
+    <div class="section-inner" style="display:grid; place-items:center; text-align:center;">
+      <h2 class="sec-title">Drop‑in Ready</h2>
+      <p class="sec-sub" style="max-width:720px">This skeleton is intentionally content‑agnostic. Replace headings, cards, and labels. Keep the tech flex. Ditch anything you don’t need.</p>
+      <div class="cta-row">
+        <a class="btn primary" href="#top">Back to Top</a>
+        <button class="btn" id="hyperdrive">Engage Hyperdrive</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Built with ❤️, CSS & GLSL. No libraries. No images. <span class="kbd">T</span> toggles theme. <span class="kbd">⌘/Ctrl + K</span> opens palette.
+  </footer>
+
+  <!-- Mobile floating buttons -->
+  <div class="fabs" aria-label="Quick actions">
+    <button class="fab" id="fabTheme">Theme</button>
+    <button class="fab" id="fabPalette">Palette</button>
+    <button class="fab" id="fabHyper">Hyperdrive</button>
+  </div>
+
+  <!-- Command Palette -->
+  <div class="palette" id="palette" aria-hidden>
+    <div class="panel">
+      <header>
+        <span>Command Palette</span>
+        <span class="spacer"></span>
+        <span class="kbd">Esc</span>
+      </header>
+      <input id="palInput" placeholder="Type a command… (e.g., 'theme', 'features', 'hyperdrive')" />
+      <div class="results" id="palResults"></div>
+    </div>
+  </div>
+
+  <script>
+    const root = document.documentElement;
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) root.setAttribute('data-theme', savedTheme);
+    const themeBtn = document.getElementById('theme');
+    function toggleTheme() {
+      const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      if (next === 'dark') root.removeAttribute('data-theme');
+      else root.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+    }
+    themeBtn.addEventListener('click', toggleTheme);
+    window.addEventListener('keydown', (e)=>{ if (e.key.toLowerCase() === 't' && !e.metaKey && !e.ctrlKey) { toggleTheme(); } });
+
+    const revs = document.querySelectorAll('.reveal');
+    const io = new IntersectionObserver((entries)=>{ entries.forEach(entry=>{ if (entry.isIntersecting) entry.target.classList.add('in'); }); }, { threshold: 0.2 });
+    revs.forEach(el=>io.observe(el));
+
+    document.querySelectorAll('.card').forEach(card=>{
+      card.addEventListener('mousemove', (e)=>{
+        const r = card.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width - 0.5;
+        const y = (e.clientY - r.top) / r.height - 0.5;
+        card.style.transform = `perspective(800px) rotateX(${-y*6}deg) rotateY(${x*8}deg) translateZ(0)`;
+      });
+      card.addEventListener('mouseleave', ()=> card.style.transform = '');
+    });
+
+    const tiles = document.querySelectorAll('.tile');
+    tiles.forEach(tile=>{
+      const layer = tile.querySelector('.layer');
+      tile.addEventListener('mousemove', (e)=>{
+        const r = tile.getBoundingClientRect();
+        const x = (e.clientX - r.left)/r.width - 0.5;
+        const y = (e.clientY - r.top)/r.height - 0.5;
+        layer.style.transform = `translate(${x*-16}px, ${y*-16}px) scale(1.1)`;
+      });
+      tile.addEventListener('mouseleave', ()=> layer.style.transform = '');
+      // Mobile: slight parallax on scroll
+      window.addEventListener('scroll', ()=>{
+        const rect = tile.getBoundingClientRect();
+        const center = (innerHeight/2 - rect.top - rect.height/2)/innerHeight;
+        layer.style.transform = `translate(0, ${center*12}px) scale(1.08)`;
+      });
+    });
+
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!prefersReduced) {
+      const dots = 14, trailEls = [];
+      for (let i=0;i<dots;i++){ const d=document.createElement('div'); d.className='trail'; document.body.appendChild(d); trailEls.push({el:d, x:0, y:0}); }
+      let mouseX=0, mouseY=0; window.addEventListener('mousemove', e=>{ mouseX=e.clientX; mouseY=e.clientY; });
+      function animate(){
+        let x=mouseX, y=mouseY; trailEls.forEach((t,i)=>{
+          t.x += (x - t.x) * (0.15 - i*0.008);
+          t.y += (y - t.y) * (0.15 - i*0.008);
+          t.el.style.transform = `translate(${t.x-5}px, ${t.y-5}px)`;
+          t.el.style.opacity = 0.9 - i*(0.9/dots);
+        });
+        requestAnimationFrame(animate);
+      }
+      animate();
+    }
+
+    const palette = document.getElementById('palette');
+    const palInput = document.getElementById('palInput');
+    const palResults = document.getElementById('palResults');
+    const paletteBtn = document.getElementById('paletteBtn');
+
+    const commands = [
+      { label: 'Go to: Features', run: ()=> location.hash = '#features' },
+      { label: 'Go to: Gallery', run: ()=> location.hash = '#gallery' },
+      { label: 'Toggle Theme', run: toggleTheme },
+      { label: 'Engage Hyperdrive', run: engageHyperdrive },
+      { label: 'Back to Top', run: ()=> location.hash = '#top' },
+    ];
+
+    function openPalette(){ palette.classList.add('open'); palInput.value=''; renderResults(commands); palInput.focus(); }
+    function closePalette(){ palette.classList.remove('open'); }
+    function renderResults(items){ palResults.innerHTML = items.map((c,i)=>`<div class="result" data-idx="${i}">${c.label}<span class="kbd">Enter</span></div>`).join(''); }
+
+    palResults.addEventListener('click', (e)=>{
+      const item = e.target.closest('.result');
+      if (!item) return; const cmd = commands[Number(item.dataset.idx)]; closePalette(); cmd.run();
+    });
+
+    palInput.addEventListener('input', ()=>{
+      const q = palInput.value.toLowerCase();
+      const filtered = commands.filter(c=> c.label.toLowerCase().includes(q) );
+      renderResults(filtered.length? filtered: [{label:'No matches', run: ()=>{}}]);
+    });
+
+    window.addEventListener('keydown', (e)=>{
+      if ((e.key.toLowerCase()==='k' && (e.metaKey || e.ctrlKey))) { e.preventDefault(); openPalette(); }
+      if (e.key === 'Escape') closePalette();
+    });
+    paletteBtn.addEventListener('click', openPalette);
+    palette.addEventListener('click', (e)=>{ if (e.target === palette) closePalette(); });
+
+    const konami = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+    let buffer = [];
+    window.addEventListener('keydown', (e)=>{
+      buffer.push(e.key);
+      if (buffer.length > konami.length) buffer.shift();
+      if (konami.every((k,i)=> buffer[i]?.toLowerCase() === k.toLowerCase())) { engageHyperdrive(); buffer=[]; }
+    });
+
+    const hyperBtn = document.getElementById('hyperdrive');
+    hyperBtn.addEventListener('click', engageHyperdrive);
+
+    // Mobile FABs
+    document.getElementById('fabTheme').addEventListener('click', toggleTheme);
+    document.getElementById('fabPalette').addEventListener('click', openPalette);
+    document.getElementById('fabHyper').addEventListener('click', ()=> engageHyperdrive(true));
+
+    let hyperActive = false;
+    function engageHyperdrive(forceOn){
+      if (forceOn === true) hyperActive = true;
+      else hyperActive = !hyperActive;
+      hyperActive ? startWarp() : stopWarp();
+    }
+
+    // WEBGL SHADER BACKDROP
+    const canvas = document.getElementById('plasma');
+    let gl, program, uTime, uRes;
+
+    const frag = `#ifdef GL_ES
+precision highp float;
+#endif
+uniform vec2 u_res;
+uniform float u_time;
+
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453123); }
+
+float noise(in vec2 p){
+  vec2 i = floor(p); vec2 f = fract(p);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  vec2 u = f*f*(3.0-2.0*f);
+  return mix(a, b, u.x) + (c - a)*u.y*(1.0 - u.x) + (d - b)*u.x*u.y;
+}
+
+void main(){
+  vec2 uv = (gl_FragCoord.xy / u_res.xy);
+  vec2 p = uv * 3.0; // scale
+  float t = u_time * 0.12;
+  float n = 0.0;
+  float amp = 0.5; float frq = 1.0;
+  for(int i=0;i<5;i++){ n += amp * noise(p*frq + vec2(t, -t)); frq *= 2.0; amp *= 0.55; }
+  float r = 0.5 + 0.5*sin(6.2831*(n*0.65 + t*0.10));
+  float g = 0.5 + 0.5*sin(6.2831*(n*0.65 + t*0.13 + 0.33));
+  float b = 0.5 + 0.5*sin(6.2831*(n*0.65 + t*0.16 + 0.66));
+  vec3 col = mix(vec3(r,g,b), vec3(1.0), 0.08);
+  vec2 q = uv - 0.5; float vign = 1.0 - dot(q,q) * 1.6; col *= vign;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+    function makeShader(gl, type, src){ const sh = gl.createShader(type); gl.shaderSource(sh, src); gl.compileShader(sh); if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); return sh; }
+    function makeProgram(gl, fragSrc){
+      const vs = makeShader(gl, gl.VERTEX_SHADER, `attribute vec2 p; void main(){ gl_Position = vec4(p,0.0,1.0); }`);
+      const fs = makeShader(gl, gl.FRAGMENT_SHADER, fragSrc);
+      const prog = gl.createProgram(); gl.attachShader(prog,vs); gl.attachShader(prog,fs); gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+      return prog;
+    }
+
+    function initGL(){
+      gl = canvas.getContext('webgl', { antialias:true, preserveDrawingBuffer:false });
+      if (!gl) throw new Error('WebGL not available');
+      program = makeProgram(gl, frag);
+      gl.useProgram(program);
+      uTime = gl.getUniformLocation(program, 'u_time');
+      uRes = gl.getUniformLocation(program, 'u_res');
+      const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      const verts = new Float32Array([-1,-1, 1,-1, -1,1,  -1,1, 1,-1, 1,1]);
+      gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+      const loc = gl.getAttribLocation(program, 'p');
+      gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      onResize();
+      requestAnimationFrame(loop);
+    }
+
+    function onResize(){ if (!gl) return; canvas.width = innerWidth * devicePixelRatio; canvas.height = innerHeight * devicePixelRatio; gl.viewport(0,0,canvas.width, canvas.height); }
+    window.addEventListener('resize', ()=> { onResize(); });
+
+    let t0 = performance.now()/1000;
+    let warp = 0; // hyperdrive intensity
+    function loop(){
+      const t = performance.now()/1000 - t0;
+      gl.uniform1f(uTime, t + warp);
+      gl.uniform2f(uRes, canvas.width, canvas.height);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      if (hyperActive) warp += 0.02; else warp *= 0.97;
+      requestAnimationFrame(loop);
+    }
+
+    function startWarp(){ document.body.style.setProperty('--glow-int', '1'); }
+    function stopWarp(){}
+
+    // Robust fallback if WebGL is missing/blocked (black screen fix)
+    function glFallback(){
+      const fallback = document.createElement('div');
+      fallback.style = 'position:absolute;inset:0;display:grid;place-items:center;text-align:center;background:radial-gradient(1200px 800px at 10% -10%, #1a2340 0, transparent 60%),radial-gradient(1000px 700px at 110% 10%, #2a1f3f 0, transparent 60%)';
+      fallback.innerHTML = '<div style="max-width:760px;padding:20px;border:1px solid var(--border);border-radius:16px;background:var(--card);backdrop-filter:blur(8px);"><h2 style="margin:0 0 10px">WebGL disabled or not supported</h2><p style="color:var(--muted);margin:0 0 10px">Your browser blocked the shader canvas. You still get the full page, just without the animated background.</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button class="btn" onclick="toggleTheme()">Theme</button><button class="btn" onclick="engageHyperdrive(true)">Hyperdrive</button></div></div>';
+      canvas.replaceWith(fallback);
+    }
+
+    try { initGL(); } catch(e){ console.warn('WebGL fallback:', e); glFallback(); }
+  </script>
+</body>
+</html>
+"""
+path = "/mnt/data/mindblow_mobile.html"
+with open(path, "w", encoding="utf-8") as f:
+    f.write(html_full)
+path
