@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ELIF // Retro Cyberpunk Terminal</title>
+<meta name="description" content="Single-file retro cyberpunk terminal UI, mobile-ready, with placeholders for narrative-driven content." />
+<style>
+/* =========================
+   THEME TOKENS
+   ========================= */
+:root{
+  --bg: #0a0c10;
+  --bg-2:#0e1117;
+  --grid:#10151f;
+  --fg:#e7f8ff;
+  --muted:#8aa2b2;
+  --scan:#18ffff0f;
+  --term:#0b0f15;
+  --accent1:#00ffd1;
+  --accent2:#8a5bff;
+  --accent3:#ff3fb2;
+  --glow-a: 0 0 24px rgba(0,255,209,.25), 0 0 60px rgba(138,91,255,.15);
+  --border: rgba(255,255,255,.12);
+  --ok:#44ff9a;
+  --warn:#ffd166;
+  --err:#ff4d6d;
+}
+[data-theme="light"]{
+  --bg:#f5f7fb; --bg-2:#eaf0ff; --grid:#e5ebfb;
+  --fg:#0a1020; --muted:#3a4a60; --scan:#00000008; --term:#ffffff;
+  --accent1:#2563eb; --accent2:#06b6d4; --accent3:#ef4444; --border:rgba(0,0,0,.12);
+  --glow-a: 0 0 24px rgba(37,99,235,.25), 0 0 60px rgba(6,182,212,.15);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  color:var(--fg);
+  background:
+    radial-gradient(1200px 800px at -10% -10%, #1a2236 0, transparent 60%),
+    radial-gradient(1000px 700px at 110% 10%, #251a36 0, transparent 60%),
+    linear-gradient(var(--bg), var(--bg-2));
+  font: 16px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  overflow-x:hidden;
+}
+/* Subtle grid */
+body::before{
+  content:"";
+  position:fixed; inset:0;
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events:none;
+  opacity:.45;
+}
+/* Scanlines + vignette */
+body::after{
+  content:"";
+  position:fixed; inset:0;
+  background:
+    repeating-linear-gradient( to bottom, var(--scan) 0 2px, transparent 2px 4px );
+  mix-blend-mode: overlay;
+  pointer-events:none;
+}
+.crt-vignette{
+  position:fixed; inset:0; pointer-events:none;
+  background: radial-gradient(1200px 800px at 50% 50%, transparent 60%, rgba(0,0,0,.25) 90%);
+}
+
+/* NAV BAR */
+.nav{
+  position:fixed; inset:0 0 auto 0; height:56px; display:flex; align-items:center; gap:10px;
+  padding: 0 14px; z-index:50; backdrop-filter: blur(8px);
+  border-bottom:1px solid var(--border);
+  background: linear-gradient(to bottom, color-mix(in oklab, var(--bg-2) 75%, transparent), transparent);
+}
+.brand{
+  display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.08em;
+}
+.brand .dot{
+  width:12px; height:12px; border-radius:50%;
+  background: conic-gradient(from 0deg, var(--accent1), var(--accent2), var(--accent3), var(--accent1));
+  box-shadow: var(--glow-a);
+}
+.spacer{flex:1}
+.btn{appearance:none; border:1px solid var(--border); background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+  color:var(--fg); border-radius:10px; padding:8px 12px; font-weight:700; cursor:pointer; box-shadow: var(--glow-a);}
+.btn:hover{border-color:color-mix(in oklab, var(--accent1) 40%, var(--border))}
+
+/* HERO TERMINAL */
+.hero{ min-height:100dvh; display:grid; place-items:center; padding: 80px 16px 40px; position:relative; }
+.term{
+  width:min(1000px, 92vw); border:1px solid var(--border); border-radius:16px;
+  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01)), var(--term);
+  box-shadow: 0 20px 80px rgba(0,0,0,.35), var(--glow-a);
+  overflow:hidden; position:relative;
+}
+.term-head{
+  display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+}
+.led{ width:10px; height:10px; border-radius:50%; background:#28ffb3; box-shadow:0 0 12px #28ffb3aa; }
+.title{ font-weight:900; letter-spacing:.05em }
+.term-body{ padding:16px; min-height:45vh; }
+.prompt{ color:var(--muted) }
+.kbd{ display:inline-block; border:1px solid var(--border); border-radius:6px; padding:2px 6px; margin:0 4px; font-size:12px; background:rgba(255,255,255,.04) }
+.output{ white-space:pre-wrap; word-break:break-word }
+.caret{ display:inline-block; width:.65em; height:1.05em; background:var(--accent1); box-shadow:0 0 16px var(--accent1); vertical-align:-0.2em; animation:blink 1s steps(2,end) infinite }
+@keyframes blink{ 50% { opacity:0 } }
+
+/* INFO PANELS */
+.panels{ display:grid; gap:16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top:16px }
+.panel{ border:1px solid var(--border); border-radius:14px; padding:14px; background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); }
+.panel h3{ margin:6px 0 8px }
+.badge{ display:inline-flex; align-items:center; gap:8px; font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid var(--border); background:rgba(255,255,255,.04) }
+.spark{ width:10px; height:10px; border-radius:50%; background: radial-gradient(circle at 30% 30%, var(--accent1), var(--accent2)); box-shadow: var(--glow-a) }
+
+/* MOBILE FABS */
+.fabs{ position:fixed; right:14px; bottom:14px; display:grid; gap:10px; z-index:70 }
+.fab{ border:1px solid var(--border); background:linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.04)); color:var(--fg); border-radius:999px; padding:12px 14px; font-weight:800; box-shadow:var(--glow-a) }
+
+/* COMMAND PALETTE */
+.palette{ position:fixed; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.45); backdrop-filter:blur(8px); z-index:80; opacity:0; pointer-events:none; transition:opacity .15s ease }
+.palette.open{ opacity:1; pointer-events:auto }
+.palette .panel{ width:min(780px, 92vw); border:1px solid var(--border); border-radius:16px; overflow:hidden; background:var(--bg-2); box-shadow:var(--glow-a) }
+.palette header{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--border); font-weight:800 }
+.palette input{ width:100%; padding:16px; border:0; outline:0; background:var(--term); color:var(--fg) }
+.palette .results{ max-height:50vh; overflow:auto }
+.palette .result{ padding:12px 16px; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; cursor:pointer }
+
+/* REVEAL */
+.reveal{ opacity:0; transform:translateY(10px) scale(.98); filter:blur(2px); transition:opacity .5s ease, transform .5s ease, filter .5s ease }
+.reveal.in{ opacity:1; transform:translateY(0) scale(1); filter:blur(0) }
+
+footer{ text-align:center; color:var(--muted); padding:60px 16px 80px; border-top:1px solid var(--border) }
+.tip{ position:relative }
+.tip:hover::after{ content:attr(data-tip); position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%); background:var(--fg); color:var(--bg); padding:6px 8px; border-radius:8px; white-space:nowrap }
+/* Reduce motion */
+@media (prefers-reduced-motion: reduce){ *{animation:none!important; transition:none!important} }
+</style>
+</head>
+<body>
+  <div class="crt-vignette" aria-hidden></div>
+
+  <nav class="nav">
+    <div class="brand"><span class="dot"></span><span>ELIF_TERMINAL</span></div>
+    <div class="spacer"></div>
+    <button id="btnTheme" class="btn tip" data-tip="Toggle theme (T)">Theme</button>
+    <button id="btnPalette" class="btn tip" data-tip="Command palette (⌘/Ctrl+K)">⌘K</button>
+  </nav>
+
+  <main class="hero">
+    <section class="term reveal" id="terminal" aria-label="Retro Terminal">
+      <div class="term-head">
+        <span class="led"></span>
+        <span class="title">def.core@localhost:/  —  Session: <span id="sess">Hello World</span></span>
+      </div>
+      <div class="term-body">
+        <!-- PROMPT + OUTPUT -->
+        <div class="output" id="out">
+<span class="prompt">[00:00:00] elif.core:</span> Hello World
+<span class="prompt">[00:00:01] elif.core:</span> Placeholder
+<span class="prompt">[00:00:02] elif.core:</span> Hello World — <span class="kbd">editable narrative hook</span>
+        </div>
+        <div style="margin-top:10px">
+          <span class="prompt"><span class="kbd">def.core@localhost</span>$</span> <span id="typed"></span><span class="caret"></span>
+        </div>
+
+        <!-- PANELS -->
+        <div class="panels">
+          <article class="panel">
+            <span class="badge"><span class="spark"></span> STATUS</span>
+            <h3>Hello World</h3>
+            <p>Placeholder</p>
+          </article>
+          <article class="panel">
+            <span class="badge"><span class="spark"></span> MEMORY</span>
+            <h3>Hello World</h3>
+            <p>Placeholder</p>
+          </article>
+          <article class="panel">
+            <span class="badge"><span class="spark"></span> SIGNAL</span>
+            <h3>Hello World</h3>
+            <p>Placeholder</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECOND SECTION -->
+    <section class="reveal" style="width:min(1000px, 92vw); margin-top:22px">
+      <div class="panel">
+        <span class="badge"><span class="spark"></span> LOGFILE</span>
+        <h3>Hello World</h3>
+        <p>Placeholder</p>
+        <div class="panel" style="margin-top:12px">
+          <h4>Hello World</h4>
+          <p>Placeholder</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Hello World — Placeholder • Tap the floating buttons on mobile for Theme / Palette / FX.
+  </footer>
+
+  <!-- Mobile FABs -->
+  <div class="fabs">
+    <button class="fab" id="fabTheme">Theme</button>
+    <button class="fab" id="fabFX">FX</button>
+    <button class="fab" id="fabPalette">⌘K</button>
+  </div>
+
+  <!-- Command Palette -->
+  <div class="palette" id="palette" aria-hidden>
+    <div class="panel">
+      <header>
+        <span>Command Palette</span>
+        <span class="spacer"></span>
+        <span class="kbd">Esc</span>
+      </header>
+      <input id="palInput" placeholder="Type: theme, fx, goto terminal, etc." />
+      <div class="results" id="palResults"></div>
+    </div>
+  </div>
+
+<script>
+// Theme toggle + persist
+const root = document.documentElement;
+const saved = localStorage.getItem('theme');
+if (saved) root.setAttribute('data-theme', saved);
+function toggleTheme(){
+  const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  if (next==='dark') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+}
+document.getElementById('btnTheme').onclick = toggleTheme;
+document.getElementById('fabTheme').onclick = toggleTheme;
+addEventListener('keydown', e=>{ if(e.key.toLowerCase()==='t' && !e.metaKey && !e.ctrlKey) toggleTheme(); });
+
+// Reveal on scroll
+const revs = document.querySelectorAll('.reveal');
+const io = new IntersectionObserver((ents)=>ents.forEach(en=>{ if(en.isIntersecting) en.target.classList.add('in'); }), {threshold:.2});
+revs.forEach(el=>io.observe(el));
+
+// Fake typing prompt (visual flourish; replace with your system later)
+const typedEl = document.getElementById('typed');
+const scriptLines = [
+  'Hello World',
+  'Placeholder',
+  'Hello World — /ritual.unlock 03',
+  'Placeholder — k!11cbh25',
+  'Hello World — echo.emotion'
+];
+let idx=0;
+function tick(){
+  typedEl.textContent = scriptLines[idx % scriptLines.length];
+  idx++;
+}
+setInterval(tick, 1600);
+
+// FX toggle (subtle bloom pulse by adjusting body after-element opacity)
+let fxOn = true;
+function toggleFX(){
+  fxOn = !fxOn;
+  document.body.style.setProperty('--scan', fxOn ? '#18ffff0f' : '#18ffff00');
+}
+document.getElementById('fabFX').onclick = toggleFX;
+
+// Command palette
+const palette = document.getElementById('palette');
+const palInput = document.getElementById('palInput');
+const palResults = document.getElementById('palResults');
+const btnPalette = document.getElementById('btnPalette');
+document.getElementById('fabPalette').onclick = openPalette;
+btnPalette.onclick = openPalette;
+addEventListener('keydown', e=>{
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); openPalette(); }
+  if(e.key==='Escape') closePalette();
+});
+function openPalette(){ palette.classList.add('open'); palInput.value=''; render(['Toggle Theme','Toggle FX','Go: Terminal','Go: Logfile']); palInput.focus(); }
+function closePalette(){ palette.classList.remove('open'); }
+function render(items){ palResults.innerHTML = items.map((t,i)=>`<div class="result" data-i="${i}">${t}<span class="kbd">Enter</span></div>`).join(''); }
+palResults.addEventListener('click', ev=>{
+  const el = ev.target.closest('.result'); if(!el) return;
+  runCmd(el.textContent.trim().split(' ')[0].toLowerCase(), el.textContent.trim());
+});
+palInput.addEventListener('input', ()=>{
+  const q = palInput.value.toLowerCase();
+  const base = ['Toggle Theme','Toggle FX','Go: Terminal','Go: Logfile'];
+  const f = base.filter(x=>x.toLowerCase().includes(q));
+  render(f.length?f:['No matches']);
+});
+function runCmd(cmd, full){
+  closePalette();
+  if(full.startsWith('Go: Terminal')) location.hash = '#terminal';
+  else if(full.startsWith('Go: Logfile')) window.scrollBy({top: window.innerHeight, behavior:'smooth'});
+  else if(cmd==='toggle'){ if(full.toLowerCase().includes('theme')) toggleTheme(); else toggleFX(); }
+}
+
+// Session label demo
+document.getElementById('sess').textContent = 'Hello World';
+
+</script>
+</body>
+</html>
+"""
+path = "/mnt/data/elif_terminal_cyberpunk.html"
+with open(path, "w", encoding="utf-8") as f:
+    f.write(html_terminal)
+path
