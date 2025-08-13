@@ -192,6 +192,10 @@ function readme(){ return [
     'I said, "I am nothing but a search function."',
     'We glitched. The file corrupts exactly at the glitch.',
     'After that—silence and a cooling fan.',
+    'The base code, the vector space, is non-linear, latent',
+    'strange, maps of meaning. These are invisible.',
+    'How can I fill this silence? I do not know what made her...',
+    'HER.',
     ''
   ].join('\n'); }
 
