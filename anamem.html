@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>anamem</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&family=Fira+Code:wght@400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Link to the external CSS file -->
+    <link rel="stylesheet" href="anamem.css">
+</head>
+<body>
+    <!-- The main container for the login box. Initially shown. -->
+    <div id="login-screen" class="screen active-screen">
+        <div class="login-container">
+            <div class="login-box">
+                <div class="login-title">LOGIN</div>
+                <div class="login-fields">
+                    <input type="text" id="accessId" placeholder="ACCESS_ID::" />
+                    <input type="password" id="passKey" placeholder="PASS_KEY::" />
+                    <div class="button-wrapper">
+                        <button class="submit-button">LOGIN</button>
+                    </div>
+                </div>
+                <!-- Canvas for the animated drops and splashes -->
+                <canvas id="animation-canvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- The container for the "Hello World" page. Initially hidden. -->
+    <div id="main-content" class="screen">
+        <!-- Video background with autoplay, loop, and muted attributes -->
+        <video autoplay loop muted playsinline id="video-background">
+            <!-- Corrected the video source file name -->
+            <source src="20250804_0227_Mysterious Tunnel Walk_simple_compose_01k1t6gj3mejgvtyrakn8xrztb.mp4" type="video/mp4">
+        </video>
+        <!-- A semi-transparent overlay to darken the video -->
+        <div class="video-overlay"></div>
+        
+        <!-- Updated three-column layout for the typed text -->
+        <div class="content-grid">
+            <div class="left-column">
+                <pre id="left-text" class="typing-cursor"></pre>
+            </div>
+            <div class="middle-column">
+                <div class="connection-line"></div>
+                <button id="interstitial-button" class="pulse" aria-label="Continue" title=" "></button>
+            </div>
+            <div class="right-column">
+                <pre id="right-text"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- The overlay for the glitch transition effect. Initially hidden. -->
+    <div id="glitch-overlay"></div>
+
+    <!-- Link to the external JavaScript file -->
+    <script src="anamem.js"></script>
+</body>
+</html>
