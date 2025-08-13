@@ -1,0 +1,565 @@
+/*
+ * style.css
+ * This file contains all the CSS for the Cyberpunk Login and the main content page.
+ * It's structured to handle the transitions and visual effects.
+ */
+
+/* === Base Setup === */
+:root {
+    --orange: #ff6600;
+    --green: #39ff14;
+    --uv: #9d00ff;
+    --background: #0a0a0f;
+    --panel-bg: #000000;
+    
+    /* Modern variables for the main content */
+    --primary: #00d4ff;
+    --primary-dark: #0099cc;
+    --secondary: #7c3aed;
+    --accent: #f59e0b;
+    
+    --surface: rgba(15, 23, 42, 0.95);
+    --surface-elevated: rgba(30, 41, 59, 0.98);
+    --surface-glass: rgba(255, 255, 255, 0.05);
+    --border: rgba(255, 255, 255, 0.1);
+    --border-focus: rgba(0, 212, 255, 0.5);
+    
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --text-muted: #64748b;
+    
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    
+    --backdrop-blur: blur(24px);
+    --border-radius: 12px;
+    --border-radius-lg: 16px;
+    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: var(--background);
+    font-family: 'Orbitron', sans-serif;
+    overflow: hidden; /* Hide scrollbars */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* === Screen Containers === */
+.screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: none; /* Hide all screens by default */
+    justify-content: center;
+    align-items: center;
+    transition: opacity 1s ease-in-out;
+}
+
+.screen.active-screen {
+    display: flex; /* Show the active screen */
+}
+
+#main-content {
+    background: var(--background);
+    position: relative; /* Needed for positioning the video and overlay */
+}
+
+#video-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Ensures video covers the entire container */
+    z-index: 1; /* Place the video at the bottom layer */
+}
+
+.video-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        135deg,
+        rgba(15, 23, 42, 0.85) 0%,
+        rgba(30, 41, 59, 0.75) 50%,
+        rgba(15, 23, 42, 0.9) 100%
+    );
+    z-index: 2;
+}
+
+/* === Modern Content Layout === */
+.content-grid {
+    display: grid;
+    grid-template-columns: 1fr 0.3fr 1fr; /* Two text columns with a narrower gap */
+    width: 90%;
+    max-width: 1400px;
+    height: 90vh;
+    padding: 2rem;
+    position: relative;
+    z-index: 3;
+    gap: 2rem;
+    overflow-y: auto;
+}
+
+.left-column,
+.right-column {
+    background: var(--surface);
+    backdrop-filter: var(--backdrop-blur);
+    -webkit-backdrop-filter: var(--backdrop-blur);
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius-lg);
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+    transition: var(--transition-slow);
+}
+
+.left-column::before,
+.right-column::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        var(--primary) 50%,
+        transparent
+    );
+    opacity: 0.6;
+}
+
+.left-column:hover,
+.right-column:hover {
+    border-color: var(--border-focus);
+    box-shadow: 
+        var(--shadow-xl),
+        0 0 0 1px rgba(0, 212, 255, 0.1),
+        0 0 32px rgba(0, 212, 255, 0.15);
+    transform: translateY(-2px);
+}
+
+.content-grid pre {
+    white-space: pre-wrap; /* Preserve line breaks and wrap text */
+    word-wrap: break-word;
+    margin: 0;
+    padding: 0;
+    position: relative;
+    overflow-y: hidden;
+    max-height: 100%;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+}
+
+/* Modern blinking cursor effect */
+.typing-cursor::after {
+    content: '▋';
+    animation: blink-cursor 1s steps(2) infinite;
+    color: var(--primary);
+    font-weight: 400;
+    margin-left: 2px;
+}
+
+@keyframes blink-cursor {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0;
+    }
+}
+
+.middle-column {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.4;
+    position: relative;
+}
+
+.connection-line {
+    width: 2px;
+    height: 60%;
+    background: linear-gradient(
+        180deg,
+        transparent,
+        var(--primary) 20%,
+        var(--primary) 80%,
+        transparent
+    );
+    position: relative;
+    opacity: 0.8;
+}
+
+.connection-line::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    background: var(--primary);
+    border-radius: 50%;
+    box-shadow: 
+        0 0 12px var(--primary),
+        0 0 24px rgba(0, 212, 255, 0.3);
+    animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+    0%, 100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 0.7;
+    }
+}
+
+/* === Original Login Container & Glowing Edge === */
+.login-container {
+    position: relative;
+    width: 200px;
+    height: 60px;
+    border-radius: 15px;
+    transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+    cursor: pointer;
+}
+
+.login-container:hover {
+    width: 420px;
+    height: 380px;
+}
+
+.login-container::before {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 18px;
+    background: conic-gradient(
+        from var(--angle),
+        var(--green),
+        var(--uv),
+        var(--green)
+    );
+    animation: orbit 4s linear infinite;
+    filter: blur(10px) brightness(1.5);
+    z-index: 0;
+}
+
+@property --angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+
+@keyframes orbit {
+    to {
+        --angle: 360deg;
+    }
+}
+
+/* === Login Panel === */
+.login-box {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: var(--panel-bg);
+    border: 1px solid var(--orange);
+    border-radius: 15px;
+    z-index: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    transition: all 0.6s ease;
+}
+
+.login-title {
+    color: var(--orange);
+    font-size: 1.5rem;
+    text-shadow: 0 0 5px var(--orange), 0 0 10px var(--orange);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.login-container:hover .login-title {
+    opacity: 0;
+    transform: scale(0.5);
+}
+
+/* === Login Fields === */
+.login-fields {
+    width: 100%;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: all 0.5s ease 0.3s;
+}
+
+.login-container:hover .login-fields {
+    max-height: 300px;
+    opacity: 1;
+}
+
+.login-fields input {
+    width: 100%;
+    padding: 12px;
+    margin: 12px 0;
+    border: 1px solid var(--orange);
+    border-radius: 10px;
+    background: #1a1a2e;
+    color: var(--orange);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1em;
+    outline: none;
+    box-shadow: inset 0 0 8px rgba(255, 102, 0, 0.6);
+    transition: all 0.3s ease;
+}
+
+.login-fields input:focus {
+    border-color: var(--green);
+    box-shadow: inset 0 0 8px rgba(57, 255, 20, 0.6), 0 0 10px rgba(57, 255, 20, 0.4);
+}
+
+.login-fields input::placeholder {
+    color: var(--orange);
+    opacity: 0.5;
+}
+
+/* === Button & Canvas === */
+.button-wrapper {
+    position: relative;
+    width: 100%;
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 4;
+}
+
+#animation-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.submit-button {
+    position: relative;
+    width: 100%;
+    padding: 12px;
+    background: var(--green);
+    color: #000000;
+    border: none;
+    border-radius: 10px;
+    font-size: 1.2em;
+    font-weight: 900;
+    cursor: pointer;
+    box-shadow: 0 0 10px var(--green), 0 0 20px var(--green), 0 0 30px var(--green) inset;
+    z-index: 2;
+    transition: all 0.3s ease;
+    text-shadow:
+        0 0 1px rgba(0, 0, 0, 0.9),
+        0 0 3px rgba(0, 0, 0, 0.8),
+        0 0 6px rgba(0, 0, 0, 0.6),
+        0 0 10px rgba(255, 255, 255, 0.4),
+        0 0 15px rgba(255, 255, 255, 0.3),
+        0 0 20px rgba(255, 255, 255, 0.2),
+        0 0 25px rgba(200, 200, 200, 0.15),
+        0 0 30px rgba(150, 150, 150, 0.1);
+}
+
+.submit-button:hover {
+    background: #4aff2a;
+    box-shadow: 0 0 15px var(--green), 0 0 30px var(--green), 0 0 45px var(--green) inset;
+    text-shadow:
+        0 0 1px rgba(0, 0, 0, 1),
+        0 0 4px rgba(0, 0, 0, 0.9),
+        0 0 8px rgba(0, 0, 0, 0.7),
+        0 0 12px rgba(255, 255, 255, 0.6),
+        0 0 18px rgba(255, 255, 255, 0.5),
+        0 0 25px rgba(255, 255, 255, 0.4),
+        0 0 35px rgba(200, 200, 200, 0.3),
+        0 0 45px rgba(150, 150, 150, 0.2),
+        0 0 55px rgba(100, 100, 100, 0.1);
+}
+
+/* === Glitch Overlay for Transition === */
+#glitch-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: var(--background);
+    z-index: 10; /* Make sure it's on top of everything */
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease-in-out, filter 0.5s ease-in-out; /* Added filter transition */
+}
+
+/* === Responsive Design === */
+@media (max-width: 1200px) {
+    .content-grid {
+        width: 95%;
+        padding: 1.5rem;
+        gap: 1.5rem;
+    }
+    
+    .left-column,
+    .right-column {
+        padding: 1.5rem;
+    }
+    
+    .content-grid pre {
+        font-size: 0.85rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .content-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        padding: 1rem;
+        width: 95%;
+    }
+
+    .middle-column {
+        display: none;
+    }
+    
+    .left-column,
+    .right-column {
+        padding: 1.25rem;
+    }
+    
+    .content-grid pre {
+        font-size: 0.8rem;
+        line-height: 1.5;
+    }
+}
+
+@media (max-width: 480px) {
+    .content-grid {
+        padding: 0.75rem;
+    }
+    
+    .left-column,
+    .right-column {
+        padding: 1rem;
+    }
+    
+    .content-grid pre {
+        font-size: 0.75rem;
+    }
+}
+
+/* === Accessibility === */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* === Scrollbar Styling === */
+.content-grid::-webkit-scrollbar {
+    width: 6px;
+}
+
+.content-grid::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+
+.content-grid::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 3px;
+}
+
+.content-grid::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-dark);
+}
+
+
+/* === Interstitial Button (appears after typing completes) === */
+#interstitial-button {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 64px;
+    height: 64px;
+    border-radius: 9999px;
+    border: 2px solid var(--primary);
+    background: radial-gradient(circle at 50% 50%, rgba(0, 212, 255, 0.22) 0%, rgba(0, 212, 255, 0.08) 45%, transparent 70%);
+    box-shadow: 0 0 14px rgba(0, 212, 255, 0.75), 0 0 28px rgba(124, 58, 237, 0.4);
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 0;
+    pointer-events: none;
+    cursor: pointer;
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s ease;
+    z-index: 20;
+}
+#interstitial-button::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-top: 10px solid transparent;
+    border-bottom: 10px solid transparent;
+    border-left: 14px solid var(--primary);
+    transform: translate(-40%, -50%);
+    filter: drop-shadow(0 0 4px rgba(0, 212, 255, 0.7));
+}
+#interstitial-button.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
+}
+#interstitial-button:hover {
+    transform: translate(-50%, -50%) scale(1.08);
+}
+#interstitial-button:active {
+    transform: translate(-50%, -50%) scale(0.97);
+}
+/* Soft pulsing ring to make it obviously a button even without text */
+#interstitial-button.pulse {
+    animation: interstitial-pulse 2.2s ease-in-out infinite;
+}
+@keyframes interstitial-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.45), 0 0 28px rgba(124, 58, 237, 0.4); }
+    70% { box-shadow: 0 0 0 14px rgba(0, 212, 255, 0), 0 0 28px rgba(124, 58, 237, 0.4); }
+    100% { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0), 0 0 28px rgba(124, 58, 237, 0.4); }
+}
+
+    100% { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0), 0 0 24px rgba(124, 58, 237, 0.35); }
+}
+
