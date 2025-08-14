@@ -3,58 +3,65 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Elif_Project Terminal</title>
-  <meta name="description" content="Kali-like web terminal for the Elif ARG. Phases, hidden files, passcodes." />
+  <title>Elif — Pseudo Kali Terminal</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <nav class="nav">
     <div class="brand">
-      <span class="led"></span>
-      <strong>ELIF // TERMINAL</strong>
+      <span class="led" aria-hidden="true"></span>
+      <strong class="logo">ELIF // Terminal</strong>
     </div>
     <div class="spacer"></div>
     <button id="themeBtn" class="btn" title="Toggle theme (T)">Theme</button>
-    <button id="helpBtn" class="btn" title="Help">Help</button>
   </nav>
 
   <main class="wrap">
-    <section class="terminal" aria-label="ARG Terminal">
+    <section class="terminal" aria-label="Terminal Theme">
       <header class="titlebar">
         <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
-        <div class="title"><span id="shellLabel">elif.core@localhost:~</span> — <span id="phaseLabel">Phase 1</span></div>
+        <div class="title">pseudo-kali</div>
       </header>
       <div id="screen" class="screen" role="log" aria-live="polite"></div>
       <div class="inputline">
-        <span class="prompt" id="prompt">elif.core@localhost:~$</span>
-        <input id="cmd" autocomplete="off" spellcheck="false" aria-label="Enter command" />
-        <span id="mirror" class="mirror" aria-hidden="true"></span>
-        <span id="cursor" class="cursor" aria-hidden="true"></span>
+        <span class="prompt" id="prompt">elif@localhost:~$</span>
+        <input id="cmd" autocomplete="off" spellcheck="false" aria-label="Command input" />
       </div>
     </section>
 
-    <section class="panels">
-      <article class="panel">
-        <h3>Status</h3>
-        <div id="statusPanel" class="mono small"></div>
-      </article>
-      <article class="panel">
-        <h3>Memory</h3>
-        <div id="memoryPanel" class="mono small"></div>
-      </article>
-      <article class="panel">
-        <h3>Signal</h3>
-        <div id="signalPanel" class="mono small"></div>
-      </article>
+    <section class="cards" aria-label="Content blocks">
+      <div class="card" aria-label="Objectives">
+        <div class="card-inner">
+          <div class="card-title">Objectives</div>
+          <div id="obj" class="card-body"></div>
+        </div>
+      </div>
+      <div class="card" aria-label="Artifacts">
+        <div class="card-inner">
+          <div class="card-title">Artifacts</div>
+          <div class="card-actions">
+            <button id="toggleViewBtn" class="btn btn-sm" title="Toggle text/hex">Toggle View</button>
+          </div>
+          <div id="art" class="card-body code"></div>
+        </div>
+      </div>
+      <div class="card" aria-label="System">
+        <div class="card-inner">
+          <div class="card-title">System</div>
+          <div id="sys" class="card-body"></div>
+          <div id="finalLinks" class="final-links hidden">
+            <div class="final-title">Final Links</div>
+            <button class="btn btn-sm copy" data-url="https://elif1203terminal.github.io/anamem">Copy Ana Link</button>
+            <button class="btn btn-sm copy" data-url="https://cbh25.com">Copy CBH Link</button>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
 
-  <footer class="footer">
-    
-  </footer>
-
+  <footer class="footer"></footer>
   <script>
-    window.ELIF_NEXT_B64 = "aHR0cHM6Ly9leGFtcGxlLmNvbS9lbGlmLW5leHQtc3RhZ2U="; // replace later with your real link, kept base64 in narrative
+    window.__ELIF_DATA__ = {"files": {"/home/elif/readme.txt": "Welcome to Elif's pseudo-Kali shell.\nType `help` to see commands. Use `tasks` for your current objective.\nHints are available with `hint` (try it any time).\n", "/home/elif/memory.txt": "memory.txt \u2014 fragment\n---------------------\n\"If I go dark, don\u2019t come looking,\" she said.\nI said, \"I am\u2014\"\n(A small encoded tail remains below.)\nRUxJRntoZWxsb193b3JsZH0=\n", "/home/elif/logs/log_01.sys": "logs/log_01.sys\n---------------\n[audit] CBH25 policy update: auto-purge of hostile forks.\n[event] DEF kernel flagged as noncompliant; dealloc scheduled.\n[trace] note: .io/anamem\n[info] stabilization entrypoint registered \u2192 `ritual.stabilize`\n", "/home/elif/.hints/man_help.txt": "NAME\n    help \u2014 list available commands\n\nSYNOPSIS\n    help\n", "/home/elif/.hints/man_tasks.txt": "NAME\n    tasks \u2014 show current objectives\n\nSYNOPSIS\n    tasks\n", "/home/elif/.hints/man_decode.txt": "NAME\n    decode \u2014 auto-detect and decode simple encodings\n\nSYNOPSIS\n    decode <file|text>\n\nDESCRIPTION\n    Tries base64, rot13, or hex automatically.\n    Examples:\n      decode memory.txt\n      decode RYVS{ebobgf_juvfcre}\n", "/home/elif/web/robots.txt": "User-agent: *\nDisallow: /\n# qrsnhyg: RYVS{ebobgf_juvfcre}\n", "/home/elif/web/banner.txt": "200 OK \u2014 lightweight service banner\nX-Powered-By: fallback-evt/1.0\n"}, "hints": {"1": ["Try listing files and reading the log. (`ls`, `cat file`)", "The end of a memory looks\u2026 encoded.", "Use `decode memory.txt`."], "2": ["Services sometimes leave notes in a file for crawlers.", "Look at robots.txt (try `scan` then `curl /robots.txt` or `cat web/robots.txt`).", "Use `decode` on the weird line."], "3": ["There\u2019s a command in the logs that sounds like it restores stability.", "Stabilizing tends to reveal new files.", "If a file looks encoded, `decode` it."]}, "tasks": {"1": "Phase 1 \u2014 Get your bearings: list files and inspect the logs. (Find Flag 1)", "2": "Phase 2 \u2014 Soft recon: scan service and read robots.txt. (Find Flag 2)", "3": "Phase 3 \u2014 Fallback & link: stabilize and decode the final link. (Find final flags)"}, "phaseFlags": {"1": ["ELIF{hello_world}"], "2": ["ELIF{robots_whisper}"], "3": ["ELIF{Ana}", "ELIF{CBH}"]}, "network": {"host": "10.120.3.21", "open_ports": [80], "banner": "200 OK \u2014 lightweight service banner\nX-Powered-By: fallback-evt/1.0\n"}, "final_link_file": {"path": "/home/elif/final.link", "content_b64": "RklOQUwgTElOS1MKMSkgaHR0cHM6Ly9lbGlmMTIwM3Rlcm1pbmFsLmdpdGh1Yi5pby9hbmFtZW0g4oCUIGZsYWc6IEVMSUZ7QW5hfQoyKSBodHRwczovL2NiaDI1LmNvbSDigJQgZmxhZzogRUxJRntDQkh9Cg=="}};
   </script>
   <script src="app.js"></script>
 </body>
